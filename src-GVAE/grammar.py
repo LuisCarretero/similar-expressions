@@ -10,9 +10,7 @@ T -> '(' S ')'
 T -> 'sin(' S ')'
 T -> 'exp(' S ')'
 T -> 'x'
-T -> '1'
-T -> '2'
-T -> '3'
+T -> '[CONST]'
 Nothing -> None"""
 
 GCFG = CFG.fromstring(grammar)

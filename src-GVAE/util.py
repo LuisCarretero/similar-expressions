@@ -32,37 +32,19 @@ def load_data(data_path):
 		data = f['data'][:]
 	return data
 
-# def make_nltk_tree(derivation):
-# 	"""return a nltk Tree object based on the derivation (list or tuple of Rules)."""
-# 	d = defaultdict(None, ((r.lhs(), r.rhs()) for r in derivation))
-# 	def make_tree(lhs, rhs):
-# 		return Tree(lhs, (child if child not in d else make_tree(child) for child in d[lhs]))
-# 		return Tree(lhs,
-# 				(child if not isinstance(child, Nonterminal) else make_tree(child)
-# 					for child in rhs))
-# 
-# 	return make_tree(r.lhs(), r.rhs())
 
-
-# def make_nltk_tree(derivation):
-#     """Return a nltk Tree object based on the derivation (list or tuple of Rules)."""
-#     d = dict((r.lhs(), r.rhs()) for r in derivation)
-    
-#     def make_tree(lhs):
-#         if lhs not in d:
-#             return lhs
-#         return Tree(lhs, [make_tree(child) for child in d[lhs]])
-
-#     return make_tree(derivation[0].lhs())
-
-def prods_to_eq(prods, verbose=False):
-    seq = [prods[0].lhs()]
-    for prod in prods:
-        if str(prod.lhs()) == 'Nothing':
+def prods_to_eq(prod, numericals, verbose=False):
+    seq = [prod[0].lhs()]  # Start with LHS of first rule (always nonterminal start)
+    for prod_idx, prod in enumerate(prod):
+        if str(prod.lhs()) == 'Nothing':  # Padding rule. Reached end.
             break
-        for ix, s in enumerate(seq):
+        for ix, s in enumerate(seq):  # Applying rule to each element in seq
             if s == prod.lhs():
-                seq = seq[:ix] + list(prod.rhs()) + seq[ix+1:]
+                print(f'{prod.rhs() = }')
+                if not prod.rhs()[0] == '[CONST]':
+                    seq = seq[:ix] + list(prod.rhs()) + seq[ix+1:]  # Replace LHS with RHS
+                else:
+                    seq = seq[:ix] + [str(numericals[prod_idx, ix].item())] + seq[ix+1:]  # Replace LHS with RHS but use numerical values for each [CONST] placeholder
                 break
     try:
         return ''.join(seq)

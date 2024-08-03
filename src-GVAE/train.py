@@ -6,6 +6,7 @@ import torch.nn as nn
 from torch.autograd import Variable
 from model import GrammarVAE
 from util import Timer, AnnealKL, load_data
+from grammar import GCFG
 
 ENCODER_HIDDEN = 20
 Z_SIZE = 2
@@ -13,7 +14,7 @@ DECODER_HIDDEN = 20
 RNN_TYPE = 'lstm'
 BATCH_SIZE = 32
 MAX_LENGTH = 15
-OUTPUT_SIZE = 12
+OUTPUT_SIZE = len(GCFG.productions()) * 2
 LR = 1e-2
 CLIP = 5.
 PRINT_EVERY = 100
@@ -55,6 +56,7 @@ def train():
         mu, sigma = model.encoder(x)
         z = model.sample(mu, sigma)
         logits = model.decoder(z, max_length=MAX_LENGTH)
+        # rules, numericals = model.prods_to_eq(logits)
 
         logits = logits.view(-1, logits.size(-1))
         y = y.view(-1)

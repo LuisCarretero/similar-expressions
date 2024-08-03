@@ -51,16 +51,17 @@ class GrammarVAE(nn.Module):
 
         # Decoder works with general batch size. Only allow batch size 1 for now
         logits = self.decoder(z, max_length=max_length)
-        assert len(logits.shape) == 3  # I.e. batch size as 3rd dimension
         logits = logits[0, ...].squeeze()  # Only considering 1st batch
-        # print(f'{logits.shape = }')  # Should be (max_length, rule count)
+
+        logits_prods = logits[:, :len(GCFG.productions())]
+        constants = logits[:, len(GCFG.productions()):]
 
         rules = []
         t = 0
         while stack.nonempty:
             alpha = stack.pop()
             mask = get_mask(alpha, stack.grammar, as_variable=True)
-            probs = mask * logits[t].exp()
+            probs = mask * logits_prods[t, :].exp()  # Only consider rules, not numerical value (last col)
             probs = probs / probs.sum()
             # print(probs)
             if sample:
@@ -84,4 +85,5 @@ class GrammarVAE(nn.Module):
         # if len(rules) < 15:
         #     pad = [stack.grammar.productions()[-1]]
 
-        return rules
+        return rules, constants
+    
