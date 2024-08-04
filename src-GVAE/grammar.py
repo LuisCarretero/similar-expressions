@@ -2,14 +2,16 @@ import torch
 from torch.autograd import Variable
 from nltk import CFG, Nonterminal
 
-grammar = """S -> S '+' T
+grammar = """
+S -> S '+' T
+S -> S '-' T
 S -> S '*' T
 S -> S '/' T
 S -> T
 T -> '(' S ')'
 T -> 'sin(' S ')'
 T -> 'exp(' S ')'
-T -> 'x'
+T -> 'x1'
 T -> '[CONST]'
 Nothing -> None"""
 

@@ -7,6 +7,7 @@ from torch.autograd import Variable
 from model import GrammarVAE
 from util import Timer, AnnealKL, load_data
 from grammar import GCFG
+import h5py
 
 ENCODER_HIDDEN = 20
 Z_SIZE = 2
@@ -14,11 +15,11 @@ DECODER_HIDDEN = 20
 RNN_TYPE = 'lstm'
 BATCH_SIZE = 32
 MAX_LENGTH = 15
-OUTPUT_SIZE = len(GCFG.productions()) * 2
+OUTPUT_SIZE = len(GCFG.productions()) + 1
 LR = 1e-2
 CLIP = 5.
 PRINT_EVERY = 100
-EPOCHS = 5
+EPOCHS = 1
 
 
 def batch_iter(data, batch_size):
@@ -39,7 +40,7 @@ def save():
     checkpoint_path = os.path.abspath('./checkpoints')
     os.makedirs(checkpoint_path, exist_ok=True)
 
-    torch.save(model, f'{checkpoint_path}/model5epoch.pt')
+    torch.save(model, f'{checkpoint_path}/model1.pt')
 
 def write_csv(d):
     log_path = os.path.abspath('./log')
@@ -53,13 +54,22 @@ def write_csv(d):
 def train():
     batches = batch_iter(data, BATCH_SIZE)
     for step, (x, y) in enumerate(batches, 1):
+        # assert not torch.isnan(x).any(), f'NaN values found in x: {x}'
         mu, sigma = model.encoder(x)
+
+        # Add gradient clipping to encoder
+        torch.nn.utils.clip_grad_norm_(model.encoder.parameters(), CLIP)
+
+        assert not torch.isnan(mu).any(), f'NaN values found in mu: {mu}'
+        # assert not torch.isnan(sigma).any(), f'NaN values found in sigma: {sigma}'
         z = model.sample(mu, sigma)
+        # assert not torch.isnan(z).any(), f'NaN values found in z: {z}'
         logits = model.decoder(z, max_length=MAX_LENGTH)
         # rules, numericals = model.prods_to_eq(logits)
 
         logits = logits.view(-1, logits.size(-1))
         y = y.view(-1)
+        # assert not torch.isnan(logits).any(), f'NaN values found in logits: {logits}'
         loss = criterion(logits, y)
         kl = model.kl(mu, sigma)
 
@@ -101,9 +111,10 @@ if __name__ == '__main__':
     criterion = torch.nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=LR)
 
-        # Load data
-    data_path = os.path.abspath('./data/equation2_15_dataset_parsed.h5')
-    data = load_data(data_path)
+    # Load data
+    parsed_path = r'/Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/similar-expressions/data/onehot_parsed.h5'
+    with h5py.File(parsed_path, 'r') as f:
+        data = f['data'][:]
     data = torch.from_numpy(data).float().to(model.device)  # Turn it into a float32 PyTorch Tensor
 
     timer = Timer()
@@ -122,5 +133,5 @@ if __name__ == '__main__':
         print('Exiting training early')
         print('-' * 69)
 
-    save()
+    # save()
     write_csv(log)
