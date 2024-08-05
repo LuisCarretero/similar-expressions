@@ -1,5 +1,3 @@
-
-
 import os
 
 a = os.path.abspath('./checkpoints/model.pt')

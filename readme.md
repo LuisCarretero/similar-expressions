@@ -12,6 +12,7 @@
 ### TODO
 - Create a dataset of expressions (with similar semantics)
 - Create max seq length (calc from tree size). Use padding token
+- 
 
 
 

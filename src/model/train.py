@@ -2,12 +2,9 @@ import os
 import csv
 import numpy as np
 import torch
-import torch.nn as nn
-from torch.autograd import Variable
 from model import GrammarVAE
-from util import Timer, AnnealKL, load_data
+from util import Timer, AnnealKL, load_onehot_data, batch_iter
 from grammar import GCFG
-import h5py
 
 ENCODER_HIDDEN = 20
 Z_SIZE = 2
@@ -22,28 +19,21 @@ PRINT_EVERY = 100
 EPOCHS = 1
 
 
-def batch_iter(data, batch_size):
-    """A simple iterator over batches of data"""
-    n = data.shape[0]
-    for i in range(0, n, batch_size):
-        x = data[i:i+batch_size].transpose(-2, -1) # shape [batch, 12, 15]
-        x = Variable(x)
-        _, y = x.max(1) # The rule index
-        yield x, y
-
 def accuracy(logits, y):
     _, y_ = logits.max(-1)
     a = (y == y_).float().mean()
     return 100 * a.item()
 
-def save():
-    checkpoint_path = os.path.abspath('./checkpoints')
+def save(name):
+    checkpoint_path = os.path.abspath('./smallMutations/similar-expressions/checkpoints')
     os.makedirs(checkpoint_path, exist_ok=True)
 
-    torch.save(model, f'{checkpoint_path}/model1.pt')
+    while os.path.exists(f'{checkpoint_path}/{name}.pt'):
+        name = f'{name}_copy'
+    torch.save(model, f'{checkpoint_path}/{name}.pt')
 
 def write_csv(d):
-    log_path = os.path.abspath('./log')
+    log_path = os.path.abspath('./smallMutations/similar-expressions/log')
     os.makedirs(log_path, exist_ok=True)
 
     with open(f'{log_path}/log.csv', 'w') as f:
@@ -53,24 +43,13 @@ def write_csv(d):
 
 def train():
     batches = batch_iter(data, BATCH_SIZE)
-    for step, (x, y) in enumerate(batches, 1):
-        # assert not torch.isnan(x).any(), f'NaN values found in x: {x}'
+    for step, (x, y_rule_idx, y_consts) in enumerate(batches, 1):
+
         mu, sigma = model.encoder(x)
-
-        # Add gradient clipping to encoder
-        torch.nn.utils.clip_grad_norm_(model.encoder.parameters(), CLIP)
-
-        assert not torch.isnan(mu).any(), f'NaN values found in mu: {mu}'
-        # assert not torch.isnan(sigma).any(), f'NaN values found in sigma: {sigma}'
         z = model.sample(mu, sigma)
-        # assert not torch.isnan(z).any(), f'NaN values found in z: {z}'
         logits = model.decoder(z, max_length=MAX_LENGTH)
-        # rules, numericals = model.prods_to_eq(logits)
-
-        logits = logits.view(-1, logits.size(-1))
-        y = y.view(-1)
-        # assert not torch.isnan(logits).any(), f'NaN values found in logits: {logits}'
-        loss = criterion(logits, y)
+        
+        loss = criterion(logits, y_rule_idx, y_consts)
         kl = model.kl(mu, sigma)
 
         alpha = anneal.alpha(step)
@@ -79,13 +58,24 @@ def train():
         # Update parameters
         optimizer.zero_grad()
         elbo.backward()
-        torch.nn.utils.clip_grad_norm(model.parameters(), CLIP)
+        torch.nn.utils.clip_grad_norm_(model.parameters(), CLIP)
         optimizer.step()
 
         log['loss'].append(loss.item())
         log['kl'].append(kl.item())
         log['elbo'].append(elbo.item())
-        log['acc'].append(accuracy(logits, y))
+        log['acc'].append(-1)  # accuracy(logits, y)
+
+        if torch.isnan(mu).any():
+            print(f'Step {step}: NaN values found in mu: {mu}')
+
+            # Create a directory to save the data if it doesn't exist
+            save_dir = './smallMutations/similar-expressions/nan_data'
+            os.makedirs(save_dir, exist_ok=True)
+            
+            # Save x as a numpy array
+            np.save(os.path.join(save_dir, f'x_step_{step}.npy'), x.detach().cpu().numpy())
+            raise Exception('NaN values found in mu')
 
         # Logging info
         if step % PRINT_EVERY == 0:
@@ -101,24 +91,39 @@ def train():
                     )
                 )
             write_csv(log)
+            # save(f'model2_step{step}')
 
 
 if __name__ == '__main__':
-    torch.manual_seed(42)
+    torch.manual_seed(41)
 
     # Create model
     model = GrammarVAE(ENCODER_HIDDEN, Z_SIZE, DECODER_HIDDEN, OUTPUT_SIZE, RNN_TYPE, device='cpu')
-    criterion = torch.nn.CrossEntropyLoss()
+
+    criterion_onehot = torch.nn.CrossEntropyLoss()
+    criterion_consts = torch.nn.MSELoss()
+
+    def criterion(logits, y_rule_idx, y_consts):
+        logits_onehot = logits[:, :, :-1]
+
+        loss_onehot = criterion_onehot(logits_onehot.reshape(-1, logits_onehot.size(-1)), y_rule_idx.reshape(-1))
+        loss_consts = criterion_consts(logits[:, :, -1], y_consts)
+        return loss_onehot + loss_consts
+
     optimizer = torch.optim.Adam(model.parameters(), lr=LR)
 
     # Load data
     parsed_path = r'/Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/similar-expressions/data/onehot_parsed.h5'
-    with h5py.File(parsed_path, 'r') as f:
-        data = f['data'][:]
+    data = load_onehot_data(parsed_path)
+    
     data = torch.from_numpy(data).float().to(model.device)  # Turn it into a float32 PyTorch Tensor
+    
+    # Quickfix: Some constants are too large, causing NaNs in the decoder
+    data.clamp_(-1e2, 1e2)
+
 
     timer = Timer()
-    log = {'loss': [], 'kl': [], 'elbo': [], 'acc': []}
+    log = {'loss': [], 'kl': [], 'elbo': [], 'acc': [], 'encoder_grad': [], 'encoder_conv1': []}
     anneal = AnnealKL(step=1e-3, rate=500)
 
     try:
@@ -133,5 +138,5 @@ if __name__ == '__main__':
         print('Exiting training early')
         print('-' * 69)
 
-    # save()
+    save('model_const_clamped')
     write_csv(log)
