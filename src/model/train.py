@@ -41,6 +41,20 @@ def write_csv(d):
         writer.writerow(d.keys())
         writer.writerows(zip(*d.values()))
 
+def print_progress(step, log):
+    print(
+        '| step {}/{} | acc {:.2f} | loss {:.2f} | kl {:.2f} |'
+        ' elbo {:.2f} | {:.0f} sents/sec |'.format(
+            step, data.shape[0] // BATCH_SIZE,
+            np.mean(log['acc'][-PRINT_EVERY:]),
+            np.mean(log['loss'][-PRINT_EVERY:]),
+            np.mean(log['kl'][-PRINT_EVERY:]),
+            np.mean(log['elbo'][-PRINT_EVERY:]),
+            BATCH_SIZE*PRINT_EVERY / timer.elapsed()
+            )
+        )
+    write_csv(log)
+
 def train():
     batches = batch_iter(data, BATCH_SIZE)
     for step, (x, y_rule_idx, y_consts) in enumerate(batches, 1):
@@ -66,32 +80,9 @@ def train():
         log['elbo'].append(elbo.item())
         log['acc'].append(-1)  # accuracy(logits, y)
 
-        if torch.isnan(mu).any():
-            print(f'Step {step}: NaN values found in mu: {mu}')
-
-            # Create a directory to save the data if it doesn't exist
-            save_dir = './smallMutations/similar-expressions/nan_data'
-            os.makedirs(save_dir, exist_ok=True)
-            
-            # Save x as a numpy array
-            np.save(os.path.join(save_dir, f'x_step_{step}.npy'), x.detach().cpu().numpy())
-            raise Exception('NaN values found in mu')
-
-        # Logging info
         if step % PRINT_EVERY == 0:
-            print(
-                '| step {}/{} | acc {:.2f} | loss {:.2f} | kl {:.2f} |'
-                ' elbo {:.2f} | {:.0f} sents/sec |'.format(
-                    step, data.shape[0] // BATCH_SIZE,
-                    np.mean(log['acc'][-PRINT_EVERY:]),
-                    np.mean(log['loss'][-PRINT_EVERY:]),
-                    np.mean(log['kl'][-PRINT_EVERY:]),
-                    np.mean(log['elbo'][-PRINT_EVERY:]),
-                    BATCH_SIZE*PRINT_EVERY / timer.elapsed()
-                    )
-                )
+            print_progress(step, log)
             write_csv(log)
-            # save(f'model2_step{step}')
 
 
 if __name__ == '__main__':
@@ -115,28 +106,19 @@ if __name__ == '__main__':
     # Load data
     parsed_path = r'/Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/similar-expressions/data/onehot_parsed.h5'
     data = load_onehot_data(parsed_path)
-    
     data = torch.from_numpy(data).float().to(model.device)  # Turn it into a float32 PyTorch Tensor
-    
-    # Quickfix: Some constants are too large, causing NaNs in the decoder
-    data.clamp_(-1e2, 1e2)
-
+    data.clamp_(-1e2, 1e2) # Quickfix: Some constants are too large, causing NaNs in the decoder
 
     timer = Timer()
-    log = {'loss': [], 'kl': [], 'elbo': [], 'acc': [], 'encoder_grad': [], 'encoder_conv1': []}
+    log = {'loss': [], 'kl': [], 'elbo': [], 'acc': []}
     anneal = AnnealKL(step=1e-3, rate=500)
 
     try:
         for epoch in range(1, EPOCHS+1):
-            print('-' * 69)
-            print('Epoch {}/{}'.format(epoch, EPOCHS))
-            print('-' * 69)
+            print('-' * 69 + '\nEpoch {}/{}\n'.format(epoch, EPOCHS) + '-' * 69 + '\n')
             train()
-
     except KeyboardInterrupt:
-        print('-' * 69)
-        print('Exiting training early')
-        print('-' * 69)
+        print('-' * 69 + '\nExiting training early\n' + '-' * 69 + '\n')
 
     save('model_const_clamped')
     write_csv(log)
