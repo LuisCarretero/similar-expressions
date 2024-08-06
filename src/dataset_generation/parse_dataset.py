@@ -26,6 +26,9 @@ for ix, prod in enumerate(_productions):
 
 
 def onehot_encode(eqs):
+    """
+    Taken a list of expressions as string (e.g. "sin(exp(sin(x1) * 0.4609526466213322))") and parses them into a one-hot encoded representation.
+    """
     assert type(eqs) == list
     print('Starting tokenization...')
     tokens = map(_tokenize, eqs)

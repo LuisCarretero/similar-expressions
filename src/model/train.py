@@ -88,15 +88,12 @@ def train():
 if __name__ == '__main__':
     torch.manual_seed(41)
 
-    # Create model
     model = GrammarVAE(ENCODER_HIDDEN, Z_SIZE, DECODER_HIDDEN, OUTPUT_SIZE, RNN_TYPE, device='cpu')
 
     criterion_onehot = torch.nn.CrossEntropyLoss()
     criterion_consts = torch.nn.MSELoss()
-
     def criterion(logits, y_rule_idx, y_consts):
         logits_onehot = logits[:, :, :-1]
-
         loss_onehot = criterion_onehot(logits_onehot.reshape(-1, logits_onehot.size(-1)), y_rule_idx.reshape(-1))
         loss_consts = criterion_consts(logits[:, :, -1], y_consts)
         return loss_onehot + loss_consts
