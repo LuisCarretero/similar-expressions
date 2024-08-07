@@ -27,7 +27,7 @@ import warnings
 
 
 class Pipepile:
-    def __init__(self, env: generator.Generator, number_of_equations, eq_per_block, h5_creator:H5FilesCreator,  is_timer=False):
+    def __init__(self, env: generator.Generator, number_of_equations, eq_per_block, h5_creator:H5FilesCreator, is_timer=False):
         self.env = env
         #manager = Manager()
         #self.cnt = manager.list()

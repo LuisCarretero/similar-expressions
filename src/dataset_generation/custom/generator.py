@@ -12,6 +12,7 @@ import sys
 import math
 import itertools
 from collections import OrderedDict
+from typing import List, Tuple
 import numpy as np
 import numexpr as ne
 import sympy as sp
@@ -35,6 +36,8 @@ from .sympy_utils import (
 )
 from .sympy_utils import remove_mul_const, has_inf_nan, has_I, simplify
 from collections import Counter
+from custom.dclasses import GeneratorDetails
+from torch.distributions import Uniform
 
 CLEAR_SYMPY_CACHE_FREQ = 10000
 
@@ -116,14 +119,13 @@ class Generator(object):
     }
     operators = sorted(list(OPERATORS.keys()))
     constants = ["pi", "E"]
-    def __init__(self, params):
+    def __init__(self, params: GeneratorDetails):
         self.max_ops = params.max_ops
         self.max_len = params.max_len
         #self.positive = params.positive
 
 
         # parse operators with their weights
-        
         ops = params.operators.split(",")
         ops = sorted([x.split(":") for x in ops])
         assert len(ops) >= 1 and all(o in self.OPERATORS for o, _ in ops)
@@ -149,11 +151,13 @@ class Generator(object):
         self.variables = OrderedDict({})
         for var in params.variables: 
             self.variables[str(var)] =sp.Symbol(str(var), real=True, nonzero=True)
+        self.n_variables = len(self.variables)
         self.var_symbols = list(self.variables)
         self.pos_dict = {x:idx for idx, x in enumerate(self.var_symbols)}        
         self.placeholders = {}
         self.placeholders["cm"] = sp.Symbol("cm", real=True, nonzero=True)
         self.placeholders["ca"] = sp.Symbol("ca",real=True, nonzero=True)
+        self.const_placeholder = sp.Symbol("c", real=True, nonzero=True)
         assert 1 <= len(self.variables)
         # We do not no a priori how many coefficients an expression has, so to be on the same side we equal to two times the maximum number of expressions
         self.coefficients = [f"{x}_{i}" for x in self.placeholders.keys() for i in range(2*params.max_len)] 
@@ -197,10 +201,16 @@ class Generator(object):
 
         #assert len(self.words) == len(set(self.words))
 
+        # leaf probabilities. TODO: Check if params.leaf_probs is defined.
+        # FIXME: Only have two options: const or var
+        self.leaf_probs = np.array(params.leaf_probs).astype(np.float64)
+        assert len(self.leaf_probs) == 2 and all(self.leaf_probs >= 0)
+        self.leaf_probs = self.leaf_probs / self.leaf_probs.sum()
+
         # number of words / indices
         self.n_words = params.n_words = len(self.words)
 
-        # generation parameters
+        # generation parameters. FIXME?
         self.nl = 1  # self.n_leaves
         self.p1 = 1  # len(self.una_ops)
         self.p2 = 1  # len(self.bin_ops)
@@ -318,36 +328,48 @@ class Generator(object):
         e = e % nb_empty
         return e, arity
 
-    def get_leaf(self, curr_leaves, rng):
+    def get_leaf(self, rng) -> List[str]:
         """
-        Generate a leaf node that is a variables. No constants/coefficients at this point. Added later in the add_multiplicative_constants and add_additive_constants functions.
+        Generate a leaf.
 
-        Not sure how exactly it is sampled.
+        Use DLSM implementation.
+
+        Options: CONST placeholder (sympy symbol), variable
         """
-        if curr_leaves:
-            max_idxs = max([self.pos_dict[x] for x in curr_leaves]) + 1
-        else:
-            max_idxs = 0
-        return [list(self.variables.keys())[rng.randint(low=0,high=min(max_idxs+1, len(self.variables.keys())))]]
+        leaf_type = rng.choice(2, p=self.leaf_probs)
+        if leaf_type == 0:  # variable
+            return [list(self.variables.keys())[rng.randint(self.n_variables)]]
+        else:  # constant placeholder
+            return ['c']  # self.const_placeholder
 
-    def _generate_expr(
-        self,
-        nb_total_ops,
-        rng,
-        max_int = 1,
-        require_x=False,
-        require_y=False,
-        require_z=False,
-    ):
+    def _generate_expr(self, nb_total_ops: int, rng) -> List[str]:
         """
         Create a tree with exactly `nb_total_ops` operators.
+
+        The tree is a list of operators and leaves in prefix notation (each one a str).
+
+        TODO: Add requires_x flag
+
+        Steps:
+        1. Create tree stack (prefix notation, with None as leaves)
+            Example iterations:
+            ['sin', None]
+            ['sin', 'add', None, None]
+            ['sin', 'add', None, 'add', None, None]
+
+        2. Create leaves list (same size as number of empty leaves)
+            Example: 
+            leaves = [['x_1'], ['x_1'], ['x_1']]
+        3. Insert leaves into tree
+            Example:
+            ['sin', 'add', 'x_1', 'add', 'x_1', 'x_1']
         """
         stack = [None]
         nb_empty = 1  # number of empty nodes
         l_leaves = 0  # left leaves - None states reserved for leaves
         t_leaves = 1  # total number of leaves (just used for sanity check)
 
-        # create tree
+        # 1. Create tree
         for nb_ops in range(nb_total_ops, 0, -1):
 
             # next operator, arity and position
@@ -371,26 +393,20 @@ class Generator(object):
                 + [None for _ in range(self.OPERATORS[op])]
                 + stack[pos + 1 :]
             )
-            print(f'New stack: {stack}')
 
         # sanity check
         assert len([1 for v in stack if v in self.all_ops]) == nb_total_ops
         assert len([1 for v in stack if v is None]) == t_leaves
 
-        leaves = []
-        curr_leaves = set()
-        for _ in range(t_leaves):
-            new_element = self.get_leaf(curr_leaves, rng)
-            leaves.append(new_element)
-            curr_leaves.add(*new_element)
-        print(f'{leaves = }')
+        # 2. Create leaves
+        leaves = [self.get_leaf(rng) for _ in range(t_leaves)]
+        rng.shuffle(leaves)
 
-        # insert leaves into tree
+        # 3. Insert leaves into tree
         for pos in range(len(stack) - 1, -1, -1):
             if stack[pos] is None:
                 stack = stack[:pos] + leaves.pop() + stack[pos + 1 :]
         assert len(leaves) == 0
-        print(f'Finally: {stack = }')
         return stack
     
     @classmethod
@@ -398,8 +414,11 @@ class Generator(object):
         """
         Infix representation.
         Convert prefix expressions to a format that SymPy can parse.
+
+        FIXME: Remove unnecessary parenthesis
         """
         if token == "add":
+            # print(f'{type(args[0]) = }')
             return f"({args[0]})+({args[1]})"
         elif token == "sub":
             return f"({args[0]})-({args[1]})"
@@ -627,6 +646,8 @@ class Generator(object):
             return [str(expr)]
         elif isinstance(expr, sp.Integer):
             return [str(expr)]  # self.write_int(int(str(expr)))
+        elif isinstance(expr, sp.Float):
+            return [str(expr)]  # self.write_int(int(str(expr)))
         elif isinstance(expr, sp.Rational):
             return (
                 ["div"] + [str(expr.p)] + [str(expr.q)]
@@ -644,7 +665,19 @@ class Generator(object):
         # unknown operator
         raise UnknownSymPyOperator(f"Unknown SymPy operator: {expr}")
 
-    def process_equation(self, infix: str) -> sp.Expr:
+    def replace_const_placeholder(self, expr: List[str], const_min: float, const_max: float) -> List[str]:
+        """
+        Replace the const placeholder with the actual constant.
+        """
+        def sample_const(token: str):
+            if token == 'c':  # Replace const placeholder with a random constant
+                return Uniform(const_min, const_max).sample().item()
+            else:  # Leave other tokens untouched
+                return token
+
+        return list(map(sample_const, expr))
+
+    def process_equation(self, infix: str):
         """
         Processes raw infix string to remove root constants (additive and multiplicative) and add multiplicative and additive constants to each node of the expression afterwards. 
         """
@@ -673,43 +706,53 @@ class Generator(object):
         print('Process equation done')
 
         return f
+    
 
-    def generate_equation(self, rng):
+    def get_minmax_constants(self, f_prefix_list: List[str]) -> Tuple[float, float]:
         """
-        Generate pairs of (function, primitive).
-        Start by generating a random function f, and use SymPy to compute F.
+        Get the minimum and maximum constants in the expression.
+        """
+        consts = []
+        for token in f_prefix_list:
+            try:
+                consts.append(float(token))
+            except ValueError:
+                pass
+        return (None, None) if not consts else (min(consts), max(consts))
+
+    def generate_equation(self, rng, const_min: float, const_max: float, simplify=False, check_const_range=False) -> List[str]:
+        """
+        Generates a single equation skeleton as a prefix list.
         """
         nb_ops = rng.randint(3, self.max_ops + 1)
-        f_expr = self._generate_expr(nb_ops, rng, max_int=1)
 
-        print(f'{f_expr = }')
-        infix = self.prefix_to_infix(f_expr, coefficients=self.coefficients, variables=self.variables)
-        print(f'{infix = }')
-        f = self.process_equation(infix)
-        print(f'{f = }')
-        f_prefix = self.sympy_to_prefix(f)
-        print(f'{f_prefix = }')
-
+        f_prefix_list = self._generate_expr(nb_ops, rng)
+        f_prefix_list = self.replace_const_placeholder(f_prefix_list, const_min, const_max)
+        f_infix_str = self.prefix_to_infix(f_prefix_list, coefficients=self.coefficients, variables=self.variables)
+        if simplify:
+            # Conversion to sympy expression automatically simplifies expression
+            f_sp_expr = self.infix_to_sympy(f_infix_str, self.variables, self.rewrite_functions)
+            f_prefix_list = self.sympy_to_prefix(f_sp_expr)
+            if check_const_range:
+                min_, max_ = self.get_minmax_constants(f_prefix_list)
+                if min_ is not None and (min_ < const_min or max_ > const_max):
+                    return ''
+            f_infix_str = self.prefix_to_infix(f_prefix_list, coefficients=self.coefficients, variables=self.variables)
 
         # skip too long sequences
-        if len(f_expr) + 2 > self.max_len:
-            raise ValueErrorExpression("Sequence longer than max length")
+        if len(f_prefix_list) + 2 > self.max_len:
+            # raise ValueErrorExpression("Sequence longer than max length")
+            return ''
             #return None, "Sequence longer than max length"
 
         # skip when the number of operators is too far from expected
-        real_nb_ops = sum(1 if op in self.OPERATORS else 0 for op in f_expr)
-        if real_nb_ops < nb_ops / 2:
-            raise ValueErrorExpression("Too many operators")
+        # real_nb_ops = sum(1 if op in self.OPERATORS else 0 for op in f_prefix_list)
+        # if real_nb_ops < nb_ops / 2:
+        #     print(f'{real_nb_ops = }; {f_prefix_list = }')
+        #     raise ValueErrorExpression("Too few operators")
             #return None, "Too many operators"
 
-        if f == "0" or type(f) == str:
-            raise ValueErrorExpression("Not a function")
-            #return None, "Not a function"
-        
-        sy = f.free_symbols
-        variables = set(map(str, sy)) - set(self.placeholders.keys())
-        
-        return f_prefix, variables
+        return f_infix_str
 
 
 
