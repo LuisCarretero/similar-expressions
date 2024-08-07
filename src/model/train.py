@@ -16,7 +16,7 @@ OUTPUT_SIZE = len(GCFG.productions()) + 1
 LR = 1e-2
 CLIP = 5.
 PRINT_EVERY = 100
-EPOCHS = 1
+EPOCHS = 5
 
 
 def accuracy(logits, y):
@@ -101,10 +101,9 @@ if __name__ == '__main__':
     optimizer = torch.optim.Adam(model.parameters(), lr=LR)
 
     # Load data
-    parsed_path = r'/Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/similar-expressions/data/onehot_parsed.h5'
+    parsed_path = '/Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/similar-expressions/data/expr_240807_5-parsed.h5'
     data = load_onehot_data(parsed_path)
     data = torch.from_numpy(data).float().to(model.device)  # Turn it into a float32 PyTorch Tensor
-    data.clamp_(-1e2, 1e2) # Quickfix: Some constants are too large, causing NaNs in the decoder
 
     timer = Timer()
     log = {'loss': [], 'kl': [], 'elbo': [], 'acc': []}
@@ -117,5 +116,5 @@ if __name__ == '__main__':
     except KeyboardInterrupt:
         print('-' * 69 + '\nExiting training early\n' + '-' * 69 + '\n')
 
-    save('model_const_clamped')
+    save('model_240807_1_5epoch')
     write_csv(log)

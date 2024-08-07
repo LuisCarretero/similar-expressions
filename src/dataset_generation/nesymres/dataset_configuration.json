@@ -1,9 +1,0 @@
-{
-    "max_len": 10,
-    "operators": "add:10,mul:10,sin:4",
-    "max_ops": 3,
-    "rewrite_functions": "",
-    "variables": ["x_1"], 
-    "eos_index": 1,
-    "pad_index": 0
-}

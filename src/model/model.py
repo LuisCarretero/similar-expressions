@@ -1,15 +1,12 @@
 import torch
 import torch.nn as nn
 from torch.autograd import Variable
-from torch.distributions import Normal, Categorical
-
-from nltk import Nonterminal
-from nltk.grammar import Production
-
+from torch.distributions import Normal
 from encoder import Encoder
 from decoder import Decoder
 from stack import Stack
-from grammar import GCFG, S, get_mask
+from grammar import GCFG, S
+from util import logits_to_prods
 
 class GrammarVAE(nn.Module):
     """Grammar Variational Autoencoder"""
@@ -48,47 +45,11 @@ class GrammarVAE(nn.Module):
     def generate(self, z, sample=False, max_length=15):
         """Generate a valid expression from z using the decoder and grammar to create a set of rules that can 
         be parsed into an expression tree. Note that it only works on single equations at a time."""
-        stack = Stack(grammar=GCFG, start_symbol=S)
 
         # Decoder works with general batch size. Only allow batch size 1 for now
         logits = self.decoder(z, max_length=max_length)
         assert logits.shape[0] == 1, "Batch size must be 1"
         logits = logits.squeeze()  # Only considering 1st batch
 
-        # print(f'{logits.shape = }')
-
-        logits_prods = logits[:, :-1]
-        constants = logits[:, -1]
-
-        prods = []
-        t = 0  # "Time step" in sequence
-        while stack.nonempty:
-            alpha = stack.pop()  # Alpha is notation in paper.
-            mask = get_mask(alpha, stack.grammar, as_variable=True)
-            # print(f'{mask.shape = }')
-            probs = mask * logits_prods[t].exp()
-            probs = probs / probs.sum()
-            
-            if sample:
-                m = Categorical(probs)
-                i = m.sample()
-            else:
-                _, i = probs.max(-1) # argmax
-
-            # select rule i
-            rule = stack.grammar.productions()[i.item()]
-
-            # If rule has -> [CONST] add const
-            if rule.rhs()[0] == '[CONST]':
-                rule = Production(lhs=rule.lhs(), rhs=(str(constants[t].item()),))
-
-            prods.append(rule)
-            # add rhs nonterminals to stack in reversed order
-            for symbol in reversed(rule.rhs()):
-                if isinstance(symbol, Nonterminal):
-                    stack.push(symbol)
-            t += 1
-            if t == max_length:
-                break
-        return prods
-    
+        return logits_to_prods(logits, GCFG, S, sample=sample, max_length=max_length)
+        

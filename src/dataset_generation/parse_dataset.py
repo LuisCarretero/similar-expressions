@@ -48,7 +48,7 @@ def onehot_encode(eqs):
 
 
 if __name__ == '__main__':
-    datapath = r'/Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/grammar-vae/data/equation2_15_dataset.txt'
+    datapath = r'/Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/similar-expressions/data/expr_240807_1.txt'
     parsed_path = r'/Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/grammar-vae/data/equation2_15_dataset_parsed.h5'
 
     with open(datapath, 'r') as f:
