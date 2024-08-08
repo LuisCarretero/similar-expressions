@@ -7,7 +7,7 @@ from encoder import Encoder
 class Decoder(nn.Module):
     """RNN decoder that reconstructs the sequence of rules from laten z"""
     def __init__(self, input_size, hidden_size, output_size, rnn_type='lstm'):
-        super(Decoder, self).__init__()
+        super().__init__()  # Decoder, self
         self.hidden_size = hidden_size
         self.rnn_type = rnn_type
 

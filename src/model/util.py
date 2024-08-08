@@ -7,20 +7,33 @@ import numpy as np
 from nltk import Nonterminal
 from torch.distributions import Categorical
 from nltk.grammar import Production
-from stack import Stack
 from grammar import get_mask
 from scipy.special import softmax
 
-class Timer:
-	"""A simple timer to use during training"""
-	def __init__(self):
-		self.time0 = time.time()
+class Stack:
+    """A simple first in last out stack.
 
-	def elapsed(self):
-		time1 = time.time()
-		elapsed = time1 - self.time0
-		self.time0 = time1
-		return elapsed
+    Args:
+        grammar: an instance of nltk.CFG
+        start_symbol: an instance of nltk.Nonterminal that is the
+            start symbol the grammar
+    """
+    def __init__(self, grammar, start_symbol):
+        self.grammar = grammar
+        self._stack = [start_symbol]
+
+    def pop(self):
+        return self._stack.pop()
+
+    def push(self, symbol):
+        self._stack.append(symbol)
+
+    def __str__(self):
+        return str(self._stack)
+
+    @property
+    def nonempty(self):
+        return bool(self._stack)
 
 class AnnealKL:
 	"""Anneal the KL for VAE based training"""
@@ -85,16 +98,19 @@ def load_onehot_data(path: str):
         data = f['data'][:]
     return data
 
-def batch_iter(data: np.ndarray, batch_size: int):
+def batch_iter(data_syntax: np.ndarray, data_value: np.ndarray, batch_size: int):
     """A simple iterator over batches of data"""
+    assert (n := data_syntax.shape[0]) == data_value.shape[0]
 
-    n = data.shape[0]
     for i in range(0, n, batch_size):
-        x = data[i:i+batch_size, ...].transpose(-2, -1) # new shape [batch, RULE_COUNT+1, SEQ_LEN] as required by model
-        x = Variable(x)
-        y_rule_idx = x[:, :-1, ...].argmax(axis=1) # The rule index (argmax over onehot part, excluding consts)
-        y_consts = x[:, -1, ...]
-        yield x, y_rule_idx, y_consts
+        x_syn = data_syntax[i:i+batch_size, ...].transpose(-2, -1) # new shape [batch, RULE_COUNT+1, SEQ_LEN] as required by model
+        x_syn = Variable(x_syn)
+        y_rule_idx = x_syn[:, :-1, ...].argmax(axis=1) # The rule index (argmax over onehot part, excluding consts)
+        y_consts = x_syn[:, -1, ...]
+
+        y_val = data_value[i:i+batch_size, ...]
+
+        yield x_syn, y_rule_idx, y_consts, y_val
 
 def load_raw_parsed_data(datapath: str, name: str):
     # Load raw data
@@ -113,6 +129,23 @@ def load_raw_parsed_data(datapath: str, name: str):
     mask[invalid_idx] = False
 
     return eqs[mask], onehot
+
+def load_raw_parsed_value_data(datapath: str, name: str):
+    eqs, onehot = load_raw_parsed_data(datapath, name)
+
+
+    # Load parsed dataset
+    parsed_path = f'{datapath}/{name}-values.h5'
+    with h5py.File(parsed_path, 'r') as f:
+        values = f['data'][:]
+        invalid = f['invalid_mask'][:]
+
+    eqs = eqs[~invalid]
+    onehot = onehot[~invalid]
+
+    assert len(eqs) == onehot.shape[0] == len(values)
+    
+    return eqs, onehot, values
 
 def logits_to_prods(logits, grammar, start_symbol, sample=False, max_length=15):
     stack = Stack(grammar=grammar, start_symbol=start_symbol)

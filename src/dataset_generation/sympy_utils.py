@@ -1,7 +1,6 @@
 import sympy as sp
 from sympy.parsing.sympy_parser import parse_expr
 
-
 def simplify(f, seconds):
     """
     Simplify an expression.

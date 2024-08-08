@@ -1,0 +1,45 @@
+{
+    "os": "macOS-10.16-x86_64-i386-64bit",
+    "python": "3.12.4",
+    "heartbeatAt": "2024-08-08T11:43:45.408455",
+    "startedAt": "2024-08-08T11:43:44.894171",
+    "docker": null,
+    "cuda": null,
+    "args": [],
+    "state": "running",
+    "program": "/Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/similar-expressions/src/model/train.py",
+    "codePathLocal": "src/model/train.py",
+    "codePath": "src/model/train.py",
+    "git": {
+        "remote": "https://github.com/LuisCarretero/similar-expressions.git",
+        "commit": "033b61983296c5f8ed86df906f6d9d4b2f3b040f"
+    },
+    "email": "luis.carretero@gmx.de",
+    "root": "/Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/similar-expressions",
+    "host": "MacBook-Pro-von-Luis-3.local",
+    "username": "luis",
+    "executable": "/Users/luis/opt/anaconda3/envs/small-mutations/bin/python",
+    "cpu_count": 10,
+    "cpu_count_logical": 10,
+    "cpu_freq": {
+        "current": 2400,
+        "min": 2400,
+        "max": 2400
+    },
+    "cpu_freq_per_core": [
+        {
+            "current": 2400,
+            "min": 2400,
+            "max": 2400
+        }
+    ],
+    "disk": {
+        "/": {
+            "total": 926.3517189025879,
+            "used": 717.1347579956055
+        }
+    },
+    "memory": {
+        "total": 16.0
+    }
+}

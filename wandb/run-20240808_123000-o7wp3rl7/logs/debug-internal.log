@@ -1,0 +1,239 @@
+2024-08-08 12:30:00,646 INFO    StreamThr :10544 [internal.py:wandb_internal():85] W&B internal server running at pid: 10544, started at: 2024-08-08 12:30:00.645717
+2024-08-08 12:30:00,647 DEBUG   HandlerThread:10544 [handler.py:handle_request():158] handle_request: status
+2024-08-08 12:30:00,650 INFO    WriterThread:10544 [datastore.py:open_for_write():87] open: /Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/similar-expressions/wandb/run-20240808_123000-o7wp3rl7/run-o7wp3rl7.wandb
+2024-08-08 12:30:00,651 DEBUG   SenderThread:10544 [sender.py:send():391] send: header
+2024-08-08 12:30:00,676 DEBUG   SenderThread:10544 [sender.py:send():391] send: run
+2024-08-08 12:30:01,011 INFO    SenderThread:10544 [dir_watcher.py:__init__():211] watching files in: /Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/similar-expressions/wandb/run-20240808_123000-o7wp3rl7/files
+2024-08-08 12:30:01,011 INFO    SenderThread:10544 [sender.py:_start_run_threads():1200] run started: o7wp3rl7 with start time 1723116600.646752
+2024-08-08 12:30:01,020 DEBUG   HandlerThread:10544 [handler.py:handle_request():158] handle_request: check_version
+2024-08-08 12:30:01,020 DEBUG   SenderThread:10544 [sender.py:send_request():418] send_request: check_version
+2024-08-08 12:30:01,073 DEBUG   HandlerThread:10544 [handler.py:handle_request():158] handle_request: run_start
+2024-08-08 12:30:01,089 DEBUG   HandlerThread:10544 [system_info.py:__init__():26] System info init
+2024-08-08 12:30:01,090 DEBUG   HandlerThread:10544 [system_info.py:__init__():41] System info init done
+2024-08-08 12:30:01,090 INFO    HandlerThread:10544 [system_monitor.py:start():194] Starting system monitor
+2024-08-08 12:30:01,090 INFO    SystemMonitor:10544 [system_monitor.py:_start():158] Starting system asset monitoring threads
+2024-08-08 12:30:01,091 INFO    HandlerThread:10544 [system_monitor.py:probe():214] Collecting system info
+2024-08-08 12:30:01,091 DEBUG   HandlerThread:10544 [system_info.py:probe():152] Probing system
+2024-08-08 12:30:01,091 INFO    SystemMonitor:10544 [interfaces.py:start():188] Started cpu monitoring
+2024-08-08 12:30:01,095 INFO    SystemMonitor:10544 [interfaces.py:start():188] Started disk monitoring
+2024-08-08 12:30:01,096 INFO    SystemMonitor:10544 [interfaces.py:start():188] Started memory monitoring
+2024-08-08 12:30:01,096 INFO    SystemMonitor:10544 [interfaces.py:start():188] Started network monitoring
+2024-08-08 12:30:01,104 DEBUG   HandlerThread:10544 [system_info.py:_probe_git():137] Probing git
+2024-08-08 12:30:01,126 DEBUG   HandlerThread:10544 [system_info.py:_probe_git():145] Probing git done
+2024-08-08 12:30:01,126 DEBUG   HandlerThread:10544 [system_info.py:probe():200] Probing system done
+2024-08-08 12:30:01,127 DEBUG   HandlerThread:10544 [system_monitor.py:probe():223] {'os': 'macOS-10.16-x86_64-i386-64bit', 'python': '3.12.4', 'heartbeatAt': '2024-08-08T11:30:01.091248', 'startedAt': '2024-08-08T11:30:00.640169', 'docker': None, 'cuda': None, 'args': (), 'state': 'running', 'program': '/Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/similar-expressions/src/model/train.py', 'codePathLocal': 'src/model/train.py', 'codePath': 'src/model/train.py', 'git': {'remote': 'https://github.com/LuisCarretero/similar-expressions.git', 'commit': '033b61983296c5f8ed86df906f6d9d4b2f3b040f'}, 'email': 'luis.carretero@gmx.de', 'root': '/Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/similar-expressions', 'host': 'MacBook-Pro-von-Luis-3.local', 'username': 'luis', 'executable': '/Users/luis/opt/anaconda3/envs/small-mutations/bin/python', 'cpu_count': 10, 'cpu_count_logical': 10, 'cpu_freq': {'current': 2400, 'min': 2400, 'max': 2400}, 'cpu_freq_per_core': [{'current': 2400, 'min': 2400, 'max': 2400}], 'disk': {'/': {'total': 926.3517189025879, 'used': 717.036792755127}}, 'memory': {'total': 16.0}}
+2024-08-08 12:30:01,127 INFO    HandlerThread:10544 [system_monitor.py:probe():224] Finished collecting system info
+2024-08-08 12:30:01,127 INFO    HandlerThread:10544 [system_monitor.py:probe():227] Publishing system info
+2024-08-08 12:30:01,127 DEBUG   HandlerThread:10544 [system_info.py:_save_conda():209] Saving list of conda packages installed into the current environment
+2024-08-08 12:30:02,015 INFO    Thread-12 :10544 [dir_watcher.py:_on_file_created():271] file/dir created: /Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/similar-expressions/wandb/run-20240808_123000-o7wp3rl7/files/conda-environment.yaml
+2024-08-08 12:30:04,537 DEBUG   HandlerThread:10544 [system_info.py:_save_conda():224] Saving conda packages done
+2024-08-08 12:30:04,538 INFO    HandlerThread:10544 [system_monitor.py:probe():229] Finished publishing system info
+2024-08-08 12:30:04,541 DEBUG   SenderThread:10544 [sender.py:send():391] send: files
+2024-08-08 12:30:04,541 INFO    SenderThread:10544 [sender.py:_save_file():1466] saving file wandb-metadata.json with policy now
+2024-08-08 12:30:04,640 DEBUG   HandlerThread:10544 [handler.py:handle_request():158] handle_request: python_packages
+2024-08-08 12:30:04,640 DEBUG   SenderThread:10544 [sender.py:send_request():418] send_request: python_packages
+2024-08-08 12:30:04,641 DEBUG   HandlerThread:10544 [handler.py:handle_request():158] handle_request: stop_status
+2024-08-08 12:30:04,641 DEBUG   SenderThread:10544 [sender.py:send_request():418] send_request: stop_status
+2024-08-08 12:30:04,642 DEBUG   HandlerThread:10544 [handler.py:handle_request():158] handle_request: internal_messages
+2024-08-08 12:30:04,806 DEBUG   SenderThread:10544 [sender.py:send():391] send: telemetry
+2024-08-08 12:30:05,020 INFO    Thread-12 :10544 [dir_watcher.py:_on_file_modified():288] file/dir modified: /Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/similar-expressions/wandb/run-20240808_123000-o7wp3rl7/files/conda-environment.yaml
+2024-08-08 12:30:05,020 INFO    Thread-12 :10544 [dir_watcher.py:_on_file_created():271] file/dir created: /Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/similar-expressions/wandb/run-20240808_123000-o7wp3rl7/files/wandb-metadata.json
+2024-08-08 12:30:05,021 INFO    Thread-12 :10544 [dir_watcher.py:_on_file_created():271] file/dir created: /Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/similar-expressions/wandb/run-20240808_123000-o7wp3rl7/files/requirements.txt
+2024-08-08 12:30:05,139 INFO    wandb-upload_0:10544 [upload_job.py:push():130] Uploaded file /var/folders/kn/k8zt16ss511gp4m6y14ttn840000gn/T/tmpuowjfowjwandb/f8d434st-wandb-metadata.json
+2024-08-08 12:30:05,645 DEBUG   HandlerThread:10544 [handler.py:handle_request():158] handle_request: internal_messages
+2024-08-08 12:30:05,691 DEBUG   HandlerThread:10544 [handler.py:handle_request():158] handle_request: status_report
+2024-08-08 12:30:06,022 INFO    Thread-12 :10544 [dir_watcher.py:_on_file_created():271] file/dir created: /Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/similar-expressions/wandb/run-20240808_123000-o7wp3rl7/files/output.log
+2024-08-08 12:30:06,647 DEBUG   HandlerThread:10544 [handler.py:handle_request():158] handle_request: internal_messages
+2024-08-08 12:30:07,650 DEBUG   HandlerThread:10544 [handler.py:handle_request():158] handle_request: internal_messages
+2024-08-08 12:30:08,026 INFO    Thread-12 :10544 [dir_watcher.py:_on_file_modified():288] file/dir modified: /Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/similar-expressions/wandb/run-20240808_123000-o7wp3rl7/files/output.log
+2024-08-08 12:30:08,653 DEBUG   HandlerThread:10544 [handler.py:handle_request():158] handle_request: internal_messages
+2024-08-08 12:30:09,658 DEBUG   HandlerThread:10544 [handler.py:handle_request():158] handle_request: internal_messages
+2024-08-08 12:30:10,036 INFO    Thread-12 :10544 [dir_watcher.py:_on_file_modified():288] file/dir modified: /Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/similar-expressions/wandb/run-20240808_123000-o7wp3rl7/files/output.log
+2024-08-08 12:30:10,663 DEBUG   HandlerThread:10544 [handler.py:handle_request():158] handle_request: internal_messages
+2024-08-08 12:30:10,822 DEBUG   HandlerThread:10544 [handler.py:handle_request():158] handle_request: status_report
+2024-08-08 12:30:11,666 DEBUG   HandlerThread:10544 [handler.py:handle_request():158] handle_request: internal_messages
+2024-08-08 12:30:12,043 INFO    Thread-12 :10544 [dir_watcher.py:_on_file_modified():288] file/dir modified: /Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/similar-expressions/wandb/run-20240808_123000-o7wp3rl7/files/output.log
+2024-08-08 12:30:12,670 DEBUG   HandlerThread:10544 [handler.py:handle_request():158] handle_request: internal_messages
+2024-08-08 12:30:13,671 DEBUG   HandlerThread:10544 [handler.py:handle_request():158] handle_request: internal_messages
+2024-08-08 12:30:14,047 INFO    Thread-12 :10544 [dir_watcher.py:_on_file_modified():288] file/dir modified: /Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/similar-expressions/wandb/run-20240808_123000-o7wp3rl7/files/output.log
+2024-08-08 12:30:14,674 DEBUG   HandlerThread:10544 [handler.py:handle_request():158] handle_request: internal_messages
+2024-08-08 12:30:15,676 DEBUG   HandlerThread:10544 [handler.py:handle_request():158] handle_request: internal_messages
+2024-08-08 12:30:16,049 INFO    Thread-12 :10544 [dir_watcher.py:_on_file_modified():288] file/dir modified: /Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/similar-expressions/wandb/run-20240808_123000-o7wp3rl7/files/output.log
+2024-08-08 12:30:16,457 DEBUG   HandlerThread:10544 [handler.py:handle_request():158] handle_request: status_report
+2024-08-08 12:30:16,681 DEBUG   HandlerThread:10544 [handler.py:handle_request():158] handle_request: internal_messages
+2024-08-08 12:30:17,683 DEBUG   HandlerThread:10544 [handler.py:handle_request():158] handle_request: internal_messages
+2024-08-08 12:30:18,057 INFO    Thread-12 :10544 [dir_watcher.py:_on_file_modified():288] file/dir modified: /Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/similar-expressions/wandb/run-20240808_123000-o7wp3rl7/files/output.log
+2024-08-08 12:30:18,687 DEBUG   HandlerThread:10544 [handler.py:handle_request():158] handle_request: internal_messages
+2024-08-08 12:30:19,642 DEBUG   HandlerThread:10544 [handler.py:handle_request():158] handle_request: stop_status
+2024-08-08 12:30:19,643 DEBUG   SenderThread:10544 [sender.py:send_request():418] send_request: stop_status
+2024-08-08 12:30:19,688 DEBUG   HandlerThread:10544 [handler.py:handle_request():158] handle_request: internal_messages
+2024-08-08 12:30:20,059 INFO    Thread-12 :10544 [dir_watcher.py:_on_file_modified():288] file/dir modified: /Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/similar-expressions/wandb/run-20240808_123000-o7wp3rl7/files/output.log
+2024-08-08 12:30:20,691 DEBUG   HandlerThread:10544 [handler.py:handle_request():158] handle_request: internal_messages
+2024-08-08 12:30:21,696 DEBUG   HandlerThread:10544 [handler.py:handle_request():158] handle_request: internal_messages
+2024-08-08 12:30:21,703 DEBUG   HandlerThread:10544 [handler.py:handle_request():158] handle_request: status_report
+2024-08-08 12:30:22,068 INFO    Thread-12 :10544 [dir_watcher.py:_on_file_modified():288] file/dir modified: /Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/similar-expressions/wandb/run-20240808_123000-o7wp3rl7/files/output.log
+2024-08-08 12:30:22,701 DEBUG   HandlerThread:10544 [handler.py:handle_request():158] handle_request: internal_messages
+2024-08-08 12:30:23,706 DEBUG   HandlerThread:10544 [handler.py:handle_request():158] handle_request: internal_messages
+2024-08-08 12:30:24,078 INFO    Thread-12 :10544 [dir_watcher.py:_on_file_modified():288] file/dir modified: /Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/similar-expressions/wandb/run-20240808_123000-o7wp3rl7/files/output.log
+2024-08-08 12:30:24,711 DEBUG   HandlerThread:10544 [handler.py:handle_request():158] handle_request: internal_messages
+2024-08-08 12:30:25,712 DEBUG   HandlerThread:10544 [handler.py:handle_request():158] handle_request: internal_messages
+2024-08-08 12:30:26,089 INFO    Thread-12 :10544 [dir_watcher.py:_on_file_modified():288] file/dir modified: /Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/similar-expressions/wandb/run-20240808_123000-o7wp3rl7/files/output.log
+2024-08-08 12:30:26,713 DEBUG   HandlerThread:10544 [handler.py:handle_request():158] handle_request: internal_messages
+2024-08-08 12:30:27,467 DEBUG   HandlerThread:10544 [handler.py:handle_request():158] handle_request: status_report
+2024-08-08 12:30:27,716 DEBUG   HandlerThread:10544 [handler.py:handle_request():158] handle_request: internal_messages
+2024-08-08 12:30:28,095 INFO    Thread-12 :10544 [dir_watcher.py:_on_file_modified():288] file/dir modified: /Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/similar-expressions/wandb/run-20240808_123000-o7wp3rl7/files/output.log
+2024-08-08 12:30:28,721 DEBUG   HandlerThread:10544 [handler.py:handle_request():158] handle_request: internal_messages
+2024-08-08 12:30:29,723 DEBUG   HandlerThread:10544 [handler.py:handle_request():158] handle_request: internal_messages
+2024-08-08 12:30:30,104 INFO    Thread-12 :10544 [dir_watcher.py:_on_file_modified():288] file/dir modified: /Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/similar-expressions/wandb/run-20240808_123000-o7wp3rl7/files/output.log
+2024-08-08 12:30:30,727 DEBUG   HandlerThread:10544 [handler.py:handle_request():158] handle_request: internal_messages
+2024-08-08 12:30:31,727 DEBUG   HandlerThread:10544 [handler.py:handle_request():158] handle_request: internal_messages
+2024-08-08 12:30:32,114 INFO    Thread-12 :10544 [dir_watcher.py:_on_file_modified():288] file/dir modified: /Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/similar-expressions/wandb/run-20240808_123000-o7wp3rl7/files/output.log
+2024-08-08 12:30:32,728 DEBUG   HandlerThread:10544 [handler.py:handle_request():158] handle_request: internal_messages
+2024-08-08 12:30:33,157 DEBUG   HandlerThread:10544 [handler.py:handle_request():158] handle_request: status_report
+2024-08-08 12:30:33,733 DEBUG   HandlerThread:10544 [handler.py:handle_request():158] handle_request: internal_messages
+2024-08-08 12:30:34,121 INFO    Thread-12 :10544 [dir_watcher.py:_on_file_modified():288] file/dir modified: /Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/similar-expressions/wandb/run-20240808_123000-o7wp3rl7/files/output.log
+2024-08-08 12:30:34,121 INFO    Thread-12 :10544 [dir_watcher.py:_on_file_modified():288] file/dir modified: /Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/similar-expressions/wandb/run-20240808_123000-o7wp3rl7/files/config.yaml
+2024-08-08 12:30:34,646 DEBUG   HandlerThread:10544 [handler.py:handle_request():158] handle_request: stop_status
+2024-08-08 12:30:34,646 DEBUG   SenderThread:10544 [sender.py:send_request():418] send_request: stop_status
+2024-08-08 12:30:34,738 DEBUG   HandlerThread:10544 [handler.py:handle_request():158] handle_request: internal_messages
+2024-08-08 12:30:35,581 DEBUG   SenderThread:10544 [sender.py:send():391] send: exit
+2024-08-08 12:30:35,581 INFO    SenderThread:10544 [sender.py:send_exit():598] handling exit code: 0
+2024-08-08 12:30:35,581 INFO    SenderThread:10544 [sender.py:send_exit():600] handling runtime: 34
+2024-08-08 12:30:35,581 INFO    SenderThread:10544 [sender.py:_save_file():1466] saving file wandb-summary.json with policy end
+2024-08-08 12:30:35,582 INFO    SenderThread:10544 [sender.py:send_exit():606] send defer
+2024-08-08 12:30:35,582 DEBUG   HandlerThread:10544 [handler.py:handle_request():158] handle_request: defer
+2024-08-08 12:30:35,582 INFO    HandlerThread:10544 [handler.py:handle_request_defer():184] handle defer: 0
+2024-08-08 12:30:35,582 DEBUG   SenderThread:10544 [sender.py:send_request():418] send_request: defer
+2024-08-08 12:30:35,582 INFO    SenderThread:10544 [sender.py:send_request_defer():622] handle sender defer: 0
+2024-08-08 12:30:35,582 INFO    SenderThread:10544 [sender.py:transition_state():626] send defer: 1
+2024-08-08 12:30:35,582 DEBUG   HandlerThread:10544 [handler.py:handle_request():158] handle_request: defer
+2024-08-08 12:30:35,583 INFO    HandlerThread:10544 [handler.py:handle_request_defer():184] handle defer: 1
+2024-08-08 12:30:35,583 DEBUG   SenderThread:10544 [sender.py:send_request():418] send_request: defer
+2024-08-08 12:30:35,583 INFO    SenderThread:10544 [sender.py:send_request_defer():622] handle sender defer: 1
+2024-08-08 12:30:35,583 INFO    SenderThread:10544 [sender.py:transition_state():626] send defer: 2
+2024-08-08 12:30:35,583 DEBUG   HandlerThread:10544 [handler.py:handle_request():158] handle_request: defer
+2024-08-08 12:30:35,583 INFO    HandlerThread:10544 [handler.py:handle_request_defer():184] handle defer: 2
+2024-08-08 12:30:35,583 INFO    HandlerThread:10544 [system_monitor.py:finish():203] Stopping system monitor
+2024-08-08 12:30:35,583 DEBUG   SystemMonitor:10544 [system_monitor.py:_start():172] Starting system metrics aggregation loop
+2024-08-08 12:30:35,583 INFO    HandlerThread:10544 [interfaces.py:finish():200] Joined cpu monitor
+2024-08-08 12:30:35,583 DEBUG   SystemMonitor:10544 [system_monitor.py:_start():179] Finished system metrics aggregation loop
+2024-08-08 12:30:35,584 INFO    HandlerThread:10544 [interfaces.py:finish():200] Joined disk monitor
+2024-08-08 12:30:35,584 DEBUG   SystemMonitor:10544 [system_monitor.py:_start():183] Publishing last batch of metrics
+2024-08-08 12:30:35,584 INFO    HandlerThread:10544 [interfaces.py:finish():200] Joined memory monitor
+2024-08-08 12:30:35,584 INFO    HandlerThread:10544 [interfaces.py:finish():200] Joined network monitor
+2024-08-08 12:30:35,585 DEBUG   SenderThread:10544 [sender.py:send_request():418] send_request: defer
+2024-08-08 12:30:35,585 INFO    SenderThread:10544 [sender.py:send_request_defer():622] handle sender defer: 2
+2024-08-08 12:30:35,585 INFO    SenderThread:10544 [sender.py:transition_state():626] send defer: 3
+2024-08-08 12:30:35,585 DEBUG   SenderThread:10544 [sender.py:send():391] send: stats
+2024-08-08 12:30:35,585 DEBUG   HandlerThread:10544 [handler.py:handle_request():158] handle_request: defer
+2024-08-08 12:30:35,585 INFO    HandlerThread:10544 [handler.py:handle_request_defer():184] handle defer: 3
+2024-08-08 12:30:35,585 DEBUG   SenderThread:10544 [sender.py:send_request():418] send_request: defer
+2024-08-08 12:30:35,585 INFO    SenderThread:10544 [sender.py:send_request_defer():622] handle sender defer: 3
+2024-08-08 12:30:35,585 INFO    SenderThread:10544 [sender.py:transition_state():626] send defer: 4
+2024-08-08 12:30:35,585 DEBUG   HandlerThread:10544 [handler.py:handle_request():158] handle_request: defer
+2024-08-08 12:30:35,585 INFO    HandlerThread:10544 [handler.py:handle_request_defer():184] handle defer: 4
+2024-08-08 12:30:35,586 DEBUG   SenderThread:10544 [sender.py:send_request():418] send_request: defer
+2024-08-08 12:30:35,586 INFO    SenderThread:10544 [sender.py:send_request_defer():622] handle sender defer: 4
+2024-08-08 12:30:35,586 INFO    SenderThread:10544 [sender.py:transition_state():626] send defer: 5
+2024-08-08 12:30:35,586 DEBUG   HandlerThread:10544 [handler.py:handle_request():158] handle_request: defer
+2024-08-08 12:30:35,586 INFO    HandlerThread:10544 [handler.py:handle_request_defer():184] handle defer: 5
+2024-08-08 12:30:35,586 DEBUG   SenderThread:10544 [sender.py:send():391] send: summary
+2024-08-08 12:30:35,586 INFO    SenderThread:10544 [sender.py:_save_file():1466] saving file wandb-summary.json with policy end
+2024-08-08 12:30:35,586 DEBUG   SenderThread:10544 [sender.py:send_request():418] send_request: defer
+2024-08-08 12:30:35,586 INFO    SenderThread:10544 [sender.py:send_request_defer():622] handle sender defer: 5
+2024-08-08 12:30:35,586 INFO    SenderThread:10544 [sender.py:transition_state():626] send defer: 6
+2024-08-08 12:30:35,586 DEBUG   HandlerThread:10544 [handler.py:handle_request():158] handle_request: defer
+2024-08-08 12:30:35,586 INFO    HandlerThread:10544 [handler.py:handle_request_defer():184] handle defer: 6
+2024-08-08 12:30:35,586 DEBUG   SenderThread:10544 [sender.py:send_request():418] send_request: defer
+2024-08-08 12:30:35,587 INFO    SenderThread:10544 [sender.py:send_request_defer():622] handle sender defer: 6
+2024-08-08 12:30:35,587 INFO    SenderThread:10544 [sender.py:transition_state():626] send defer: 7
+2024-08-08 12:30:35,587 DEBUG   HandlerThread:10544 [handler.py:handle_request():158] handle_request: status_report
+2024-08-08 12:30:35,587 DEBUG   HandlerThread:10544 [handler.py:handle_request():158] handle_request: defer
+2024-08-08 12:30:35,587 INFO    HandlerThread:10544 [handler.py:handle_request_defer():184] handle defer: 7
+2024-08-08 12:30:35,587 DEBUG   SenderThread:10544 [sender.py:send_request():418] send_request: defer
+2024-08-08 12:30:35,587 INFO    SenderThread:10544 [sender.py:send_request_defer():622] handle sender defer: 7
+2024-08-08 12:30:35,930 INFO    SenderThread:10544 [sender.py:transition_state():626] send defer: 8
+2024-08-08 12:30:35,930 DEBUG   HandlerThread:10544 [handler.py:handle_request():158] handle_request: defer
+2024-08-08 12:30:35,930 INFO    HandlerThread:10544 [handler.py:handle_request_defer():184] handle defer: 8
+2024-08-08 12:30:35,931 DEBUG   SenderThread:10544 [sender.py:send_request():418] send_request: defer
+2024-08-08 12:30:35,931 INFO    SenderThread:10544 [sender.py:send_request_defer():622] handle sender defer: 8
+2024-08-08 12:30:35,931 INFO    SenderThread:10544 [job_builder.py:build():440] Attempting to build job artifact
+2024-08-08 12:30:35,932 INFO    SenderThread:10544 [job_builder.py:_get_source_type():569] is repo sourced job
+2024-08-08 12:30:35,969 INFO    SenderThread:10544 [job_builder.py:build():545] adding wandb-job metadata file
+2024-08-08 12:30:35,972 INFO    SenderThread:10544 [sender.py:transition_state():626] send defer: 9
+2024-08-08 12:30:35,972 DEBUG   HandlerThread:10544 [handler.py:handle_request():158] handle_request: defer
+2024-08-08 12:30:35,972 INFO    HandlerThread:10544 [handler.py:handle_request_defer():184] handle defer: 9
+2024-08-08 12:30:35,972 DEBUG   SenderThread:10544 [sender.py:send():391] send: artifact
+2024-08-08 12:30:36,131 INFO    Thread-12 :10544 [dir_watcher.py:_on_file_modified():288] file/dir modified: /Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/similar-expressions/wandb/run-20240808_123000-o7wp3rl7/files/output.log
+2024-08-08 12:30:36,131 INFO    Thread-12 :10544 [dir_watcher.py:_on_file_created():271] file/dir created: /Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/similar-expressions/wandb/run-20240808_123000-o7wp3rl7/files/wandb-summary.json
+2024-08-08 12:30:36,583 DEBUG   HandlerThread:10544 [handler.py:handle_request():158] handle_request: poll_exit
+2024-08-08 12:30:38,231 INFO    wandb-upload_0:10544 [upload_job.py:push():88] Uploaded file /var/folders/kn/k8zt16ss511gp4m6y14ttn840000gn/T/tmpqkb28p52/wandb-job.json
+2024-08-08 12:30:38,266 INFO    wandb-upload_1:10544 [upload_job.py:push():88] Uploaded file /Users/luis/Library/Application Support/wandb/artifacts/staging/tmpy8zj90_g
+2024-08-08 12:30:39,125 INFO    SenderThread:10544 [sender.py:send_artifact():1549] sent artifact job-https___github.com_LuisCarretero_similar-expressions.git_src_model_train.py - {'id': 'QXJ0aWZhY3Q6MTExODQ3MzYwOA==', 'state': 'PENDING', 'artifactSequence': {'id': 'QXJ0aWZhY3RDb2xsZWN0aW9uOjM4OTEwMjMyMA==', 'latestArtifact': None}}
+2024-08-08 12:30:39,125 DEBUG   SenderThread:10544 [sender.py:send_request():418] send_request: defer
+2024-08-08 12:30:39,125 INFO    SenderThread:10544 [sender.py:send_request_defer():622] handle sender defer: 9
+2024-08-08 12:30:39,125 INFO    SenderThread:10544 [dir_watcher.py:finish():358] shutting down directory watcher
+2024-08-08 12:30:39,138 INFO    SenderThread:10544 [dir_watcher.py:finish():388] scan: /Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/similar-expressions/wandb/run-20240808_123000-o7wp3rl7/files
+2024-08-08 12:30:39,138 INFO    SenderThread:10544 [dir_watcher.py:finish():402] scan save: /Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/similar-expressions/wandb/run-20240808_123000-o7wp3rl7/files/requirements.txt requirements.txt
+2024-08-08 12:30:39,138 INFO    SenderThread:10544 [dir_watcher.py:finish():402] scan save: /Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/similar-expressions/wandb/run-20240808_123000-o7wp3rl7/files/output.log output.log
+2024-08-08 12:30:39,139 INFO    SenderThread:10544 [dir_watcher.py:finish():402] scan save: /Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/similar-expressions/wandb/run-20240808_123000-o7wp3rl7/files/config.yaml config.yaml
+2024-08-08 12:30:39,141 INFO    SenderThread:10544 [dir_watcher.py:finish():402] scan save: /Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/similar-expressions/wandb/run-20240808_123000-o7wp3rl7/files/wandb-summary.json wandb-summary.json
+2024-08-08 12:30:39,142 INFO    SenderThread:10544 [dir_watcher.py:finish():402] scan save: /Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/similar-expressions/wandb/run-20240808_123000-o7wp3rl7/files/conda-environment.yaml conda-environment.yaml
+2024-08-08 12:30:39,142 INFO    SenderThread:10544 [dir_watcher.py:finish():402] scan save: /Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/similar-expressions/wandb/run-20240808_123000-o7wp3rl7/files/wandb-metadata.json wandb-metadata.json
+2024-08-08 12:30:39,143 INFO    SenderThread:10544 [sender.py:transition_state():626] send defer: 10
+2024-08-08 12:30:39,143 DEBUG   SenderThread:10544 [sender.py:send_request():418] send_request: poll_exit
+2024-08-08 12:30:39,143 DEBUG   HandlerThread:10544 [handler.py:handle_request():158] handle_request: defer
+2024-08-08 12:30:39,143 INFO    HandlerThread:10544 [handler.py:handle_request_defer():184] handle defer: 10
+2024-08-08 12:30:39,144 DEBUG   SenderThread:10544 [sender.py:send_request():418] send_request: defer
+2024-08-08 12:30:39,145 INFO    SenderThread:10544 [sender.py:send_request_defer():622] handle sender defer: 10
+2024-08-08 12:30:39,146 INFO    SenderThread:10544 [file_pusher.py:finish():169] shutting down file pusher
+2024-08-08 12:30:39,466 INFO    wandb-upload_0:10544 [upload_job.py:push():130] Uploaded file /Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/similar-expressions/wandb/run-20240808_123000-o7wp3rl7/files/requirements.txt
+2024-08-08 12:30:39,467 INFO    wandb-upload_1:10544 [upload_job.py:push():130] Uploaded file /Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/similar-expressions/wandb/run-20240808_123000-o7wp3rl7/files/output.log
+2024-08-08 12:30:39,534 INFO    wandb-upload_2:10544 [upload_job.py:push():130] Uploaded file /Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/similar-expressions/wandb/run-20240808_123000-o7wp3rl7/files/config.yaml
+2024-08-08 12:30:39,537 INFO    wandb-upload_3:10544 [upload_job.py:push():130] Uploaded file /Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/similar-expressions/wandb/run-20240808_123000-o7wp3rl7/files/wandb-summary.json
+2024-08-08 12:30:39,551 INFO    wandb-upload_4:10544 [upload_job.py:push():130] Uploaded file /Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/similar-expressions/wandb/run-20240808_123000-o7wp3rl7/files/conda-environment.yaml
+2024-08-08 12:30:39,593 DEBUG   HandlerThread:10544 [handler.py:handle_request():158] handle_request: poll_exit
+2024-08-08 12:30:39,593 DEBUG   SenderThread:10544 [sender.py:send_request():418] send_request: poll_exit
+2024-08-08 12:30:39,753 INFO    Thread-11 (_thread_body):10544 [sender.py:transition_state():626] send defer: 11
+2024-08-08 12:30:39,754 DEBUG   HandlerThread:10544 [handler.py:handle_request():158] handle_request: defer
+2024-08-08 12:30:39,754 INFO    HandlerThread:10544 [handler.py:handle_request_defer():184] handle defer: 11
+2024-08-08 12:30:39,754 DEBUG   SenderThread:10544 [sender.py:send_request():418] send_request: defer
+2024-08-08 12:30:39,754 INFO    SenderThread:10544 [sender.py:send_request_defer():622] handle sender defer: 11
+2024-08-08 12:30:39,754 INFO    SenderThread:10544 [file_pusher.py:join():175] waiting for file pusher
+2024-08-08 12:30:39,755 INFO    SenderThread:10544 [sender.py:transition_state():626] send defer: 12
+2024-08-08 12:30:39,755 DEBUG   HandlerThread:10544 [handler.py:handle_request():158] handle_request: defer
+2024-08-08 12:30:39,755 INFO    HandlerThread:10544 [handler.py:handle_request_defer():184] handle defer: 12
+2024-08-08 12:30:39,755 DEBUG   SenderThread:10544 [sender.py:send_request():418] send_request: defer
+2024-08-08 12:30:39,755 INFO    SenderThread:10544 [sender.py:send_request_defer():622] handle sender defer: 12
+2024-08-08 12:30:39,755 INFO    SenderThread:10544 [file_stream.py:finish():601] file stream finish called
+2024-08-08 12:30:39,906 INFO    SenderThread:10544 [file_stream.py:finish():605] file stream finish is done
+2024-08-08 12:30:39,906 INFO    SenderThread:10544 [sender.py:transition_state():626] send defer: 13
+2024-08-08 12:30:39,907 DEBUG   HandlerThread:10544 [handler.py:handle_request():158] handle_request: defer
+2024-08-08 12:30:39,907 INFO    HandlerThread:10544 [handler.py:handle_request_defer():184] handle defer: 13
+2024-08-08 12:30:39,907 DEBUG   SenderThread:10544 [sender.py:send_request():418] send_request: defer
+2024-08-08 12:30:39,907 INFO    SenderThread:10544 [sender.py:send_request_defer():622] handle sender defer: 13
+2024-08-08 12:30:39,907 INFO    SenderThread:10544 [sender.py:transition_state():626] send defer: 14
+2024-08-08 12:30:39,907 DEBUG   HandlerThread:10544 [handler.py:handle_request():158] handle_request: defer
+2024-08-08 12:30:39,907 INFO    HandlerThread:10544 [handler.py:handle_request_defer():184] handle defer: 14
+2024-08-08 12:30:39,907 DEBUG   SenderThread:10544 [sender.py:send():391] send: final
+2024-08-08 12:30:39,907 DEBUG   SenderThread:10544 [sender.py:send():391] send: footer
+2024-08-08 12:30:39,907 DEBUG   SenderThread:10544 [sender.py:send_request():418] send_request: defer
+2024-08-08 12:30:39,907 INFO    SenderThread:10544 [sender.py:send_request_defer():622] handle sender defer: 14
+2024-08-08 12:30:39,907 DEBUG   HandlerThread:10544 [handler.py:handle_request():158] handle_request: poll_exit
+2024-08-08 12:30:39,908 DEBUG   SenderThread:10544 [sender.py:send_request():418] send_request: poll_exit
+2024-08-08 12:30:39,908 DEBUG   HandlerThread:10544 [handler.py:handle_request():158] handle_request: server_info
+2024-08-08 12:30:39,908 DEBUG   HandlerThread:10544 [handler.py:handle_request():158] handle_request: poll_exit
+2024-08-08 12:30:39,908 DEBUG   HandlerThread:10544 [handler.py:handle_request():158] handle_request: get_summary
+2024-08-08 12:30:39,908 DEBUG   HandlerThread:10544 [handler.py:handle_request():158] handle_request: sampled_history
+2024-08-08 12:30:39,909 DEBUG   SenderThread:10544 [sender.py:send_request():418] send_request: server_info
+2024-08-08 12:30:39,909 DEBUG   HandlerThread:10544 [handler.py:handle_request():158] handle_request: internal_messages
+2024-08-08 12:30:40,027 DEBUG   SenderThread:10544 [sender.py:send_request():418] send_request: poll_exit
+2024-08-08 12:30:40,027 INFO    MainThread:10544 [wandb_run.py:_footer_history_summary_info():4035] rendering history
+2024-08-08 12:30:40,028 INFO    MainThread:10544 [wandb_run.py:_footer_history_summary_info():4067] rendering summary
+2024-08-08 12:30:40,028 INFO    MainThread:10544 [wandb_run.py:_footer_sync_info():3994] logging synced files
+2024-08-08 12:30:40,028 DEBUG   HandlerThread:10544 [handler.py:handle_request():158] handle_request: shutdown
+2024-08-08 12:30:40,028 INFO    HandlerThread:10544 [handler.py:finish():882] shutting down handler
+2024-08-08 12:30:40,914 INFO    WriterThread:10544 [datastore.py:close():296] close: /Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/similar-expressions/wandb/run-20240808_123000-o7wp3rl7/run-o7wp3rl7.wandb
+2024-08-08 12:30:41,028 INFO    SenderThread:10544 [sender.py:finish():1631] shutting down sender
+2024-08-08 12:30:41,028 INFO    SenderThread:10544 [file_pusher.py:finish():169] shutting down file pusher
+2024-08-08 12:30:41,028 INFO    SenderThread:10544 [file_pusher.py:join():175] waiting for file pusher

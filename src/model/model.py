@@ -4,13 +4,13 @@ from torch.autograd import Variable
 from torch.distributions import Normal
 from encoder import Encoder
 from decoder import Decoder
-from stack import Stack
+from value_decoder import ValueDecoder
 from grammar import GCFG, S
 from util import logits_to_prods
 
 class GrammarVAE(nn.Module):
     """Grammar Variational Autoencoder"""
-    def __init__(self, hidden_encoder_size, z_dim, hidden_decoder_size, output_size, rnn_type, device=None):
+    def __init__(self, hidden_encoder_size, z_dim, hidden_decoder_size, syn_seq_len, rnn_type, val_points, device=None):
         super(GrammarVAE, self).__init__()
         if device is None:
             self.device = (
@@ -22,7 +22,8 @@ class GrammarVAE(nn.Module):
             self.device = device
 
         self.encoder = Encoder(hidden_encoder_size, z_dim).to(self.device)
-        self.decoder = Decoder(z_dim, hidden_decoder_size, output_size, rnn_type).to(self.device)
+        self.decoder = Decoder(z_dim, hidden_decoder_size, syn_seq_len, rnn_type).to(self.device)
+        self.value_decoder = ValueDecoder(z_dim, val_points).to(self.device)
         self.to(self.device)
 
     def sample(self, mu, sigma):
@@ -40,7 +41,8 @@ class GrammarVAE(nn.Module):
         mu, sigma = self.encoder(x)
         z = self.sample(mu, sigma)
         logits = self.decoder(z, max_length=max_length)
-        return logits
+        values = self.value_decoder(z)
+        return logits, values
 
     def generate(self, z, sample=False, max_length=15):
         """Generate a valid expression from z using the decoder and grammar to create a set of rules that can 

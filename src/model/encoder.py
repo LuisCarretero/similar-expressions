@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 from torch.autograd import Variable
+import h5py
 
 class Encoder(nn.Module):
     """Convolutional encoder for Grammar VAE.
@@ -10,7 +11,7 @@ class Encoder(nn.Module):
     an artithmetic expression.
     """
     def __init__(self, hidden_dim=20, z_dim=2, conv_size='small'):
-        super(Encoder, self).__init__()
+        super().__init__()
         if conv_size == 'small':
             # 12 rules, so 12 input channels
             self.conv1 = nn.Conv1d(12, 2, kernel_size=2)
