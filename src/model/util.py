@@ -1,4 +1,4 @@
-import time
+import os
 import torch
 from torch.autograd import Variable
 import h5py
@@ -9,6 +9,8 @@ from torch.distributions import Categorical
 from nltk.grammar import Production
 from grammar import get_mask
 from scipy.special import softmax
+from torch.utils.data import DataLoader, random_split, Dataset
+
 
 class Stack:
     """A simple first in last out stack.
@@ -44,13 +46,6 @@ class AnnealKL:
 	def alpha(self, update):
 		n, _ = divmod(update, self.rate)
 		return min(1., n*self.step)
-
-def load_data(data_path):
-	"""Returns the h5 dataset as numpy array"""
-
-	with h5py.File(data_path, 'r') as f:
-		data = f['data'][:]
-	return data
 
 def data2input(x):
     x = torch.from_numpy(x).float().unsqueeze(0).transpose(-2, -1)
@@ -91,7 +86,48 @@ def plot_onehot(onehot_matrix, grammar, apply_softmax=False, figsize=(10, 5)):
     plt.colorbar(im2, ax=ax2)
     plt.tight_layout()
     plt.show()
-    
+
+def save_model(model, file_name: str):
+    checkpoint_path = os.path.abspath('./checkpoints')
+    os.makedirs(checkpoint_path, exist_ok=True)
+
+    while os.path.exists(f'{checkpoint_path}/{file_name}.pt'):
+        file_name = f'{file_name}_copy'
+    torch.save(model, f'{checkpoint_path}/{file_name}.pt')
+
+class CustomDataset(Dataset):
+    def __init__(self, data_syntax, values):
+        assert data_syntax.shape[0] == values.shape[0]
+        self.data_syntax = torch.tensor(data_syntax, dtype=torch.float32)
+        self.values = torch.tensor(values, dtype=torch.float32)
+
+    def __len__(self):
+        return len(self.data_syntax)
+
+    def __getitem__(self, idx):
+        # x_syn = self.data_syntax[idx, ...].transpose(-2, -1) # new shape [batch, RULE_COUNT+1, SEQ_LEN] as required by model
+        # x_syn = Variable(x_syn)
+        y_rule_idx = self.data_syntax[idx, :, :-1].argmax(axis=1) # The rule index (argmax over onehot part, excluding consts)
+        y_consts = self.data_syntax[idx, :, -1]
+
+        return self.data_syntax[idx].transpose(-2, -1), y_rule_idx, y_consts, self.values[idx]
+
+def load_data(datapath: str, name: str, test_split: float = 0.2, batch_size: int = 32):
+    eqs, data_syntax, values = load_raw_parsed_value_data(datapath, name)
+    # Create the full dataset
+    full_dataset = CustomDataset(data_syntax, values)
+
+    # Split the dataset
+    test_size = int(test_split * len(full_dataset))
+    train_size = len(full_dataset) - test_size
+    train_dataset, test_dataset = random_split(full_dataset, [train_size, test_size])
+
+    # Create DataLoaders
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
+
+    return train_loader, test_loader
+
 def load_onehot_data(path: str):
     """Loads data as Numpy array."""
     with h5py.File(path, 'r') as f:
