@@ -27,7 +27,7 @@ def accuracy(logits, y):
     return 100 * a.item()
 
 def save_model(name: str):
-    checkpoint_path = os.path.abspath('./smallMutations/similar-expressions/checkpoints')
+    checkpoint_path = os.path.abspath('./checkpoints')
     os.makedirs(checkpoint_path, exist_ok=True)
 
     while os.path.exists(f'{checkpoint_path}/{name}.pt'):
