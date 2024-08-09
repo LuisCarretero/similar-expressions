@@ -7,7 +7,7 @@ import numpy as np
 from nltk import Nonterminal
 from torch.distributions import Categorical
 from nltk.grammar import Production
-from grammar import get_mask
+from grammar import get_mask, S
 from scipy.special import softmax
 from torch.utils.data import DataLoader, random_split, Dataset
 
@@ -96,26 +96,38 @@ def save_model(model, file_name: str):
     torch.save(model, f'{checkpoint_path}/{file_name}.pt')
 
 class CustomDataset(Dataset):
-    def __init__(self, data_syntax, values):
-        assert data_syntax.shape[0] == values.shape[0]
+    def __init__(self, data_syntax, data_values, value_transform=None):
+        assert data_syntax.shape[0] == data_values.shape[0]
         self.data_syntax = torch.tensor(data_syntax, dtype=torch.float32)
-        self.values = torch.tensor(values, dtype=torch.float32)
+        self.values = torch.tensor(data_values, dtype=torch.float32)
+
+        self.value_transform = value_transform
 
     def __len__(self):
         return len(self.data_syntax)
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx):  # FIXME: Why would we call this on each single element and not batchwise?!
         # x_syn = self.data_syntax[idx, ...].transpose(-2, -1) # new shape [batch, RULE_COUNT+1, SEQ_LEN] as required by model
         # x_syn = Variable(x_syn)
         y_rule_idx = self.data_syntax[idx, :, :-1].argmax(axis=1) # The rule index (argmax over onehot part, excluding consts)
         y_consts = self.data_syntax[idx, :, -1]
 
-        return self.data_syntax[idx].transpose(-2, -1), y_rule_idx, y_consts, self.values[idx]
+        if self.value_transform is not None:
+            y_val = self.value_transform(self.values[idx])
+        else:
+            y_val = self.values[idx]
 
-def load_data(datapath: str, name: str, test_split: float = 0.2, batch_size: int = 32):
-    eqs, data_syntax, values = load_raw_parsed_value_data(datapath, name)
+        return self.data_syntax[idx].transpose(-2, -1), y_rule_idx, y_consts, y_val
+
+def load_data(datapath: str, name: str, test_split: float = 0.2, batch_size: int = 32, max_length: int = None, value_transform=None):
+    _, data_syntax, values = load_raw_parsed_value_data(datapath, name)
+
+    if max_length is not None:
+        data_syntax = data_syntax[:max_length]
+        values = values[:max_length]
+
     # Create the full dataset
-    full_dataset = CustomDataset(data_syntax, values)
+    full_dataset = CustomDataset(data_syntax, values, value_transform=value_transform)
 
     # Split the dataset
     test_size = int(test_split * len(full_dataset))
@@ -180,10 +192,9 @@ def load_raw_parsed_value_data(datapath: str, name: str):
     onehot = onehot[~invalid]
 
     assert len(eqs) == onehot.shape[0] == len(values)
-    
     return eqs, onehot, values
 
-def logits_to_prods(logits, grammar, start_symbol, sample=False, max_length=15):
+def logits_to_prods(logits, grammar, start_symbol: Nonterminal = S, sample=False, max_length=15, insert_const=True):
     stack = Stack(grammar=grammar, start_symbol=start_symbol)
 
     logits_prods = logits[:, :-1]
@@ -207,7 +218,7 @@ def logits_to_prods(logits, grammar, start_symbol, sample=False, max_length=15):
         rule = stack.grammar.productions()[i.item()]
 
         # If rule has -> [CONST] add const
-        if rule.rhs()[0] == '[CONST]':
+        if insert_const and (rule.rhs()[0] == '[CONST]'):
             rule = Production(lhs=rule.lhs(), rhs=(str(constants[t].item()),))
 
         prods.append(rule)

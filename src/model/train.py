@@ -7,19 +7,19 @@ import wandb
 from tqdm import tqdm
 
 ENCODER_HIDDEN = 20
-Z_SIZE = 3
+Z_SIZE = 10
 DECODER_HIDDEN = 20
 RNN_TYPE = 'lstm'
 BATCH_SIZE = 32
 MAX_LENGTH = 15
 SYN_SEQ_LEN = len(GCFG.productions()) + 1
 VAL_POINTS = 100
-LR = 1e-2
+LR = 4e-3
 CLIP = 5.
 PRINT_EVERY = 200
-EPOCHS = 5
+EPOCHS = 10
 VALUE_LOSS_WEIGHT = 0
-CONST_LOSS_WEIGHT = 100
+CONST_LOSS_WEIGHT = 1
 
 
 def calc_syntax_accuracy(logits, y_rule_idx):
@@ -39,8 +39,7 @@ def train_one_epoch(train_loader, epoch_idx: int):
         values = model.value_decoder(z)
         
         # Calculate losses
-        loss_syntax_onehot, loss_syntax_consts = criterion_syntax(logits, y_rule_idx, y_consts)
-        loss_value = criterion_value(values, y_val)
+        loss_syntax_onehot, loss_syntax_consts, loss_value = criterion(logits, values, y_rule_idx, y_consts, y_val)
         loss = loss_syntax_onehot + loss_syntax_consts*CONST_LOSS_WEIGHT + loss_value*VALUE_LOSS_WEIGHT
 
         kl = model.kl(mu, sigma)
@@ -73,8 +72,7 @@ def test(test_loader):
             values = model.value_decoder(z)
             
             # Calculate losses
-            loss_syntax_onehot, loss_syntax_consts = criterion_syntax(logits, y_rule_idx, y_consts)
-            loss_value = criterion_value(values, y_val)
+            loss_syntax_onehot, loss_syntax_consts, loss_value = criterion(logits, values, y_rule_idx, y_consts, y_val)
             loss = loss_syntax_onehot + loss_syntax_consts*CONST_LOSS_WEIGHT + loss_value*VALUE_LOSS_WEIGHT
 
             kl = model.kl(mu, sigma)
@@ -98,7 +96,7 @@ def test(test_loader):
     elbo_tot /= len(test_loader)
     loss_tot /= len(test_loader)
     syntax_accuracy_tot /= len(test_loader)
-    
+
     wandb.log({'test/loss_syntax_onehot': loss_syntax_onehot_tot, 'test/loss_syntax_consts': loss_syntax_consts_tot, 'test/loss_value': loss_value_tot, 'test/kl': kl_tot, 'test/elbo': elbo_tot, 'test/loss': loss_tot, 'test/syntax_accuracy': syntax_accuracy_tot})
 
 
@@ -114,27 +112,39 @@ if __name__ == '__main__':
     model = GrammarVAE(ENCODER_HIDDEN, Z_SIZE, DECODER_HIDDEN, SYN_SEQ_LEN, RNN_TYPE, VAL_POINTS, device='cpu')
 
     # Init loss funcitons
-    criterion_syntax_onehot = torch.nn.CrossEntropyLoss()
-    criterion_syntax_consts = torch.nn.MSELoss()
-    def criterion_syntax(logits, y_rule_idx, y_consts):
+    # criterion_syntax_onehot = torch.nn.CrossEntropyLoss()
+    # criterion_syntax_consts = torch.nn.MSELoss()
+    # # criterion_value = lambda y_true, y_pred: torch.mean(torch.abs((y_true - y_pred) / y_true)) * 100  # Dont punish absolute error
+    # criterion_value = torch.nn.L1Loss(reduction='mean')
+
+    def criterion(logits, values, y_rule_idx, y_consts, y_val):
+        """TODO: Include loss normalisation"""
+        cross_entropy_prior = 1.9647622760005012
+        mse_prior_consts = 0.031348917125856815
+        mse_prior_values = 0.07700505140807316
+        
         logits_onehot = logits[:, :, :-1]
-        loss_syntax_onehot = criterion_syntax_onehot(logits_onehot.reshape(-1, logits_onehot.size(-1)), y_rule_idx.reshape(-1))
-        loss_syntax_consts = criterion_syntax_consts(logits[:, :, -1], y_consts)
-        return loss_syntax_onehot, loss_syntax_consts
-    
-    # criterion_value = lambda y_true, y_pred: torch.mean(torch.abs((y_true - y_pred) / y_true)) * 100  # Dont punish absolute error
-    criterion_value = torch.nn.L1Loss(reduction='mean')
+        loss_syntax_onehot = torch.nn.CrossEntropyLoss()(logits_onehot.reshape(-1, logits_onehot.size(-1)), y_rule_idx.reshape(-1))/cross_entropy_prior
+        loss_syntax_consts = torch.nn.MSELoss()(logits[:, :, -1], y_consts)/mse_prior_consts
+
+        loss_value = torch.nn.MSELoss()(values, y_val)/mse_prior_values
+
+        return loss_syntax_onehot, loss_syntax_consts, loss_value
 
     # Init optimizer
     optimizer = torch.optim.Adam(model.parameters(), lr=LR)
     anneal = AnnealKL(step=1e-3, rate=500)
 
     # Load data
+    def value_transform(x):
+        eps = 1e-10
+        return torch.log(torch.abs(x) + eps)/10  # Example transformation
     datapath = '/Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/similar-expressions/data'
-    train_loader, test_loader = load_data(datapath, 'expr_240807_5', test_split=0.1, batch_size=BATCH_SIZE)
+    train_loader, test_loader = load_data(datapath, 'expr_240807_5', test_split=0.1, batch_size=BATCH_SIZE, value_transform=value_transform)
 
     for epoch in range(1, EPOCHS+1):
         train_one_epoch(train_loader, epoch)
         test(test_loader)
 
-    # save_model('model_240808_5_5epoch')
+    # torch.save(model, f'{wandb.run.dir}/model.pt')
+    torch.save({'model_state_dict': model.state_dict()}, f'{wandb.run.dir}/model.pth')

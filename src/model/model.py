@@ -5,7 +5,7 @@ from torch.distributions import Normal
 from encoder import Encoder
 from decoder import Decoder
 from value_decoder import ValueDecoder
-from grammar import GCFG, S
+from grammar import GCFG
 from util import logits_to_prods
 
 class GrammarVAE(nn.Module):
@@ -53,5 +53,5 @@ class GrammarVAE(nn.Module):
         assert logits.shape[0] == 1, "Batch size must be 1"
         logits = logits.squeeze()  # Only considering 1st batch
 
-        return logits_to_prods(logits, GCFG, S, sample=sample, max_length=max_length)
+        return logits_to_prods(logits, GCFG, sample=sample, max_length=max_length)
         

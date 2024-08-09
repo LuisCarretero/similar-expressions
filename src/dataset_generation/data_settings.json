@@ -1,6 +1,6 @@
 {
     "max_len": 10,
-    "operators": "add:10,mul:10,sin:4,exp:4",
+    "operators": "add:10,mul:10,sub:10,div:10,sin:8,exp:8",
     "max_ops": 3,
     "rewrite_functions": "",
     "variables": ["x1"], 

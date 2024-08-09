@@ -63,7 +63,7 @@ def parse_dataset(equations: List[str]) -> Tuple[np.ndarray, List[int], List[Lis
     indices = list(indices)
 
     onehot = np.zeros([len(indices), SEQ_LEN, len(GCFG.productions())+1], dtype=float)
-    additional_row_idx = np.arange(len(indices))* (len(GCFG.productions())+1)
+    additional_row_idx = np.arange(len(indices)) * (len(GCFG.productions())+1)
 
     for eq_i, (idxs, const) in enumerate(zip(indices, consts)):
         indices_total = idxs + additional_row_idx[:len(idxs)]
