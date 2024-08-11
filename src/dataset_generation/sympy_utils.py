@@ -210,42 +210,6 @@ def check_additive_constants(expr, variables):
         if str(expr) == str(last):
             return False
 
-
-def add_multiplicative_constants(expr, multiplicative_placeholder, unary_operators=[]):
-    """
-    Traverse the tree in post-order fashion and add multiplicative placeholders
-    """
-
-    begin = expr
-
-    if not expr.args:
-        if type(expr) == sp.core.numbers.NegativeOne:
-            return expr
-        else:
-            return multiplicative_placeholder * expr
-    for sub_expr in expr.args:
-        expr = expr.subs(sub_expr,add_multiplicative_constants(sub_expr, multiplicative_placeholder, unary_operators=unary_operators))
-    
-    if str(type(expr)) in unary_operators:
-        expr = multiplicative_placeholder * expr
-    return expr
-
-
-def add_additive_constants(expr, placeholders, unary_operators=[]):
-    begin = expr
-    if not expr.args:
-        if type(expr) == sp.core.numbers.NegativeOne or str(expr) == str(placeholders["cm"]):
-            return expr
-        else:
-            return placeholders["ca"] + expr
-    for sub_expr in expr.args:
-        expr = expr.subs(sub_expr,add_additive_constants(sub_expr, placeholders, unary_operators=unary_operators))
-    
-    if str(type(expr)) in unary_operators:
-        expr = placeholders["ca"] + expr
-    
-    return expr
-
 def reindex_coefficients(expr, coefficients):
     """
     Re-index coefficients (i.e. if a1 is there and not a0, replace a1 by a0, and recursively).

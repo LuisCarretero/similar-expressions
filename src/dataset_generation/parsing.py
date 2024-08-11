@@ -40,7 +40,9 @@ def tokenize(s):
         s = s.replace(fn, ' '+fn+' ')
     s = s.replace(')', ' ) ')
     tokens = s.split()
-    
+
+    assert len(tokens) > 0, f"Empty token sequence: {s = }"
+
     return tokens, consts
 
 # Tokenization and parsing functions
@@ -48,11 +50,17 @@ _productions = GCFG.productions()
 _parser = nltk.ChartParser(GCFG)
 _prod_map = {prod: idx for idx, prod in enumerate(_productions)}
 
+def parse_tokens(token_seq: List[str], i: int):
+    try:
+        parse_tree = next(_parser.parse(token_seq))
+        return parse_tree.productions()
+    except StopIteration:
+        # print(f'Error during token to NLTK tree parsing: {token_seq = }')
+        raise Exception(f'Error during token to NLTK tree parsing: {token_seq = }; {i = }')
 
 def parse_dataset(equations: List[str]) -> Tuple[np.ndarray, List[int], List[List[str]]]:
     tokens, consts = zip(*map(tokenize, equations))
-    parse_trees = map(lambda x: next(_parser.parse(x)), tokens)
-    prod_seqs = list(map(lambda parse_tree: parse_tree.productions(), parse_trees))  # Sequence of productions
+    prod_seqs = [parse_tokens(token_seq, i) for i, token_seq in enumerate(tokens)]
 
     # Filter out too long productions
     invalid = [i for i, seq in enumerate(prod_seqs) if len(seq) > SEQ_LEN]
@@ -61,6 +69,8 @@ def parse_dataset(equations: List[str]) -> Tuple[np.ndarray, List[int], List[Lis
 
     indices = map(lambda productions: np.array([_prod_map[prod] for prod in productions], dtype=int), prod_seqs)
     indices = list(indices)
+
+    assert len(indices) > SEQ_LEN, f'{len(equations) = }; {len(invalid) = }; {len(indices) = }'  # indices_total will fail otherwise
 
     onehot = np.zeros([len(indices), SEQ_LEN, len(GCFG.productions())+1], dtype=float)
     additional_row_idx = np.arange(len(indices)) * (len(GCFG.productions())+1)

@@ -50,6 +50,7 @@ class DataModuleParams:
 #     total_number_of_eqs: int = 0
 @dataclass
 class GeneratorDetails:
+    min_ops: int
     max_len: int
     operators: str
     max_ops: int

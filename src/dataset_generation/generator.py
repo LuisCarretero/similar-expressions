@@ -9,7 +9,7 @@ import numpy as np
 import sympy as sp
 from sympy.parsing.sympy_parser import parse_expr
 from sympy.calculus.util import AccumBounds
-from sympy_utils import add_multiplicative_constants, add_additive_constants, simplify
+from sympy_utils import simplify
 from collections import Counter
 from dclasses import GeneratorDetails
 from torch.distributions import Uniform
@@ -95,6 +95,7 @@ class Generator(object):
     operators = sorted(list(OPERATORS.keys()))
     constants = ["pi", "E"]
     def __init__(self, params: GeneratorDetails):
+        self.min_ops = params.min_ops
         self.max_ops = params.max_ops
         self.max_len = params.max_len
         #self.positive = params.positive
@@ -411,7 +412,7 @@ class Generator(object):
             if token == "add":
                 return f"{args[0]}+{args[1]}"
             elif token == "sub":
-                return f"{args[0]}-{args[1]}"
+                return f"{args[0]}- {args[1]}"  # Important to have space between '-' and the next argument (to discern from negative constant)
             elif token == "mul":
                 return f"{args[0]}*{args[1]}"
             elif token == "div":
@@ -636,37 +637,6 @@ class Generator(object):
 
         return list(map(sample_const, expr))
 
-    def process_equation(self, infix: str):
-        """
-        Processes raw infix string to remove root constants (additive and multiplicative) and add multiplicative and additive constants to each node of the expression afterwards. 
-        """
-        f = self.infix_to_sympy(infix, self.variables, self.rewrite_functions)
-        print('Process equation')
-        
-        symbols = set([str(x) for x in f.free_symbols])
-        if not symbols:
-            raise NotCorrectIndependentVariables()
-            #return None, f"No variables in the expression, skip"
-        for s in symbols:
-            if not len(set(self.var_symbols[:self.pos_dict[s]]) & symbols) == len(self.var_symbols[:self.pos_dict[s]]):
-                raise NotCorrectIndependentVariables()
-                #return None, f"Variable {s} in the expressions, but not the one before"
-        
-        # Removing additive and multiplicative constants applied to whole expression. A form of normalisation. Disabled for now. (e.g. 3*x1^2+4 -> x1^2)
-        # print(f'1, {f = }')
-        # f = remove_root_constant_terms(f, list(self.variables.values()), 'add')
-        # print(f'2, {f = }')
-        # f = remove_root_constant_terms(f, list(self.variables.values()), 'mul')
-        print(f'3, {f = }')
-        f = add_multiplicative_constants(f, self.placeholders["cm"], unary_operators=self.una_ops)
-        print(f'4, {f = }')
-        f = add_additive_constants(f, self.placeholders, unary_operators=self.una_ops)
-        print(f'5, {f = }')
-        print('Process equation done')
-
-        return f
-    
-
     def get_minmax_constants(self, f_prefix_list: List[str]) -> Tuple[float, float]:
         """
         Get the minimum and maximum constants in the expression.
@@ -683,7 +653,7 @@ class Generator(object):
         """
         Generates a single equation skeleton as a prefix list.
         """
-        nb_ops = rng.randint(3, self.max_ops + 1)
+        nb_ops = rng.randint(self.min_ops, self.max_ops + 1)
 
         f_prefix_list = self._generate_expr(nb_ops, rng)
         f_prefix_list = self.replace_const_placeholder(f_prefix_list, const_min, const_max)
