@@ -347,7 +347,7 @@ class Generator(object):
 
         # 1. Create tree
         for nb_ops in range(nb_total_ops, 0, -1):
-
+            print(nb_ops)
             # next operator, arity and position
             skipped, arity = self.sample_next_pos_ubi(nb_empty, nb_ops, rng)
             if arity == 1:
@@ -369,6 +369,7 @@ class Generator(object):
                 + [None for _ in range(self.OPERATORS[op])]
                 + stack[pos + 1 :]
             )
+            print(stack)
 
         # sanity check
         assert len([1 for v in stack if v in self.all_ops]) == nb_total_ops

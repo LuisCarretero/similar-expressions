@@ -1,0 +1,11 @@
+{
+    "max_len": 10,
+    "operators": "add:10,mul:10,sub:10,div:10,sin:8,exp:8",
+    "max_ops": 3,
+    "min_ops": 1,
+    "rewrite_functions": "",
+    "variables": ["x1"], 
+    "eos_index": 1,
+    "pad_index": 0,
+    "leaf_probs": [0.5, 0.5]
+}
