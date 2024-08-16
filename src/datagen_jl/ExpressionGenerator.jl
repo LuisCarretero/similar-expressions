@@ -29,6 +29,9 @@ mutable struct ExpressionGeneratorConfig
     nl::Int
     p1::Int
     p2::Int
+
+    seq_len::Int
+    nb_onehot_cats::Int
 end
 
 function OperatorProbEnum(ops::OperatorEnum, binops_probs::Vector{Float64}, unaops_probs::Vector{Float64})
@@ -41,7 +44,7 @@ function OperatorProbEnum(ops::OperatorEnum, binops_probs::Vector{Float64}, unao
     return OperatorProbEnum(binops_probs, unaops_probs)
 end
 
-function ExpressionGeneratorConfig(nb_total_ops::Int, data_type::Type, ops::OperatorEnum, op_probs::OperatorProbEnum, nfeatures::Int, seed::Int=0)
+function ExpressionGeneratorConfig(nb_total_ops::Int, data_type::Type, ops::OperatorEnum, op_probs::OperatorProbEnum, nfeatures::Int, seq_len::Int, seed::Int=0)
     rng = Random.MersenneTwister(seed)
 
     nuna = length(ops.unaops)
@@ -52,7 +55,8 @@ function ExpressionGeneratorConfig(nb_total_ops::Int, data_type::Type, ops::Oper
     p2 = 1
 
     ubi_dist = _generate_ubi_dist(nb_total_ops, nl, p1, p2)
-    ExpressionGeneratorConfig(nb_total_ops, data_type, ubi_dist, rng, ops, op_probs, nuna, nbin, nfeatures, nl, p1, p2)
+    nb_onehot_cats = nbin + nuna + nfeatures + 2  # +1 for constants, +1 for empty token
+    ExpressionGeneratorConfig(nb_total_ops, data_type, ubi_dist, rng, ops, op_probs, nuna, nbin, nfeatures, nl, p1, p2, seq_len, nb_onehot_cats)
 end
 
 function generate_expr_tree(config::ExpressionGeneratorConfig)::Node
