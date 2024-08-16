@@ -13,8 +13,9 @@ function eval_trees(trees::Vector{Node{T}}, ops::OperatorEnum, x::AbstractMatrix
     # Evaluate each tree and store the results
     for (i, tree) in enumerate(trees)
         (res, complete) = eval_tree_array(tree, x, ops)
-        success[i] = complete
-        if complete
+        good = complete && all(abs.(res) .< 1e5)  # FIXME: Make this customizable.
+        success[i] = good
+        if good
             res_mat[i, :] = res
         end
     end

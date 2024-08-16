@@ -1,7 +1,6 @@
-import os
 import torch
 from model import GrammarVAE
-from util import AnnealKL, load_data, save_model
+from util import AnnealKL, load_data
 from grammar import GCFG
 import wandb
 from tqdm import tqdm
@@ -12,7 +11,7 @@ DECODER_HIDDEN = 20
 RNN_TYPE = 'lstm'
 BATCH_SIZE = 32
 MAX_LENGTH = 15
-SYN_SEQ_LEN = len(GCFG.productions()) + 1
+SYN_SEQ_LEN = 9  # FIXME: Remove all other grammar stuff
 VAL_POINTS = 100
 LR = 4e-3
 CLIP = 5.
@@ -137,10 +136,9 @@ if __name__ == '__main__':
 
     # Load data
     def value_transform(x):
-        eps = 1e-10
-        return torch.log(torch.abs(x) + eps)/10  # Example transformation
+        return torch.arcsinh(x)*0.1  # Example transformation. TODO: adjust scaling dynamically (arcsinh(1e5)=12.2 so currently this gives us 1.22)
     datapath = '/Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/similar-expressions/data'
-    train_loader, test_loader = load_data(datapath, 'expr_240807_5', test_split=0.1, batch_size=BATCH_SIZE, value_transform=value_transform)
+    train_loader, test_loader = load_data(datapath, 'dataset_240816', test_split=0.1, batch_size=BATCH_SIZE, value_transform=value_transform)
 
     for epoch in range(1, EPOCHS+1):
         train_one_epoch(train_loader, epoch)

@@ -1,45 +1,26 @@
-include("ExpressionGenerator.jl")
-include("utils.jl")
-include("Dataset.jl")
-
-using .ExpressionGenerator
-using .Utils: eval_trees, encode_trees
-using .DatasetModule: Dataset
-using DynamicExpressions: OperatorEnum, string_tree
+include("./ExpressionGenerator.jl")
+include("./utils.jl")
+include("./Dataset.jl")
+    
 using Serialization
+using .DatasetModule: Dataset
 
-# Settings
-total_ops = 3
-nfeatures = 1
-ops = OperatorEnum((+, -, *), (sin, exp))
-op_probs = ExpressionGenerator.OperatorProbEnum(ops, [1.0, 1.0, 1.0], [1.0, 1.0])
-seq_len = 15  # Max number of nodes in the tree
-N = 100_000  # You can adjust this number as needed
+# Load the dataset
+dataset = deserialize("/Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/similar-expressions/data/dataset_240816_2.jls")
 
-# Generate trees
-println("Generating trees...")
-generator_config = ExpressionGenerator.ExpressionGeneratorConfig(total_ops, Float64, ops, op_probs, nfeatures, seq_len, 0)
-trees = [ExpressionGenerator.generate_expr_tree(generator_config) for _ in 1:N]
-dataset = Dataset(generator_config, trees)
+# # Extract relevant information
+using HDF5
 
-# Evaluate trees
-println("Evaluating trees...")
-eval_x = reshape(collect(range(-10, 10, length=100)), (1, 100))
-eval_y, success = eval_trees(trees, generator_config.ops, eval_x)
-trees = trees[success]
-eval_y = eval_y[success, :]
-dataset = Dataset(generator_config, trees, eval_x, eval_y)
+# Extract relevant information
+eval_y = dataset.eval_y
+onehot = Array(dataset.onehot)
+consts = dataset.consts
 
-# Encode trees
-println("Encoding trees...")
-onehot, consts, success = encode_trees(trees, generator_config)
-onehot = onehot[success, :, :]
-consts = consts[success, :]
-dataset = Dataset(generator_config, trees[success], eval_x, eval_y[success, :], onehot, consts)
-
-# Save dataset
-println("Saving dataset...")
-output_file = "./data/dataset_240816.jls"
-open(output_file, "w") do io
-    serialize(io, dataset)
+# Save as HDF5 file
+h5open("/Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/similar-expressions/data/dataset_240816_2.h5", "w") do file
+    file["eval_y"] = eval_y
+    file["onehot"] = onehot
+    file["consts"] = consts
 end
+
+println("Dataset saved as HDF5 file.")

@@ -14,8 +14,10 @@ struct OperatorProbEnum
 end
 
 mutable struct ExpressionGeneratorConfig
-    nb_total_ops::Int
+    op_cnt_min::Int
+    op_cnt_max::Int
     data_type::Type
+
     ubi_dist::Vector{Vector{Int}}
     rng::AbstractRNG
 
@@ -25,6 +27,8 @@ mutable struct ExpressionGeneratorConfig
     nbin::Int
 
     nfeatures::Int
+
+    const_distr::Distribution
 
     nl::Int
     p1::Int
@@ -44,7 +48,10 @@ function OperatorProbEnum(ops::OperatorEnum, binops_probs::Vector{Float64}, unao
     return OperatorProbEnum(binops_probs, unaops_probs)
 end
 
-function ExpressionGeneratorConfig(nb_total_ops::Int, data_type::Type, ops::OperatorEnum, op_probs::OperatorProbEnum, nfeatures::Int, seq_len::Int, seed::Int=0)
+function ExpressionGeneratorConfig(op_cnt_min::Int, op_cnt_max::Int, data_type::Type, ops::OperatorEnum, op_probs::OperatorProbEnum, nfeatures::Int, seq_len::Int, seed::Int=0)
+    @assert op_cnt_min <= op_cnt_max
+    @assert op_cnt_min > 0
+
     rng = Random.MersenneTwister(seed)
 
     nuna = length(ops.unaops)
@@ -54,9 +61,10 @@ function ExpressionGeneratorConfig(nb_total_ops::Int, data_type::Type, ops::Oper
     p1 = 1
     p2 = 1
 
-    ubi_dist = _generate_ubi_dist(nb_total_ops, nl, p1, p2)
+    ubi_dist = _generate_ubi_dist(op_cnt_max, nl, p1, p2)
     nb_onehot_cats = nbin + nuna + nfeatures + 2  # +1 for constants, +1 for empty token
-    ExpressionGeneratorConfig(nb_total_ops, data_type, ubi_dist, rng, ops, op_probs, nuna, nbin, nfeatures, nl, p1, p2, seq_len, nb_onehot_cats)
+    const_distr = truncated(Normal(), -5, 5)  # mean=0, std=1, min=-5, max=5 TODO: Make this customizable.
+    ExpressionGeneratorConfig(op_cnt_min, op_cnt_max, data_type, ubi_dist, rng, ops, op_probs, nuna, nbin, nfeatures, const_distr,nl, p1, p2, seq_len, nb_onehot_cats)
 end
 
 function generate_expr_tree(config::ExpressionGeneratorConfig)::Node
@@ -144,6 +152,19 @@ function _make_random_leaf(
     end
 end
 
+function _make_random_leafs(leaf_cnt::Int, feature_leaf_cnt::Int, nfeatures::Int, const_distr::Distribution, ::Type{T}, rng::AbstractRNG=default_rng())::Vector{Node{T}} where {T<:Number}
+    leaves = Vector{Node{T}}()
+    for _ in 1:feature_leaf_cnt
+        # FIXME: If we want all features to be used at least once, need to change this.
+        push!(leaves, Node{T}(; feature=rand(rng, 1:nfeatures)))
+    end
+    for _ in 1:(leaf_cnt - feature_leaf_cnt)
+        push!(leaves, Node{T}(; val=rand(rng, const_distr))) # TODO: Customizable distribution. Currently normal with mu=0, sigma=1.
+    end
+    shuffle!(rng, leaves)
+    return leaves
+end
+
 """
 Careful, cannot be printed currently (will throw error)
 """
@@ -164,7 +185,9 @@ function _generate_expr_prefix(config::ExpressionGeneratorConfig, ::Type{T})::Ve
 
     stack = [nothing]
 
-    for nb_ops in config.nb_total_ops:-1:1
+    op_cnt_total = rand(config.rng, config.op_cnt_min:config.op_cnt_max)  # TODO: Add distribution?
+
+    for nb_ops in op_cnt_total:-1:1
         skipped, arity = _sample_next_pos_ubi(config, nb_empty, nb_ops)
 
         if arity == 1
@@ -189,11 +212,12 @@ function _generate_expr_prefix(config::ExpressionGeneratorConfig, ::Type{T})::Ve
     end
 
     # sanity check
-    @assert count(x -> isa(x, Node), stack) == config.nb_total_ops
+    @assert count(x -> isa(x, Node), stack) == op_cnt_total
     @assert count(x -> x === nothing, stack) == t_leaves
 
     # 2. Create leaves
-    leaves = [_make_random_leaf(config.nfeatures, T, Node{T}, config.rng) for _ in 1:t_leaves]
+    feature_leaf_cnt = rand(config.rng, 1:t_leaves)  # TODO: Make this customizable. currently always one feature leaf. Could also introduce a feature leaf probability.
+    leaves = _make_random_leafs(t_leaves, feature_leaf_cnt, config.nfeatures, config.const_distr, T, config.rng)
 
     # 3. Insert leaves into tree
     for pos in length(stack):-1:1

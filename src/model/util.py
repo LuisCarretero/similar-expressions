@@ -11,6 +11,10 @@ from grammar import get_mask, S
 from scipy.special import softmax
 from torch.utils.data import DataLoader, random_split, Dataset
 
+from julia.api import Julia
+Julia(compiled_modules=False)
+from julia import Main
+
 
 class Stack:
     """A simple first in last out stack.
@@ -119,8 +123,21 @@ class CustomDataset(Dataset):
 
         return self.data_syntax[idx].transpose(-2, -1), y_rule_idx, y_consts, y_val
 
+def load_jl_dataset(datapath: str, name: str):
+    # Load the HDF5 file
+    with h5py.File(os.path.join(datapath, f'{name}.h5'), 'r') as f:
+        # Extract onehot, values (eval_y), and consts
+        onehot = f['onehot'][:].astype(np.float32)
+        values = f['eval_y'][:].astype(np.float32)
+        consts = f['consts'][:].astype(np.float32)
+
+    syntax_data = np.concatenate([onehot.transpose([2, 1, 0]), consts.T[:, :, np.newaxis]], axis=-1)
+    value_data = values.T
+
+    return syntax_data, value_data
+
 def load_data(datapath: str, name: str, test_split: float = 0.2, batch_size: int = 32, max_length: int = None, value_transform=None):
-    _, data_syntax, values = load_raw_parsed_value_data(datapath, name)
+    data_syntax, values = load_jl_dataset(datapath, name)
 
     if max_length is not None:
         data_syntax = data_syntax[:max_length]
