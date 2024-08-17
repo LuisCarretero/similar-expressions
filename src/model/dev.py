@@ -23,15 +23,14 @@ import os
 import torch
 import numpy as np
 
-# Load the HDF5 file
-datapath = '/Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/similar-expressions/data'
-with h5py.File(os.path.join(datapath, 'dataset_240816_2.h5'), 'r') as f:
-    # Extract onehot, values (eval_y), and consts
-    onehot = f['onehot'][:]
-    values = f['eval_y'][:]
-    consts = f['consts'][:]
+name = 'dataset_240816_2'
 
-# Print shapes for verification
-print("Onehot shape:", onehot.shape)
-print("Values shape:", values.shape)
-print("Consts shape:", consts.shape)
+# Load the HDF5 file
+with h5py.File(os.path.join(datapath, f'{name}.h5'), 'r') as f:
+    # Extract onehot, values (eval_y), and consts
+    onehot = f['onehot'][:].astype(np.float32)
+    values = f['eval_y'][:].astype(np.float32)
+    consts = f['consts'][:].astype(np.float32)
+
+syntax_data = np.concatenate([onehot.transpose([2, 1, 0]), consts.T[:, :, np.newaxis]], axis=-1)
+value_data = values.T

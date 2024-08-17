@@ -138,20 +138,6 @@ function _sample_next_pos_ubi(
     return e, arity
 end
 
-"""From SymbolicRegression.jl"""
-function _make_random_leaf(
-    nfeatures::Int,
-    ::Type{T},
-    ::Type{N},
-    rng::AbstractRNG=default_rng(),
-) where {T<:Number, N<:AbstractExpressionNode}
-    if rand(rng, Bool)  # TODO: Add probs
-        return constructorof(N)(; val=randn(rng, T))
-    else
-        return constructorof(N)(T; feature=rand(rng, 1:nfeatures))
-    end
-end
-
 function _make_random_leafs(leaf_cnt::Int, feature_leaf_cnt::Int, nfeatures::Int, const_distr::Distribution, ::Type{T}, rng::AbstractRNG=default_rng())::Vector{Node{T}} where {T<:Number}
     leaves = Vector{Node{T}}()
     for _ in 1:feature_leaf_cnt

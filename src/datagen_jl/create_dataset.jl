@@ -3,7 +3,7 @@ include("utils.jl")
 include("Dataset.jl")
 
 using .ExpressionGenerator
-using .Utils: eval_trees, encode_trees
+using .Utils: eval_trees, encode_trees, get_onehot_legend
 using .DatasetModule: Dataset
 using DynamicExpressions: OperatorEnum, string_tree
 using Serialization
@@ -17,7 +17,7 @@ ops = OperatorEnum((+, -, *, /), (sin, exp))
 op_probs = ExpressionGenerator.OperatorProbEnum(ops, [1.0, 1.0, 1.0, 1.0], [1.0, 1.0])
 seq_len = 15  # Max number of nodes in the tree
 N = 100_000  # You can adjust this number as needed
-name = "dataset_240816_3"
+name = "dataset_240817_2"
 
 # Generate trees
 println("Generating trees...")
@@ -49,5 +49,6 @@ end
 h5open("./data/$name.h5", "w") do file
     file["eval_y"] = dataset.eval_y
     file["onehot"] = Array(dataset.onehot)
-    file["consts"] = dataset.consts;
+    file["consts"] = dataset.consts
+    file["onehot_legend"] = get_onehot_legend(dataset);
 end
