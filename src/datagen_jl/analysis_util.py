@@ -7,7 +7,7 @@ from collections import Counter
 import random
 
 def plot_value_distributions(val: np.ndarray, val_transformed: np.ndarray):
-    fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(12, 10))
+    _, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(10, 8))
 
     # Original data (log scale)
     a = pd.Series(val.flatten())
@@ -93,7 +93,7 @@ def analyze_sequences(syntax, categories):
     all_sequences = [seq_to_string(seq) for seq in syntax]
 
     # Create a large figure with subplots
-    fig, axs = plt.subplots(3, 2, figsize=(18, 16))
+    fig, axs = plt.subplots(3, 2, figsize=(12, 14))
     fig.suptitle('Sequence Analysis', fontsize=20)
 
     # 1. Sequence length distribution
@@ -139,11 +139,12 @@ def analyze_sequences(syntax, categories):
 
     # 5. Sequence complexity (unique tokens per sequence)
     seq_complexity = [len(set(seq.split())) for seq in all_sequences]
-    sns.histplot(seq_complexity, bins=range(1, max(seq_complexity)+2), ax=axs[2, 0])
+    axs[2, 0].hist(seq_complexity, bins=range(1, max(seq_complexity)+2), edgecolor='black')
     axs[2, 0].set_title('Sequence Complexity Distribution')
-    axs[2, 0].set_xlabel('Number of Unique Tokens in Sequence')
+    axs[2, 0].set_xlabel('Unique Tokens in Sequence')
     axs[2, 0].set_ylabel('Count')
-    axs[2, 0].set_xticks(range(1, max(seq_complexity)+1, 2))
+    axs[2, 0].set_xticks(range(1, max(seq_complexity)+1))
+    axs[2, 0].tick_params(axis='x', bottom=True, top=False, labelbottom=True)
 
     # 6. Pairwise sequence similarity
     def hamming_distance(s1, s2):
@@ -180,11 +181,11 @@ def analyze_syntax_tokens(syntax, categories):
     import matplotlib.pyplot as plt
     import seaborn as sns
 
-    fig, axs = plt.subplots(2, 2, figsize=(25, 24))
+    fig, axs = plt.subplots(2, 2, figsize=(12, 10))
 
     # 1. Frequency of each category at each position
     category_freq = syntax.sum(axis=0)
-    sns.heatmap(category_freq.T, cmap='YlOrRd', ax=axs[0, 0], cbar_kws={'label': 'Frequency'}, annot=True, fmt='g')
+    sns.heatmap(category_freq.T, cmap='YlOrRd', ax=axs[0, 0], cbar_kws={'label': 'Frequency'}, annot=True, fmt='g', annot_kws={'size': 6})
     axs[0, 0].set_title('Category Frequency at Each Position', fontsize=16)
     axs[0, 0].set_xlabel('Position', fontsize=12)
     axs[0, 0].set_ylabel('Category', fontsize=12)
@@ -224,7 +225,7 @@ def analyze_syntax_tokens(syntax, categories):
     plt.tight_layout()
     plt.show()
 
-def plot_values(val, val_transformed, idx):
+def plot_values(val_x, val, val_transformed, idx):
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 5))
 
     # Original data
