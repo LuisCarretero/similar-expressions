@@ -10,7 +10,7 @@ from util import logits_to_prods
 
 class GrammarVAE(nn.Module):
     """Grammar Variational Autoencoder"""
-    def __init__(self, hidden_encoder_size, z_dim, hidden_decoder_size, syn_seq_len, rnn_type, val_points, device=None):
+    def __init__(self, hidden_encoder_size, z_dim, hidden_decoder_size, token_cnt, seq_len, rnn_type, val_points, device=None):
         super(GrammarVAE, self).__init__()
         if device is None:
             self.device = (
@@ -21,8 +21,8 @@ class GrammarVAE(nn.Module):
         else:
             self.device = device
 
-        self.encoder = Encoder(hidden_encoder_size, z_dim).to(self.device)
-        self.decoder = Decoder(z_dim, hidden_decoder_size, syn_seq_len, rnn_type).to(self.device)
+        self.encoder = Encoder(token_cnt, hidden_encoder_size, z_dim).to(self.device)
+        self.decoder = Decoder(z_dim, hidden_decoder_size, token_cnt, rnn_type).to(self.device)
         self.value_decoder = ValueDecoder(z_dim, val_points).to(self.device)
         self.to(self.device)
 

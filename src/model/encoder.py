@@ -10,18 +10,18 @@ class Encoder(nn.Module):
     of one-hot encodings of the sequence of rules that generate
     an artithmetic expression.
     """
-    def __init__(self, hidden_dim=20, z_dim=2, conv_size='small'):
+    def __init__(self, input_dim, hidden_dim=20, z_dim=2, conv_size='small'):
         super().__init__()
         if conv_size == 'small':
             # 12 rules, so 12 input channels
-            self.conv1 = nn.Conv1d(12, 2, kernel_size=2)
+            self.conv1 = nn.Conv1d(input_dim, 2, kernel_size=2)
             self.conv2 = nn.Conv1d(2, 3, kernel_size=3)
             self.conv3 = nn.Conv1d(3, 4, kernel_size=4)
             self.linear = nn.Linear(36, hidden_dim)
         elif conv_size == 'large':
-            self.conv1 = nn.Conv1d(12, 24, kernel_size=2)
-            self.conv2 = nn.Conv1d(24, 12, kernel_size=3)
-            self.conv3 = nn.Conv1d(12, 12, kernel_size=4)
+            self.conv1 = nn.Conv1d(input_dim, input_dim*2, kernel_size=2)
+            self.conv2 = nn.Conv1d(input_dim*2, input_dim, kernel_size=3)
+            self.conv3 = nn.Conv1d(input_dim, input_dim, kernel_size=4)
             self.linear = nn.Linear(108, hidden_dim)
         else:
             raise ValueError('Invallid value for `conv_size`: {}.'

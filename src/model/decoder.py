@@ -25,6 +25,7 @@ class Decoder(nn.Module):
 
     def forward(self, z, max_length):
         """The forward pass used for training the Grammar VAE.
+        TODO: Does it make sense to have max_length as parameter?
 
         For the rnn we follow the same convention as the official keras
         implementaion: the latent z is the input to the rnn at each timestep.

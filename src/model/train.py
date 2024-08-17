@@ -4,14 +4,15 @@ from util import AnnealKL, load_data
 from grammar import GCFG
 import wandb
 from tqdm import tqdm
+import numpy as np
 
 ENCODER_HIDDEN = 20
 Z_SIZE = 10
 DECODER_HIDDEN = 20
 RNN_TYPE = 'lstm'
 BATCH_SIZE = 32
-MAX_LENGTH = 15
-SYN_SEQ_LEN = 9  # FIXME: Remove all other grammar stuff
+SEQ_LEN = 15  # TODO: Get from dataset
+TOKEN_CNT = 10  # TODO: Get from dataset
 VAL_POINTS = 100
 LR = 4e-3
 CLIP = 5.
@@ -34,7 +35,7 @@ def train_one_epoch(train_loader, epoch_idx: int):
         # Forward pass
         mu, sigma = model.encoder(x)
         z = model.sample(mu, sigma)
-        logits = model.decoder(z, max_length=MAX_LENGTH)
+        logits = model.decoder(z, max_length=SEQ_LEN)
         values = model.value_decoder(z)
         
         # Calculate losses
@@ -67,7 +68,7 @@ def test(test_loader):
             # Forward pass
             mu, sigma = model.encoder(x)
             z = model.sample(mu, sigma)
-            logits = model.decoder(z, max_length=MAX_LENGTH)
+            logits = model.decoder(z, max_length=SEQ_LEN)
             values = model.value_decoder(z)
             
             # Calculate losses
@@ -108,7 +109,7 @@ if __name__ == '__main__':
 
     # Init model
     torch.manual_seed(41)
-    model = GrammarVAE(ENCODER_HIDDEN, Z_SIZE, DECODER_HIDDEN, SYN_SEQ_LEN, RNN_TYPE, VAL_POINTS, device='cpu')
+    model = GrammarVAE(ENCODER_HIDDEN, Z_SIZE, DECODER_HIDDEN, TOKEN_CNT, SEQ_LEN, RNN_TYPE, VAL_POINTS, device='cpu')
 
     # Init loss funcitons
     # criterion_syntax_onehot = torch.nn.CrossEntropyLoss()
@@ -117,10 +118,10 @@ if __name__ == '__main__':
     # criterion_value = torch.nn.L1Loss(reduction='mean')
 
     def criterion(logits, values, y_rule_idx, y_consts, y_val):
-        """TODO: Include loss normalisation"""
-        cross_entropy_prior = 1.9647622760005012
-        mse_prior_consts = 0.031348917125856815
-        mse_prior_values = 0.07700505140807316
+        # TODO: Calc loss normalisation dynamically
+        cross_entropy_prior = np.float32(1.3984073)
+        mse_prior_consts = np.float32(0.06433585)
+        mse_prior_values = np.float32(0.06500606)
         
         logits_onehot = logits[:, :, :-1]
         loss_syntax_onehot = torch.nn.CrossEntropyLoss()(logits_onehot.reshape(-1, logits_onehot.size(-1)), y_rule_idx.reshape(-1))/cross_entropy_prior
@@ -138,7 +139,7 @@ if __name__ == '__main__':
     def value_transform(x):
         return torch.arcsinh(x)*0.1  # Example transformation. TODO: adjust scaling dynamically (arcsinh(1e5)=12.2 so currently this gives us 1.22)
     datapath = '/Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/similar-expressions/data'
-    train_loader, test_loader = load_data(datapath, 'dataset_240816', test_split=0.1, batch_size=BATCH_SIZE, value_transform=value_transform)
+    train_loader, test_loader = load_data(datapath, 'dataset_240817_2', test_split=0.1, batch_size=BATCH_SIZE, value_transform=value_transform)
 
     for epoch in range(1, EPOCHS+1):
         train_one_epoch(train_loader, epoch)
