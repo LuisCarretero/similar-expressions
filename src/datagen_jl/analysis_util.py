@@ -223,3 +223,21 @@ def analyze_syntax_tokens(syntax, categories):
 
     plt.tight_layout()
     plt.show()
+
+def plot_values(val, val_transformed, idx):
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 5))
+
+    # Original data
+    ax1.set_title('First 10 Graphs: Original Values')
+    ax1.plot(val_x.flatten(), val[:, idx])
+    ax1.set_xlabel('x')
+    ax1.set_ylabel('y')
+
+    # Transformed data
+    ax2.set_title('First 10 Graphs: Transformed Values')
+    ax2.plot(val_x.flatten(), val_transformed[:, idx])
+    ax2.set_xlabel('x')
+    ax2.set_ylabel('y')
+
+    plt.tight_layout()
+    plt.show()

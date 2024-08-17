@@ -47,6 +47,7 @@ open("./data/$name.jls", "w") do io
 end
 # Save as HDF5 file to be used in python
 h5open("./data/$name.h5", "w") do file
+    file["eval_x"] = dataset.eval_x
     file["eval_y"] = dataset.eval_y
     file["onehot"] = Array(dataset.onehot)
     file["consts"] = dataset.consts
