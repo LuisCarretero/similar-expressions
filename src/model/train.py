@@ -1,13 +1,12 @@
 import torch
 from model import GrammarVAE
-from util import AnnealKL, load_data
-from grammar import GCFG
+from util import AnnealKL, create_dataloader
 import wandb
 from tqdm import tqdm
 import numpy as np
 
 ENCODER_HIDDEN = 20
-Z_SIZE = 10
+Z_SIZE = 4
 DECODER_HIDDEN = 20
 RNN_TYPE = 'lstm'
 BATCH_SIZE = 32
@@ -109,7 +108,7 @@ if __name__ == '__main__':
 
     # Init model
     torch.manual_seed(41)
-    model = GrammarVAE(ENCODER_HIDDEN, Z_SIZE, DECODER_HIDDEN, TOKEN_CNT, SEQ_LEN, RNN_TYPE, VAL_POINTS, device='cpu')
+    model = GrammarVAE(ENCODER_HIDDEN, Z_SIZE, DECODER_HIDDEN, TOKEN_CNT, RNN_TYPE, VAL_POINTS, device='cpu')
 
     # Init loss funcitons
     # criterion_syntax_onehot = torch.nn.CrossEntropyLoss()
@@ -139,7 +138,7 @@ if __name__ == '__main__':
     def value_transform(x):
         return torch.arcsinh(x)*0.1  # Example transformation. TODO: adjust scaling dynamically (arcsinh(1e5)=12.2 so currently this gives us 1.22)
     datapath = '/Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/similar-expressions/data'
-    train_loader, test_loader = load_data(datapath, 'dataset_240817_2', test_split=0.1, batch_size=BATCH_SIZE, value_transform=value_transform)
+    train_loader, test_loader = create_dataloader(datapath, 'dataset_240817_2', test_split=0.1, batch_size=BATCH_SIZE, value_transform=value_transform)
 
     for epoch in range(1, EPOCHS+1):
         train_one_epoch(train_loader, epoch)

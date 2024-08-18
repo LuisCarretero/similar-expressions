@@ -11,11 +11,6 @@ from grammar import get_mask, S
 from scipy.special import softmax
 from torch.utils.data import DataLoader, random_split, Dataset
 
-from julia.api import Julia
-Julia(compiled_modules=False)
-from julia import Main
-
-
 class Stack:
     """A simple first in last out stack.
 
@@ -56,7 +51,7 @@ def data2input(x):
     return Variable(x)
 
 def prods_to_eq(prods, verbose=False):
-    """Takes a list of productions and a list of constants and returns a string representation of the equation."""
+    """Takes a list of productions and a list of constants and returns a string representation of the equation. Only works with infix CFG."""
     seq = [prods[0].lhs()]  # Start with LHS of first rule (always nonterminal start)
     for prod in prods:
         if str(prod.lhs()) == 'Nothing':  # Padding rule. Reached end.
@@ -72,7 +67,7 @@ def prods_to_eq(prods, verbose=False):
             print(f'Nonterminal found. {seq = }')
         return ''
     
-def plot_onehot(onehot_matrix, grammar, apply_softmax=False, figsize=(10, 5)):
+def plot_onehot(onehot_matrix, xticks, apply_softmax=False, figsize=(10, 5)):
     onehot_matrix = onehot_matrix.copy()
     fig, [ax1, ax2] = plt.subplots(nrows=1, ncols=2, figsize=figsize)
     if apply_softmax:
@@ -83,23 +78,14 @@ def plot_onehot(onehot_matrix, grammar, apply_softmax=False, figsize=(10, 5)):
     ax1.set_ylabel('Sequence')
     ax1.set_xlabel('Rule')
 
-    xticks = grammar.productions()
     ax1.set_xticks(range(len(xticks)), xticks, rotation='vertical')
-    ax2.set_xticks([0], ['[CONST]'], rotation='vertical')
+    ax2.set_xticks([0], ['[CON]'], rotation='vertical')
     plt.colorbar(im1, ax=ax1)
     plt.colorbar(im2, ax=ax2)
     plt.tight_layout()
     plt.show()
 
-def save_model(model, file_name: str):
-    checkpoint_path = os.path.abspath('./checkpoints')
-    os.makedirs(checkpoint_path, exist_ok=True)
-
-    while os.path.exists(f'{checkpoint_path}/{file_name}.pt'):
-        file_name = f'{file_name}_copy'
-    torch.save(model, f'{checkpoint_path}/{file_name}.pt')
-
-class CustomDataset(Dataset):
+class CustomTorchDataset(Dataset):
     def __init__(self, data_syntax, data_values, value_transform=None):
         assert data_syntax.shape[0] == data_values.shape[0]
         self.data_syntax = torch.tensor(data_syntax, dtype=torch.float32)
@@ -123,28 +109,27 @@ class CustomDataset(Dataset):
 
         return self.data_syntax[idx].transpose(-2, -1), y_rule_idx, y_consts, y_val
 
-def load_jl_dataset(datapath: str, name: str):
-    # Load the HDF5 file
+def load_dataset(datapath, name):
     with h5py.File(os.path.join(datapath, f'{name}.h5'), 'r') as f:
         # Extract onehot, values (eval_y), and consts
-        onehot = f['onehot'][:].astype(np.float32)
-        values = f['eval_y'][:].astype(np.float32)
-        consts = f['consts'][:].astype(np.float32)
+        syntax = f['onehot'][:].astype(np.float32).transpose([2, 1, 0])
+        consts = f['consts'][:].astype(np.float32).T
+        val_x = f['eval_x'][:].astype(np.float32)
+        val = f['eval_y'][:].astype(np.float32).T
+        syntax_cats = list(map(lambda x: x.decode('utf-8'), f['onehot_legend'][:]))
 
-    syntax_data = np.concatenate([onehot.transpose([2, 1, 0]), consts.T[:, :, np.newaxis]], axis=-1)
-    value_data = values.T
+    return syntax, consts, val_x, val, syntax_cats
 
-    return syntax_data, value_data
-
-def load_data(datapath: str, name: str, test_split: float = 0.2, batch_size: int = 32, max_length: int = None, value_transform=None):
-    data_syntax, values = load_jl_dataset(datapath, name)
+def create_dataloader(datapath: str, name: str, test_split: float = 0.2, batch_size: int = 32, max_length: int = None, value_transform=None):
+    syntax, consts, _, values, _ = load_dataset(datapath, name)
+    data_syntax = np.concatenate([syntax, consts[:, :, np.newaxis]], axis=-1)
 
     if max_length is not None:
         data_syntax = data_syntax[:max_length]
         values = values[:max_length]
 
     # Create the full dataset
-    full_dataset = CustomDataset(data_syntax, values, value_transform=value_transform)
+    full_dataset = CustomTorchDataset(data_syntax, values, value_transform=value_transform)
 
     # Split the dataset
     test_size = int(test_split * len(full_dataset))
@@ -156,12 +141,6 @@ def load_data(datapath: str, name: str, test_split: float = 0.2, batch_size: int
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
     return train_loader, test_loader
-
-def load_onehot_data(path: str):
-    """Loads data as Numpy array."""
-    with h5py.File(path, 'r') as f:
-        data = f['data'][:]
-    return data
 
 def batch_iter(data_syntax: np.ndarray, data_value: np.ndarray, batch_size: int):
     """A simple iterator over batches of data"""
@@ -177,39 +156,6 @@ def batch_iter(data_syntax: np.ndarray, data_value: np.ndarray, batch_size: int)
 
         yield x_syn, y_rule_idx, y_consts, y_val
 
-def load_raw_parsed_data(datapath: str, name: str):
-    # Load raw data
-    with open(f'{datapath}/{name}.txt', 'r') as f:
-        eqs = f.readlines()
-        eqs = [eq.strip('\n') for eq in eqs]
-        eqs = np.array(eqs)
-
-    # Load parsed dataset
-    parsed_path = f'{datapath}/{name}-parsed.h5'
-    with h5py.File(parsed_path, 'r') as f:
-        onehot = f['data'][:]
-        invalid_idx = f['invalid_indices'][:]
-
-    mask = np.ones(len(eqs), dtype=bool)
-    mask[invalid_idx] = False
-
-    return eqs[mask], onehot
-
-def load_raw_parsed_value_data(datapath: str, name: str):
-    eqs, onehot = load_raw_parsed_data(datapath, name)
-
-
-    # Load parsed dataset
-    parsed_path = f'{datapath}/{name}-values.h5'
-    with h5py.File(parsed_path, 'r') as f:
-        values = f['data'][:]
-        invalid = f['invalid_mask'][:]
-
-    eqs = eqs[~invalid]
-    onehot = onehot[~invalid]
-
-    assert len(eqs) == onehot.shape[0] == len(values)
-    return eqs, onehot, values
 
 def logits_to_prods(logits, grammar, start_symbol: Nonterminal = S, sample=False, max_length=15, insert_const=True):
     stack = Stack(grammar=grammar, start_symbol=start_symbol)
@@ -220,11 +166,12 @@ def logits_to_prods(logits, grammar, start_symbol: Nonterminal = S, sample=False
     prods = []
     t = 0  # "Time step" in sequence
     while stack.nonempty:
-        alpha = stack.pop()  # Alpha is notation in paper.
-        mask = get_mask(alpha, stack.grammar, as_variable=True)
+        alpha = stack.pop()  # Alpha is notation in paper: current LHS token
+        mask = get_mask(alpha, grammar, as_variable=True)
         probs = mask * logits_prods[t].exp()
-        probs = probs / probs.sum()
-        
+        assert (tot := probs.sum()) > 0, f"Sum of probs is 0 at t={t}. Probably due to bad mask or invalid logits?"
+        probs = probs / tot
+
         if sample:
             m = Categorical(probs)
             i = m.sample()
@@ -232,7 +179,7 @@ def logits_to_prods(logits, grammar, start_symbol: Nonterminal = S, sample=False
             _, i = probs.max(-1) # argmax
 
         # select rule i
-        rule = stack.grammar.productions()[i.item()]
+        rule = grammar.productions()[i.item()]
 
         # If rule has -> [CONST] add const
         if insert_const and (rule.rhs()[0] == '[CONST]'):
@@ -247,3 +194,30 @@ def logits_to_prods(logits, grammar, start_symbol: Nonterminal = S, sample=False
         if t == max_length:
             break
     return prods
+
+def logits_to_prefix(logits, syntax_cats: list[str], sample=False, max_length=15):
+
+
+    consts = logits[:, -1]  # FIXME: Replace const placeholders
+    syntax = logits[:, :-1]
+
+    token_idx = []
+    probs = torch.softmax(syntax, dim=-1)  # Convert logits to probabilities, excluding the last column (constants)
+    
+    for t in range(max_length):
+        if sample:
+            dist = torch.distributions.Categorical(probs[t])
+            idx = dist.sample()
+        else:
+            idx = torch.argmax(probs[t])
+        
+        token_idx.append(idx.item())
+        
+        # Break if we've reached the end of the sequence
+        if idx == len(syntax_cats) - 1:  # Assuming the last category is an end token
+            break
+    
+    # Convert token indices to actual tokens
+    tokens = [syntax_cats[idx] for idx in token_idx]
+    
+    return tokens

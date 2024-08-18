@@ -5,12 +5,11 @@ from torch.distributions import Normal
 from encoder import Encoder
 from decoder import Decoder
 from value_decoder import ValueDecoder
-from grammar import GCFG
 from util import logits_to_prods
 
 class GrammarVAE(nn.Module):
     """Grammar Variational Autoencoder"""
-    def __init__(self, hidden_encoder_size, z_dim, hidden_decoder_size, token_cnt, seq_len, rnn_type, val_points, device=None):
+    def __init__(self, hidden_encoder_size, z_dim, hidden_decoder_size, token_cnt, rnn_type, val_points, device=None):
         super(GrammarVAE, self).__init__()
         if device is None:
             self.device = (
@@ -53,5 +52,5 @@ class GrammarVAE(nn.Module):
         assert logits.shape[0] == 1, "Batch size must be 1"
         logits = logits.squeeze()  # Only considering 1st batch
 
-        return logits_to_prods(logits, GCFG, sample=sample, max_length=max_length)
+        return logits_to_prods_grammar(logits, GCFG, sample=sample, max_length=max_length)
         
