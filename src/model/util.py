@@ -10,6 +10,7 @@ from nltk.grammar import Production
 from grammar import get_mask, S
 from scipy.special import softmax
 from torch.utils.data import DataLoader, random_split, Dataset
+import json
 
 class Stack:
     """A simple first in last out stack.
@@ -45,6 +46,10 @@ class AnnealKL:
 	def alpha(self, update):
 		n, _ = divmod(update, self.rate)
 		return min(1., n*self.step)
+
+def load_config(path):
+    with open(path, 'r') as f:
+        return json.load(f)
 
 def data2input(x):
     x = torch.from_numpy(x).float().unsqueeze(0).transpose(-2, -1)
@@ -223,3 +228,31 @@ def logits_to_prefix(logits, syntax_cats: list[str], sample=False, max_length=15
     tokens = [syntax_cats[idx] for idx in token_idx]
     
     return tokens
+
+def criterion_factory(config, priors):
+    SYNTAX_LOSS_WEIGHT = config['syntax_loss_weight']
+    CONST_LOSS_WEIGHT = config['const_loss_weight']
+    VALUE_LOSS_WEIGHT = config['value_loss_weight']
+
+    SYNTAX_PRIOR = priors['syntax_prior']
+    CONST_PRIOR = priors['const_prior']
+    VALUE_PRIOR = priors['value_prior']
+
+    def criterion(logits, values, y_rule_idx, y_consts, y_val):
+        
+        logits_onehot = logits[:, :, :-1]
+        loss_syntax = torch.nn.CrossEntropyLoss()(logits_onehot.reshape(-1, logits_onehot.size(-1)), y_rule_idx.reshape(-1))/SYNTAX_PRIOR
+        loss_consts = torch.nn.MSELoss()(logits[:, :, -1], y_consts)/CONST_PRIOR
+
+        loss_value = torch.nn.MSELoss()(values, y_val)/VALUE_PRIOR
+
+        loss = loss_syntax*SYNTAX_LOSS_WEIGHT + loss_consts*CONST_LOSS_WEIGHT + loss_value*VALUE_LOSS_WEIGHT
+        loss = loss / (SYNTAX_LOSS_WEIGHT + CONST_LOSS_WEIGHT + VALUE_LOSS_WEIGHT)
+
+        return loss_syntax, loss_consts, loss_value, loss
+    return criterion
+
+def calc_syntax_accuracy(logits, y_rule_idx):
+    y_hat = logits.argmax(-1)
+    a = (y_hat == y_rule_idx).float().mean()
+    return 100 * a.item()
