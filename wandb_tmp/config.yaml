@@ -20,7 +20,7 @@ encoder_hidden:
   value: 20
 z_size:
   desc: null
-  value: 10
+  value: 4
 decoder_hidden:
   desc: null
   value: 20
@@ -38,7 +38,7 @@ _wandb:
     framework: torch
     is_jupyter_run: false
     is_kaggle_kernel: false
-    start_time: 1723925361
+    start_time: 1723935365
     t:
       1:
       - 1

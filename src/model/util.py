@@ -50,7 +50,7 @@ def data2input(x):
     x = torch.from_numpy(x).float().unsqueeze(0).transpose(-2, -1)
     return Variable(x)
 
-def prods_to_eq(prods, verbose=False):
+def prods_to_eq(prods, verbose=False, to_string=False):
     """Takes a list of productions and a list of constants and returns a string representation of the equation. Only works with infix CFG."""
     seq = [prods[0].lhs()]  # Start with LHS of first rule (always nonterminal start)
     for prod in prods:
@@ -60,12 +60,14 @@ def prods_to_eq(prods, verbose=False):
             if s == prod.lhs():
                 seq = seq[:ix] + list(prod.rhs()) + seq[ix+1:]  # Replace LHS with RHS
                 break
-    try:
-        return ' '.join(seq)
-    except TypeError:
-        if verbose:
-            print(f'Nonterminal found. {seq = }')
-        return ''
+    if to_string:
+        try:
+            return ' '.join(seq)
+        except TypeError:
+            print(f'Error. Could not create equation from {seq = }; {prods = }')
+            return ''
+    else:
+        return seq
     
 def plot_onehot(onehot_matrix, xticks, apply_softmax=False, figsize=(10, 5)):
     onehot_matrix = onehot_matrix.copy()
@@ -86,10 +88,10 @@ def plot_onehot(onehot_matrix, xticks, apply_softmax=False, figsize=(10, 5)):
     plt.show()
 
 class CustomTorchDataset(Dataset):
-    def __init__(self, data_syntax, data_values, value_transform=None):
+    def __init__(self, data_syntax, data_values, value_transform=None, device='cpu'):
         assert data_syntax.shape[0] == data_values.shape[0]
-        self.data_syntax = torch.tensor(data_syntax, dtype=torch.float32)
-        self.values = torch.tensor(data_values, dtype=torch.float32)
+        self.data_syntax = torch.tensor(data_syntax, dtype=torch.float32).to(device)
+        self.values = torch.tensor(data_values, dtype=torch.float32).to(device)
 
         self.value_transform = value_transform
 
@@ -120,7 +122,7 @@ def load_dataset(datapath, name):
 
     return syntax, consts, val_x, val, syntax_cats
 
-def create_dataloader(datapath: str, name: str, test_split: float = 0.2, batch_size: int = 32, max_length: int = None, value_transform=None):
+def create_dataloader(datapath: str, name: str, test_split: float = 0.2, batch_size: int = 32, max_length: int = None, value_transform=None, device='cpu'):
     syntax, consts, _, values, _ = load_dataset(datapath, name)
     data_syntax = np.concatenate([syntax, consts[:, :, np.newaxis]], axis=-1)
 
@@ -129,7 +131,7 @@ def create_dataloader(datapath: str, name: str, test_split: float = 0.2, batch_s
         values = values[:max_length]
 
     # Create the full dataset
-    full_dataset = CustomTorchDataset(data_syntax, values, value_transform=value_transform)
+    full_dataset = CustomTorchDataset(data_syntax, values, value_transform=value_transform, device=device)
 
     # Split the dataset
     test_size = int(test_split * len(full_dataset))
@@ -157,7 +159,7 @@ def batch_iter(data_syntax: np.ndarray, data_value: np.ndarray, batch_size: int)
         yield x_syn, y_rule_idx, y_consts, y_val
 
 
-def logits_to_prods(logits, grammar, start_symbol: Nonterminal = S, sample=False, max_length=15, insert_const=True):
+def logits_to_prods(logits, grammar, start_symbol: Nonterminal = S, sample=False, max_length=15, insert_const=True, const_token='CON'):
     stack = Stack(grammar=grammar, start_symbol=start_symbol)
 
     logits_prods = logits[:, :-1]
@@ -182,7 +184,7 @@ def logits_to_prods(logits, grammar, start_symbol: Nonterminal = S, sample=False
         rule = grammar.productions()[i.item()]
 
         # If rule has -> [CONST] add const
-        if insert_const and (rule.rhs()[0] == '[CONST]'):
+        if insert_const and (rule.rhs()[0] == const_token):
             rule = Production(lhs=rule.lhs(), rhs=(str(constants[t].item()),))
 
         prods.append(rule)

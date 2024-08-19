@@ -3,21 +3,16 @@ from torch.autograd import Variable
 from nltk import CFG, Nonterminal
 
 grammar = """
-S -> S '+' T
-S -> S '-' T
-S -> S '*' T
-S -> S '/' T
-S -> T
-T -> '(' S ')'
-T -> 'sin(' S ')'
-T -> 'exp(' S ')'
-T -> 'x1'
-T -> '[CONST]'
-Nothing -> None"""
+S -> 'ADD' S S | 'SUB' S S | 'MUL' S S | 'DIV' S S
+S -> 'SIN' S | 'EXP' S
+S -> 'CON'
+S -> 'x1' 
+END -> 'END'
+"""
 
 GCFG = CFG.fromstring(grammar)
-
-S, T = Nonterminal('S'), Nonterminal('T')
+S = Nonterminal('S')
+GCFG.productions()
 
 def get_mask(nonterminal, grammar, as_variable=False):
     if isinstance(nonterminal, Nonterminal):
