@@ -10,7 +10,7 @@ class Encoder(nn.Module):
     of one-hot encodings of the sequence of rules that generate
     an artithmetic expression.
     """
-    def __init__(self, input_dim, hidden_dim=20, z_dim=2, conv_size='small'):
+    def __init__(self, input_dim, hidden_dim=20, z_dim=2, conv_size='large'):
         super().__init__()
         if conv_size == 'small':
             # 12 rules, so 12 input channels
@@ -40,15 +40,11 @@ class Encoder(nn.Module):
         Takes a one-hot encoded input of shape [batch, 12, 15] and returns
         a mean and variance of a Normal distribution of shape [batch, 2].
         """
-        h = self.conv1(x)
-        h = self.relu(h)
-        h = self.conv2(h)
-        h = self.relu(h)
-        h = self.conv3(h)
-        h = self.relu(h)
+        h = self.relu(self.conv1(x))
+        h = self.relu(self.conv2(h))
+        h = self.relu(self.conv3(h))
         h = h.view(x.size(0), -1) # flatten
-        h = self.linear(h)
-        h = self.relu(h)
+        h = self.relu(self.linear(h))
         mu = self.mu(h)
         sigma = self.softplus(self.sigma(h))
         return mu, sigma

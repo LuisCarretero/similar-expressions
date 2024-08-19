@@ -1,6 +1,6 @@
 {
     "encoder_hidden": 20,
-    "z_size": 10,
+    "z_size": 20,
     "decoder_hidden": 20,
     "rnn_type": "lstm",
     "batch_size": 64,
@@ -14,5 +14,5 @@
     "value_loss_weight": 0,
     "const_loss_weight": 0,
     "syntax_loss_weight": 1,
-    "device": "mps"
+    "device": "cpu"
   }

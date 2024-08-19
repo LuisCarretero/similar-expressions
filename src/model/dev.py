@@ -1,11 +1,5 @@
-import os
-import sys
-import numpy as np
-import torch
+import json
 
-
-a = np.array([1.0, 2, 3])
-print(a.dtype)
-
-b = torch.tensor([1.0, 2, 3])
-print(b.dtype)
+# Load configuration
+with open('hyperparameters.json', 'r') as f:
+    config = json.load(f)

@@ -6,6 +6,7 @@ from encoder import Encoder
 from decoder import Decoder
 from value_decoder import ValueDecoder
 from util import logits_to_prods
+from grammar import GCFG
 
 class GrammarVAE(nn.Module):
     """Grammar Variational Autoencoder"""
@@ -52,5 +53,5 @@ class GrammarVAE(nn.Module):
         assert logits.shape[0] == 1, "Batch size must be 1"
         logits = logits.squeeze()  # Only considering 1st batch
 
-        return logits_to_prods_grammar(logits, GCFG, sample=sample, max_length=max_length)
+        return logits_to_prods(logits, GCFG, sample=sample, max_length=max_length)
         
