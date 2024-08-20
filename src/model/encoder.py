@@ -22,7 +22,7 @@ class Encoder(nn.Module):
             self.conv1 = nn.Conv1d(input_dim, input_dim*2, kernel_size=2)
             self.conv2 = nn.Conv1d(input_dim*2, input_dim, kernel_size=3)
             self.conv3 = nn.Conv1d(input_dim, input_dim, kernel_size=4)
-            self.linear = nn.Linear(108, hidden_dim)
+            self.linear = nn.Linear(input_dim*9, hidden_dim)  # 15+(-2+1)+(-3+1)+(-4+1)=9 from sequence length + conv sizes
         else:
             raise ValueError('Invallid value for `conv_size`: {}.'
                              ' Must be in [small, large]'.format(conv_size))

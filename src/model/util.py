@@ -11,6 +11,7 @@ from grammar import get_mask, S
 from scipy.special import softmax
 from torch.utils.data import DataLoader, random_split, Dataset
 import json
+import math
 
 class Stack:
     """A simple first in last out stack.
@@ -47,6 +48,26 @@ class AnnealKL:
 		n, _ = divmod(update, self.rate)
 		return min(1., n*self.step)
 
+class AnnealKLSigmoid:
+    """Anneal the KL for VAE based training using a sigmoid schedule"""
+    def __init__(self, total_epochs, midpoint=0.5, steepness=10):
+        self.total_epochs = total_epochs
+        self.midpoint = midpoint
+        self.steepness = steepness
+
+    def alpha(self, epoch):
+        """
+        Calculate the annealing factor using a sigmoid function.
+        
+        Args:
+            epoch (int): Current epoch number (0-indexed)
+        
+        Returns:
+            float: Annealing factor between 0 and 1
+        """
+        x = (epoch / self.total_epochs - self.midpoint) * self.steepness
+        return 1 / (1 + math.exp(-x))
+
 def load_config(path):
     with open(path, 'r') as f:
         return json.load(f)
@@ -55,7 +76,7 @@ def data2input(x):
     x = torch.from_numpy(x).float().unsqueeze(0).transpose(-2, -1)
     return Variable(x)
 
-def prods_to_eq(prods, verbose=False, to_string=False):
+def prods_to_eq(prods, to_string=False):
     """Takes a list of productions and a list of constants and returns a string representation of the equation. Only works with infix CFG."""
     seq = [prods[0].lhs()]  # Start with LHS of first rule (always nonterminal start)
     for prod in prods:

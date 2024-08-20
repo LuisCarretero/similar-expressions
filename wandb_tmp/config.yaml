@@ -1,35 +1,56 @@
 wandb_version: 1
 
-learning_rate:
-  desc: null
-  value: 0.004
-epochs:
-  desc: null
-  value: 10
-batch_size:
-  desc: null
-  value: 32
-value_loss_weight:
-  desc: null
-  value: 0
-const_loss_weight:
-  desc: null
-  value: 1
 encoder_hidden:
   desc: null
   value: 20
 z_size:
   desc: null
-  value: 4
+  value: 20
 decoder_hidden:
   desc: null
   value: 20
 rnn_type:
   desc: null
   value: lstm
+batch_size:
+  desc: null
+  value: 64
+seq_len:
+  desc: null
+  value: 15
+token_cnt:
+  desc: null
+  value: 10
 val_points:
   desc: null
   value: 100
+lr:
+  desc: null
+  value: 0.008
+clip:
+  desc: null
+  value: 5.0
+print_every:
+  desc: null
+  value: 200
+epochs:
+  desc: null
+  value: 2500
+value_loss_weight:
+  desc: null
+  value: 1
+const_loss_weight:
+  desc: null
+  value: 1
+syntax_loss_weight:
+  desc: null
+  value: 1
+device:
+  desc: null
+  value: cpu
+conv_size:
+  desc: null
+  value: large
 _wandb:
   desc: null
   value:
@@ -38,7 +59,7 @@ _wandb:
     framework: torch
     is_jupyter_run: false
     is_kaggle_kernel: false
-    start_time: 1723935365
+    start_time: 1724148875
     t:
       1:
       - 1

@@ -7,12 +7,13 @@
     "seq_len": 15,
     "token_cnt": 10,
     "val_points": 100,
-    "lr": 4e-3,
+    "lr": 8e-3,
     "clip": 5.0,
     "print_every": 200,
-    "epochs": 10,
-    "value_loss_weight": 0,
-    "const_loss_weight": 0,
+    "epochs": 2500,
+    "value_loss_weight": 1,
+    "const_loss_weight": 1,
     "syntax_loss_weight": 1,
-    "device": "cpu"
+    "device": "cpu",
+    "conv_size": "large"
   }
