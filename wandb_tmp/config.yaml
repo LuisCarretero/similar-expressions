@@ -2,19 +2,19 @@ wandb_version: 1
 
 encoder_hidden:
   desc: null
-  value: 20
+  value: 128
 z_size:
   desc: null
-  value: 20
+  value: 128
 decoder_hidden:
   desc: null
-  value: 20
+  value: 64
 rnn_type:
   desc: null
   value: lstm
 batch_size:
   desc: null
-  value: 64
+  value: 128
 seq_len:
   desc: null
   value: 15
@@ -26,7 +26,7 @@ val_points:
   value: 100
 lr:
   desc: null
-  value: 0.008
+  value: 0.002
 clip:
   desc: null
   value: 5.0
@@ -35,10 +35,10 @@ print_every:
   value: 200
 epochs:
   desc: null
-  value: 2500
+  value: 100
 value_loss_weight:
   desc: null
-  value: 1
+  value: 3
 const_loss_weight:
   desc: null
   value: 1
@@ -54,25 +54,31 @@ conv_size:
 _wandb:
   desc: null
   value:
-    python_version: 3.12.4
+    python_version: 3.10.12
     cli_version: 0.17.7
     framework: torch
-    is_jupyter_run: false
+    is_jupyter_run: true
     is_kaggle_kernel: false
-    start_time: 1724148875
+    start_time: 1724156327
     t:
       1:
       - 1
+      - 5
+      - 53
       - 55
       2:
       - 1
+      - 5
+      - 53
       - 55
       3:
+      - 2
       - 16
       - 23
-      4: 3.12.4
+      4: 3.10.12
       5: 0.17.7
       8:
-      - 4
+      - 1
       - 5
-      13: darwin-arm64
+      - 12
+      13: linux-x86_64

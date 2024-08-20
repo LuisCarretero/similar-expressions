@@ -259,13 +259,16 @@ def criterion_factory(config, priors):
     CONST_PRIOR = priors['const_prior']
     VALUE_PRIOR = priors['value_prior']
 
+    cross_entropy = torch.nn.CrossEntropyLoss()
+    mse = torch.nn.MSELoss()
+
     def criterion(logits, values, y_rule_idx, y_consts, y_val):
         
         logits_onehot = logits[:, :, :-1]
-        loss_syntax = torch.nn.CrossEntropyLoss()(logits_onehot.reshape(-1, logits_onehot.size(-1)), y_rule_idx.reshape(-1))/SYNTAX_PRIOR
-        loss_consts = torch.nn.MSELoss()(logits[:, :, -1], y_consts)/CONST_PRIOR
+        loss_syntax = cross_entropy(logits_onehot.reshape(-1, logits_onehot.size(-1)), y_rule_idx.reshape(-1))/SYNTAX_PRIOR
+        loss_consts = mse(logits[:, :, -1], y_consts)/CONST_PRIOR
 
-        loss_value = torch.nn.MSELoss()(values, y_val)/VALUE_PRIOR
+        loss_value = mse(values, y_val)/VALUE_PRIOR
 
         loss = loss_syntax*SYNTAX_LOSS_WEIGHT + loss_consts*CONST_LOSS_WEIGHT + loss_value*VALUE_LOSS_WEIGHT
         loss = loss / (SYNTAX_LOSS_WEIGHT + CONST_LOSS_WEIGHT + VALUE_LOSS_WEIGHT)
