@@ -7,11 +7,11 @@ from decoder import Decoder
 from value_decoder import ValueDecoder
 from util import logits_to_prods
 from grammar import GCFG
-from configs import ArchitectureConfig
+from config_util import ModelConfig
 
 class GrammarVAE(nn.Module):
     """Grammar Variational Autoencoder"""
-    def __init__(self, cfg: ArchitectureConfig, device=None):
+    def __init__(self, cfg: ModelConfig, device=None):
         super(GrammarVAE, self).__init__()
         if device is None:
             self.device = (

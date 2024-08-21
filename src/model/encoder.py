@@ -1,8 +1,7 @@
 import torch
 import torch.nn as nn
-from torch.autograd import Variable
 import h5py
-from configs import ArchitectureConfig
+from config_util import ModelConfig
 
 class Encoder(nn.Module):
     """Convolutional encoder for Grammar VAE.
@@ -11,7 +10,7 @@ class Encoder(nn.Module):
     of one-hot encodings of the sequence of rules that generate
     an artithmetic expression.
     """
-    def __init__(self, cfg: ArchitectureConfig):
+    def __init__(self, cfg: ModelConfig):
         super().__init__()
         input_dim = cfg.io_format.token_cnt
         # input_dim, hidden_dim=20, z_dim=2, conv_size='large'
@@ -28,7 +27,7 @@ class Encoder(nn.Module):
             self.linear = nn.Linear(input_dim*9, cfg.encoder.size_hidden)  # 15+(-2+1)+(-3+1)+(-4+1)=9 from sequence length + conv sizes
         else:
             raise ValueError('Invallid value for `conv_size`: {}.'
-                             ' Must be in [small, large]'.format(conv_size))
+                             ' Must be in [small, large]'.format(cfg.encoder.conv_size))
 
         self.mu = nn.Linear(cfg.encoder.size_hidden, cfg.z_size)
         self.sigma = nn.Linear(cfg.encoder.size_hidden, cfg.z_size)
@@ -63,7 +62,6 @@ if __name__ == '__main__':
 
     # Pass through some data
     x = torch.from_numpy(data[:100]).transpose(-2, -1).float() # shape [batch, 12, 15]
-    x = Variable(x)
     mu, sigma = encoder(x)
 
     print(x)

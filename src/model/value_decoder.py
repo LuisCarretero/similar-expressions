@@ -1,13 +1,9 @@
-import torch
 import torch.nn as nn
-from torch.autograd import Variable
 from torch.nn import functional as F
-from configs import ArchitectureConfig
-
-from encoder import Encoder
+from config_util import ModelConfig
 
 class ValueDecoder(nn.Module):
-    def __init__(self, cfg: ArchitectureConfig):
+    def __init__(self, cfg: ModelConfig):
         super().__init__()
         
         # Define the layers

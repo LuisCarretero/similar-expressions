@@ -23,7 +23,7 @@ class IoFormatConfig:
     val_points: int
 
 @dataclass
-class ArchitectureConfig:
+class ModelConfig:
     encoder: EncoderConfig
     z_size: int
     decoder: DecoderConfig
@@ -56,7 +56,7 @@ class MiscConfig:
 
 @dataclass
 class Config:
-    architecture: ArchitectureConfig
+    architecture: ModelConfig
     training: TrainingConfig
     misc: MiscConfig
 
@@ -68,7 +68,7 @@ def load_config(file_path: str) -> Tuple[dict, Config]:
 
 def dict_to_config(cfg_dict: dict) -> Config:
     return Config(
-        architecture=ArchitectureConfig(
+        architecture=ModelConfig(
             encoder=EncoderConfig(**cfg_dict['architecture']['encoder']),
             z_size=cfg_dict['architecture']['z_size'],
             decoder=DecoderConfig(**cfg_dict['architecture']['decoder']),

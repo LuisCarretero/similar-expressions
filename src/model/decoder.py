@@ -2,11 +2,11 @@ import torch
 import torch.nn as nn
 from torch.autograd import Variable
 from encoder import Encoder
-from configs import ArchitectureConfig
+from config_util import ModelConfig
 
 class Decoder(nn.Module):
     """RNN decoder that reconstructs the sequence of rules from laten z"""
-    def __init__(self, cfg: ArchitectureConfig):
+    def __init__(self, cfg: ModelConfig):
         super().__init__()  # Decoder, self
         self.hidden_size = cfg.decoder.size_hidden
         self.rnn_type = cfg.decoder.rnn_type

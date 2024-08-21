@@ -1,9 +1,10 @@
 import torch
 from model import GrammarVAE
-from util import AnnealKLSigmoid, create_dataloader, criterion_factory, calc_syntax_accuracy, calc_priors_and_means
+from util import AnnealKLSigmoid, criterion_factory, calc_syntax_accuracy
+from data_util import calc_priors_and_means, create_dataloader
+from config_util import load_config
 import wandb
 from tqdm import tqdm
-from configs import load_config
 
 def train_one_epoch(train_loader, epoch_idx: int):
     log_accumulators = {
