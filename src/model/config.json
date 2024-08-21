@@ -1,0 +1,39 @@
+{
+  "architecture": {
+    "encoder": {
+      "size_hidden": 20,
+      "conv_size": "large"
+    },
+    "z_size": 20,
+    "decoder": {
+      "size_hidden": 20,
+      "rnn_type": "lstm"
+    },
+    "value_decoder": {
+      "size_lin1": 64
+    },
+    "io_format": {
+      "seq_len": 15,
+      "token_cnt": 10,
+      "val_points": 100
+    }
+  },
+  "training": {
+    "batch_size": 64,
+    "print_every": 200,
+    "epochs": 1,
+    "criterion": {
+      "values_loss_weight": 1,
+      "consts_loss_weight": 1,
+      "syntax_loss_weight": 1
+    },
+    "optimizer": {
+      "lr": 8e-3,
+      "clip": 5.0
+    }
+  },
+  "misc": {
+    "device": "cpu",
+    "values_init_bias": false
+  }
+}

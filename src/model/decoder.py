@@ -1,23 +1,23 @@
 import torch
 import torch.nn as nn
 from torch.autograd import Variable
-
 from encoder import Encoder
+from configs import ArchitectureConfig
 
 class Decoder(nn.Module):
     """RNN decoder that reconstructs the sequence of rules from laten z"""
-    def __init__(self, input_size, hidden_size, output_size, rnn_type='lstm'):
+    def __init__(self, cfg: ArchitectureConfig):
         super().__init__()  # Decoder, self
-        self.hidden_size = hidden_size
-        self.rnn_type = rnn_type
+        self.hidden_size = cfg.decoder.size_hidden
+        self.rnn_type = cfg.decoder.rnn_type
 
-        self.linear_in = nn.Linear(input_size, hidden_size)
-        self.linear_out = nn.Linear(hidden_size, output_size)
+        self.linear_in = nn.Linear(cfg.z_size, self.hidden_size)
+        self.linear_out = nn.Linear(self.hidden_size, cfg.io_format.token_cnt)
 
-        if rnn_type == 'lstm':
-            self.rnn = nn.LSTM(hidden_size, hidden_size, batch_first=True)
-        elif rnn_type == 'gru':
-            self.rnn = nn.GRU(hidden_size, hidden_size, batch_first=True)
+        if self.rnn_type == 'lstm':
+            self.rnn = nn.LSTM(self.hidden_size, self.hidden_size, batch_first=True)
+        elif self.rnn_type == 'gru':
+            self.rnn = nn.GRU(self.hidden_size, self.hidden_size, batch_first=True)
         else:
             raise ValueError('Select rnn_type from [lstm, gru]')
 

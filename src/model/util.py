@@ -13,6 +13,9 @@ from torch.utils.data import DataLoader, random_split, Dataset
 import json
 import math
 import hashlib
+from types import SimpleNamespace
+from config import CriterionConfig
+from typing import Dict
 
 class Stack:
     """A simple first in last out stack.
@@ -69,9 +72,16 @@ class AnnealKLSigmoid:
         x = (epoch / self.total_epochs - self.midpoint) * self.steepness
         return 1 / (1 + math.exp(-x))
 
-def load_config(path):
+def load_config(path: str) -> SimpleNamespace: 
+    def dict_to_namespace(d):
+        if isinstance(d, dict):
+            return SimpleNamespace(**{k: dict_to_namespace(v) for k, v in d.items()})
+        return d
+
     with open(path, 'r') as f:
-        return json.load(f)
+        cfg_dict = json.load(f)
+    cfg = SimpleNamespace(**{k: dict_to_namespace(v) for k, v in cfg_dict.items()})
+    return cfg_dict, cfg
 
 def data2input(x):
     x = torch.from_numpy(x).float().unsqueeze(0).transpose(-2, -1)
@@ -125,15 +135,14 @@ class CustomTorchDataset(Dataset):
     def __len__(self):
         return len(self.data_syntax)
 
-    def __getitem__(self, idx):  # FIXME: Why would we call this on each single element and not batchwise?!
-        # x_syn = self.data_syntax[idx, ...].transpose(-2, -1) # new shape [batch, RULE_COUNT+1, SEQ_LEN] as required by model
-        # x_syn = Variable(x_syn)
+    def __getitem__(self, idx):
+
+        x = self.data_syntax[idx].transpose(-2, -1)
         y_rule_idx = self.data_syntax[idx, :, :-1].argmax(axis=1) # The rule index (argmax over onehot part, excluding consts)
         y_consts = self.data_syntax[idx, :, -1]
-        x = self.data_syntax[idx].transpose(-2, -1)
-        values = self.values_transformed[idx]
+        y_values = self.values_transformed[idx]
 
-        return x, y_rule_idx, y_consts, values
+        return x, y_rule_idx, y_consts, y_values
     
     def get_hash(self, N=1000):
         """
@@ -184,6 +193,7 @@ def create_dataloader(datapath: str, name: str, test_split: float = 0.2, batch_s
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
+    # Create hashes
     assert id(full_dataset) == id(train_loader.dataset.dataset) == id(test_loader.dataset.dataset), "Datasets are not the same"
     hashes = {
         'dataset': full_dataset.get_hash(),
@@ -193,20 +203,6 @@ def create_dataloader(datapath: str, name: str, test_split: float = 0.2, batch_s
     }
 
     return train_loader, test_loader, hashes
-
-def batch_iter(data_syntax: np.ndarray, data_value: np.ndarray, batch_size: int):
-    """A simple iterator over batches of data"""
-    assert (n := data_syntax.shape[0]) == data_value.shape[0]
-
-    for i in range(0, n, batch_size):
-        x_syn = data_syntax[i:i+batch_size, ...].transpose(-2, -1) # new shape [batch, RULE_COUNT+1, SEQ_LEN] as required by model
-        x_syn = Variable(x_syn)
-        y_rule_idx = x_syn[:, :-1, ...].argmax(axis=1) # The rule index (argmax over onehot part, excluding consts)
-        y_consts = x_syn[:, -1, ...]
-
-        y_val = data_value[i:i+batch_size, ...]
-
-        yield x_syn, y_rule_idx, y_consts, y_val
 
 
 def logits_to_prods(logits, grammar, start_symbol: Nonterminal = S, sample=False, max_length=15, insert_const=True, const_token='CON'):
@@ -274,14 +270,14 @@ def logits_to_prefix(logits, syntax_cats: list[str], sample=False, max_length=15
     
     return tokens
 
-def criterion_factory(config, priors):
-    SYNTAX_LOSS_WEIGHT = config['syntax_loss_weight']
-    CONST_LOSS_WEIGHT = config['const_loss_weight']
-    VALUE_LOSS_WEIGHT = config['value_loss_weight']
+def criterion_factory(cfg: CriterionConfig, priors: Dict):
+    SYNTAX_LOSS_WEIGHT = cfg.syntax_loss_weight
+    CONSTS_LOSS_WEIGHT = cfg.consts_loss_weight
+    VALUES_LOSS_WEIGHT = cfg.values_loss_weight
 
     SYNTAX_PRIOR = priors['syntax_prior']
-    CONST_PRIOR = priors['const_prior']
-    VALUE_PRIOR = priors['value_prior']
+    CONSTS_PRIOR = priors['consts_prior']
+    VALUES_PRIOR = priors['values_prior']
 
     cross_entropy = torch.nn.CrossEntropyLoss()
     mse = torch.nn.MSELoss()
@@ -290,17 +286,49 @@ def criterion_factory(config, priors):
         
         logits_onehot = logits[:, :, :-1]
         loss_syntax = cross_entropy(logits_onehot.reshape(-1, logits_onehot.size(-1)), y_rule_idx.reshape(-1))/SYNTAX_PRIOR
-        loss_consts = mse(logits[:, :, -1], y_consts)/CONST_PRIOR
+        loss_consts = mse(logits[:, :, -1], y_consts)/CONSTS_PRIOR
 
-        loss_value = mse(values, y_val)/VALUE_PRIOR
+        loss_values = mse(values, y_val)/VALUES_PRIOR
 
-        loss = loss_syntax*SYNTAX_LOSS_WEIGHT + loss_consts*CONST_LOSS_WEIGHT + loss_value*VALUE_LOSS_WEIGHT
-        loss = loss / (SYNTAX_LOSS_WEIGHT + CONST_LOSS_WEIGHT + VALUE_LOSS_WEIGHT)
+        loss = loss_syntax*SYNTAX_LOSS_WEIGHT + loss_consts*CONSTS_LOSS_WEIGHT + loss_values*VALUES_LOSS_WEIGHT
+        loss = loss / (SYNTAX_LOSS_WEIGHT + CONSTS_LOSS_WEIGHT + VALUES_LOSS_WEIGHT)
 
-        return loss_syntax, loss_consts, loss_value, loss
+        return loss_syntax, loss_consts, loss_values, loss
     return criterion
 
 def calc_syntax_accuracy(logits, y_rule_idx):
     y_hat = logits.argmax(-1)
     a = (y_hat == y_rule_idx).float().mean()
     return 100 * a.item()
+
+def calc_priors_and_means(dataloader: torch.utils.data.DataLoader):
+    # Extract data from DataLoader
+    x = dataloader.dataset.dataset[dataloader.dataset.indices][0]
+    syntax = x[:, :-1, :].detach().numpy().transpose(0, 2, 1)
+    consts = x[:, -1, :].squeeze().detach().numpy()
+    values = dataloader.dataset.dataset[dataloader.dataset.indices][3]  # Already transformed
+
+    # Calculate priors and means
+    prod_counts = np.bincount(syntax.argmax(axis=-1).flatten())
+    p = prod_counts / np.sum(prod_counts)
+    syntax_prior_xent = -np.sum(p * np.log(p), where=p!=0).astype(np.float32)
+
+    consts_prior_mse = consts.var()
+    values_prior_mse = values.var()
+
+    priors = {
+        'syntax_prior': syntax_prior_xent,
+        'consts_prior': consts_prior_mse,
+        'values_prior': values_prior_mse
+    }
+
+
+
+    consts_bias = consts.mean(axis=0)
+    values_bias = values.mean(axis=0)
+
+    means = {
+        'consts_mean': consts_bias,
+        'values_mean': values_bias
+    }
+    return priors, means

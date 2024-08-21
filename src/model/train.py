@@ -1,40 +1,40 @@
 import torch
 from model import GrammarVAE
-from util import AnnealKL, AnnealKLSigmoid, create_dataloader, load_config, criterion_factory, calc_syntax_accuracy
+from util import AnnealKLSigmoid, create_dataloader, criterion_factory, calc_syntax_accuracy, calc_priors_and_means
 import wandb
 from tqdm import tqdm
-import hashlib
+from configs import load_config
 
 def train_one_epoch(train_loader, epoch_idx: int):
     log_accumulators = {
-        'loss': 0, 'loss_syntax_onehot': 0, 'loss_syntax_consts': 0,
-        'loss_value': 0, 'kl': 0, 'alpha': 0, 'elbo': 0, 'syntax_accuracy': 0
+        'loss': 0, 'loss_syntax': 0, 'loss_consts': 0,
+        'loss_values': 0, 'kl': 0, 'alpha': 0, 'elbo': 0, 'syntax_accuracy': 0
     }
     log_steps = 0
 
-    for step, (x, y_rule_idx, y_consts, y_val) in tqdm(enumerate(train_loader, 1), desc=f'Epoch {epoch_idx}/{config["epochs"]}', total=len(train_loader)):
+    for step, (x, y_syntax, y_consts, y_values) in tqdm(enumerate(train_loader, 1), desc=f'Epoch {epoch_idx}/{cfg.training.epochs}', total=len(train_loader)):
         mu, sigma = model.encoder(x)
         z = model.sample(mu, sigma)
-        logits = model.decoder(z, max_length=config['seq_len'])
+        logits = model.decoder(z, max_length=cfg.architecture.io_format.seq_len)
         values = model.value_decoder(z)
         
-        loss_syntax_onehot, loss_syntax_consts, loss_value, loss = criterion(logits, values, y_rule_idx, y_consts, y_val)
+        loss_syntax, loss_consts, loss_values, loss = criterion(logits, values, y_syntax, y_consts, y_values)
         kl = model.kl(mu, sigma)
         alpha = anneal.alpha(epoch_idx)   # FIXME: Step vs epoch
         elbo = loss + alpha*kl
 
         optimizer.zero_grad()
         elbo.backward()
-        torch.nn.utils.clip_grad_norm_(model.parameters(), config['clip'])
+        torch.nn.utils.clip_grad_norm_(model.parameters(), cfg.training.optimizer.clip)
         optimizer.step()
         assert not any(torch.isnan(param).any() for param in model.parameters()), "NaN found in model parameters"
 
-        syntax_accuracy = calc_syntax_accuracy(logits, y_rule_idx)
-        for key, value in zip(log_accumulators.keys(), [loss, loss_syntax_onehot, loss_syntax_consts, loss_value, kl, alpha, elbo, syntax_accuracy]):
+        syntax_accuracy = calc_syntax_accuracy(logits, y_syntax)
+        for key, value in zip(log_accumulators.keys(), [loss, loss_syntax, loss_consts, loss_values, kl, alpha, elbo, syntax_accuracy]):
             log_accumulators[key] += value.item() if isinstance(value, torch.Tensor) else value
         log_steps += 1
 
-        if step % config['print_every'] == 0:
+        if step % cfg.training.print_every == 0:
             avg_logs = {f'train/{k}': v / log_steps for k, v in log_accumulators.items()}
             wandb.log(avg_logs)
             log_accumulators = {k: 0 for k in log_accumulators}
@@ -46,23 +46,23 @@ def train_one_epoch(train_loader, epoch_idx: int):
 
 def test(test_loader, epoch_idx: int):
     metrics = {
-        'loss_syntax_onehot': 0, 'loss_syntax_consts': 0, 'loss_value': 0,
+        'loss_syntax': 0, 'loss_consts': 0, 'loss_values': 0,
         'kl': 0, 'elbo': 0, 'loss': 0, 'syntax_accuracy': 0
     }
 
     with torch.no_grad():
-        for step, (x, y_rule_idx, y_consts, y_val) in tqdm(enumerate(test_loader, 1), desc='Test', total=len(test_loader)):
+        for step, (x, y_syntax, y_consts, y_values) in tqdm(enumerate(test_loader, 1), desc='Test', total=len(test_loader)):
             mu, sigma = model.encoder(x)
             z = model.sample(mu, sigma)
-            logits = model.decoder(z, max_length=config['seq_len'])
+            logits = model.decoder(z, max_length=cfg.architecture.io_format.seq_len)
             values = model.value_decoder(z)
             
-            loss_syntax_onehot, loss_syntax_consts, loss_value, loss = criterion(logits, values, y_rule_idx, y_consts, y_val)
+            loss_syntax, loss_consts, loss_values, loss = criterion(logits, values, y_syntax, y_consts, y_values)
             kl = model.kl(mu, sigma)
             elbo = loss + anneal.alpha(epoch_idx) * kl
-            syntax_accuracy = calc_syntax_accuracy(logits, y_rule_idx)
+            syntax_accuracy = calc_syntax_accuracy(logits, y_syntax)
 
-            for key, value in zip(metrics.keys(), [loss_syntax_onehot, loss_syntax_consts, loss_value, kl, elbo, loss, syntax_accuracy]):
+            for key, value in zip(metrics.keys(), [loss_syntax, loss_consts, loss_values, kl, elbo, loss, syntax_accuracy]):
                 metrics[key] += value
 
     for key in metrics:
@@ -72,45 +72,40 @@ def test(test_loader, epoch_idx: int):
 
 
 if __name__ == '__main__':
-    config = load_config('/Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/similar-expressions/src/model/hyperparameters.json')
-
-    # Init WandB
-    run = wandb.init(project="similar-expressions-01", config=config)
+    cfg_dict, cfg = load_config('/Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/similar-expressions/src/model/config.json')
 
     # Init model
-    torch.manual_seed(41)
-    model = GrammarVAE(config['encoder_hidden'], config['z_size'], config['conv_size'], config['decoder_hidden'], config['token_cnt'], config['rnn_type'], config['val_points'], config['device'])
+    torch.manual_seed(42)
+    model = GrammarVAE(cfg.architecture, cfg.misc.device)
 
     # Init optimizer
-    optimizer = torch.optim.Adam(model.parameters(), lr=config['lr'])
-    anneal = AnnealKLSigmoid(total_epochs=config['epochs'], midpoint=0.3, steepness=10)
-
-    # Init loss function
-    priors = {
-        'syntax_prior': 1.3984073,
-        'const_prior': 0.06433585,
-        'value_prior': 0.06500606
-    }
-    criterion = criterion_factory(config, priors)
+    optimizer = torch.optim.Adam(model.parameters(), lr=cfg.training.optimizer.lr)
+    anneal = AnnealKLSigmoid(total_epochs=cfg.training.epochs, midpoint=0.3, steepness=10)
 
     # Load data
     def value_transform(x):
         return torch.arcsinh(x)*0.1  # Example transformation. TODO: adjust scaling dynamically (arcsinh(1e5)=12.2 so currently this gives us 1.22)
     datapath = '/Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/similar-expressions/data'
-    train_loader, test_loader = create_dataloader(datapath, 
-                                                  'dataset_240817_2', 
-                                                  test_split=1/4, 
-                                                  batch_size=config['batch_size'], 
-                                                  value_transform=value_transform, 
-                                                  device=config['device'],
-                                                  max_length=None)
+    train_loader, test_loader, hashes = create_dataloader(datapath, 'dataset_240817_2', 
+                                                        test_split=1/4, 
+                                                        batch_size=cfg.training.batch_size, 
+                                                        value_transform=value_transform, 
+                                                        device=cfg.misc.device,
+                                                        max_length=None)
 
+    # Init loss function (given priors) and means
+    priors, means = calc_priors_and_means(train_loader)
+    criterion = criterion_factory(cfg.training.criterion, priors)
+    if cfg.misc.values_init_bias:
+        with torch.no_grad():
+            model.value_decoder.fc3.bias.data = means['values_mean']
+            # FIXME: Check if LSTM decoder bias can also be initialized?
 
-    # hash_string = hashlib.md5(str([train_loader.dataset[i][3].std().item() for i in range(1000)]).encode()).hexdigest()
-    # print(f'Hash string: {hash_string}')
-    # exit()
+    # Init WandB
+    cfg_dict['dataset_hashes'] = hashes
+    run = wandb.init(project="similar-expressions-01", config=cfg_dict)
 
-    for epoch in range(1, config['epochs']+1):
+    for epoch in range(1, cfg.training.epochs+1):
         train_one_epoch(train_loader, epoch)
         test(test_loader, epoch)
 

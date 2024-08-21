@@ -2,19 +2,20 @@ import torch
 import torch.nn as nn
 from torch.autograd import Variable
 from torch.nn import functional as F
+from configs import ArchitectureConfig
 
 from encoder import Encoder
 
 class ValueDecoder(nn.Module):
-    def __init__(self, z_dim, output_size):
+    def __init__(self, cfg: ArchitectureConfig):
         super().__init__()
         
         # Define the layers
-        self.fc1 = nn.Linear(z_dim, 64)
+        self.fc1 = nn.Linear(cfg.z_size, 64)
         self.fc2 = nn.Linear(64, 128)
         self.fc2_5 = nn.Linear(128, 256)
         self.fc2_6 = nn.Linear(256, 256)
-        self.fc3 = nn.Linear(256, output_size)
+        self.fc3 = nn.Linear(256, cfg.io_format.val_points)
         print("Using updated value decoder 2.0!")
     
     def forward(self, x):

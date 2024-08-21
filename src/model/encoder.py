@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 from torch.autograd import Variable
 import h5py
+from configs import ArchitectureConfig
 
 class Encoder(nn.Module):
     """Convolutional encoder for Grammar VAE.
@@ -10,25 +11,27 @@ class Encoder(nn.Module):
     of one-hot encodings of the sequence of rules that generate
     an artithmetic expression.
     """
-    def __init__(self, input_dim, hidden_dim=20, z_dim=2, conv_size='large'):
+    def __init__(self, cfg: ArchitectureConfig):
         super().__init__()
-        if conv_size == 'small':
+        input_dim = cfg.io_format.token_cnt
+        # input_dim, hidden_dim=20, z_dim=2, conv_size='large'
+        if cfg.encoder.conv_size == 'small':
             # 12 rules, so 12 input channels
             self.conv1 = nn.Conv1d(input_dim, 2, kernel_size=2)
             self.conv2 = nn.Conv1d(2, 3, kernel_size=3)
             self.conv3 = nn.Conv1d(3, 4, kernel_size=4)
-            self.linear = nn.Linear(36, hidden_dim)
-        elif conv_size == 'large':
+            self.linear = nn.Linear(36, cfg.encoder.size_hidden)
+        elif cfg.encoder.conv_size == 'large':
             self.conv1 = nn.Conv1d(input_dim, input_dim*2, kernel_size=2)
             self.conv2 = nn.Conv1d(input_dim*2, input_dim, kernel_size=3)
             self.conv3 = nn.Conv1d(input_dim, input_dim, kernel_size=4)
-            self.linear = nn.Linear(input_dim*9, hidden_dim)  # 15+(-2+1)+(-3+1)+(-4+1)=9 from sequence length + conv sizes
+            self.linear = nn.Linear(input_dim*9, cfg.encoder.size_hidden)  # 15+(-2+1)+(-3+1)+(-4+1)=9 from sequence length + conv sizes
         else:
             raise ValueError('Invallid value for `conv_size`: {}.'
                              ' Must be in [small, large]'.format(conv_size))
 
-        self.mu = nn.Linear(hidden_dim, z_dim)
-        self.sigma = nn.Linear(hidden_dim, z_dim)
+        self.mu = nn.Linear(cfg.encoder.size_hidden, cfg.z_size)
+        self.sigma = nn.Linear(cfg.encoder.size_hidden, cfg.z_size)
 
         self.relu = nn.ReLU()
         self.softplus = nn.Softplus()
