@@ -7,24 +7,24 @@ from decoder import Decoder
 from value_decoder import ValueDecoder
 from util import logits_to_prods
 from grammar import GCFG
-from config_util import ModelConfig
+from config_util import Config
 
 class GrammarVAE(nn.Module):
     """Grammar Variational Autoencoder"""
-    def __init__(self, cfg: ModelConfig, device=None):
+    def __init__(self, cfg: Config):
         super(GrammarVAE, self).__init__()
-        if device is None:
+        if cfg.training.device is None:
             self.device = (
                 "cuda" if torch.cuda.is_available()
             else "mps" if torch.backends.mps.is_available()
             else "cpu") 
             print(f'Using device: {self.device}')
         else:
-            self.device = device
+            self.device = cfg.training.device
 
-        self.encoder = Encoder(cfg).to(self.device)
-        self.decoder = Decoder(cfg).to(self.device)
-        self.value_decoder = ValueDecoder(cfg).to(self.device)
+        self.encoder = Encoder(cfg.model).to(self.device)
+        self.decoder = Decoder(cfg.model).to(self.device)
+        self.value_decoder = ValueDecoder(cfg.model).to(self.device)
         self.to(self.device)
 
     def sample(self, mu, sigma):

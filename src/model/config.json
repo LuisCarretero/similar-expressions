@@ -22,6 +22,8 @@
     "batch_size": 64,
     "print_every": 200,
     "epochs": 1,
+    "test_split": 0.25,
+    "dataset_len_limit": null,
     "criterion": {
       "values_loss_weight": 1,
       "consts_loss_weight": 1,
@@ -30,9 +32,11 @@
     "optimizer": {
       "lr": 8e-3,
       "clip": 5.0
-    }
-  },
-  "misc": {
+    },
+    "anneal": {
+      "midpoint": 0.3,
+      "steepness": 10
+    },
     "device": "cpu",
     "values_init_bias": false
   }

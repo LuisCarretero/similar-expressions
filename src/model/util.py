@@ -4,7 +4,7 @@ from torch.distributions import Categorical
 from nltk.grammar import Production
 from grammar import get_mask, S
 import math
-from config_util import CriterionConfig
+from config_util import Config
 from typing import Dict
 
 class Stack:
@@ -32,22 +32,12 @@ class Stack:
     def nonempty(self):
         return bool(self._stack)
 
-class AnnealKL:
-	"""Anneal the KL for VAE based training"""
-	def __init__(self, step=1e-3, rate=500):
-		self.rate = rate
-		self.step = step
-
-	def alpha(self, update):
-		n, _ = divmod(update, self.rate)
-		return min(1., n*self.step)
-
 class AnnealKLSigmoid:
     """Anneal the KL for VAE based training using a sigmoid schedule"""
-    def __init__(self, total_epochs, midpoint=0.5, steepness=10):
-        self.total_epochs = total_epochs
-        self.midpoint = midpoint
-        self.steepness = steepness
+    def __init__(self, cfg: Config):
+        self.total_epochs = cfg.training.epochs
+        self.midpoint = cfg.training.anneal.midpoint
+        self.steepness = cfg.training.anneal.steepness
 
     def alpha(self, epoch):
         """
@@ -146,10 +136,10 @@ def logits_to_prefix(logits, syntax_cats: list[str], sample=False, max_length=15
     
     return tokens
 
-def criterion_factory(cfg: CriterionConfig, priors: Dict):
-    SYNTAX_LOSS_WEIGHT = cfg.syntax_loss_weight
-    CONSTS_LOSS_WEIGHT = cfg.consts_loss_weight
-    VALUES_LOSS_WEIGHT = cfg.values_loss_weight
+def criterion_factory(cfg: Config, priors: Dict):
+    SYNTAX_LOSS_WEIGHT = cfg.training.criterion.syntax_loss_weight
+    CONSTS_LOSS_WEIGHT = cfg.training.criterion.consts_loss_weight
+    VALUES_LOSS_WEIGHT = cfg.training.criterion.values_loss_weight
 
     SYNTAX_PRIOR = priors['syntax_prior']
     CONSTS_PRIOR = priors['consts_prior']

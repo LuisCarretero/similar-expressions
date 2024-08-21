@@ -42,23 +42,28 @@ class OptimizerConfig:
     clip: float
 
 @dataclass
+class AnnealConfig:
+    midpoint: float
+    steepness: float
+
+@dataclass
 class TrainingConfig:
     batch_size: int
     print_every: int
     epochs: int
+    test_split: float
+    dataset_len_limit: int
     criterion: CriterionConfig
     optimizer: OptimizerConfig
-
-@dataclass
-class MiscConfig:
+    anneal: AnnealConfig
     device: Literal["cpu"]
     values_init_bias: bool
 
+
 @dataclass
 class Config:
-    architecture: ModelConfig
+    model: ModelConfig
     training: TrainingConfig
-    misc: MiscConfig
 
 def load_config(file_path: str) -> Tuple[dict, Config]:
     with open(file_path, 'r') as f:
@@ -68,7 +73,7 @@ def load_config(file_path: str) -> Tuple[dict, Config]:
 
 def dict_to_config(cfg_dict: dict) -> Config:
     return Config(
-        architecture=ModelConfig(
+        model=ModelConfig(
             encoder=EncoderConfig(**cfg_dict['architecture']['encoder']),
             z_size=cfg_dict['architecture']['z_size'],
             decoder=DecoderConfig(**cfg_dict['architecture']['decoder']),
@@ -79,10 +84,14 @@ def dict_to_config(cfg_dict: dict) -> Config:
             batch_size=cfg_dict['training']['batch_size'],
             print_every=cfg_dict['training']['print_every'],
             epochs=cfg_dict['training']['epochs'],
+            test_split=cfg_dict['training']['test_split'],
+            dataset_len_limit=cfg_dict['training']['dataset_len_limit'],
             criterion=CriterionConfig(**cfg_dict['training']['criterion']),
-            optimizer=OptimizerConfig(**cfg_dict['training']['optimizer'])
-        ),
-        misc=MiscConfig(**cfg_dict['misc'])
+            optimizer=OptimizerConfig(**cfg_dict['training']['optimizer']),
+            anneal=AnnealConfig(**cfg_dict['training']['anneal']),
+            device=cfg_dict['training']['device'],
+            values_init_bias=cfg_dict['training']['values_init_bias']
+        )
     )
 
 # Usage example:

@@ -4,6 +4,8 @@ import h5py
 import numpy as np
 from torch.utils.data import DataLoader, random_split, Dataset
 import hashlib
+from config_util import Config
+from typing import Tuple
 
 
 class CustomTorchDataset(Dataset):
@@ -76,28 +78,28 @@ def load_dataset(datapath, name):
 
     return syntax, consts, val_x, val, syntax_cats
 
-def create_dataloader(datapath: str, name: str, test_split: float = 0.2, batch_size: int = 32, max_length: int = None, value_transform=None, device='cpu', random_seed=0):
+def create_dataloader(datapath: str, name: str, cfg: Config, value_transform=None, random_seed=0) -> Tuple[DataLoader, DataLoader, dict]:
     gen = torch.Generator()
     gen.manual_seed(random_seed)
 
     syntax, consts, _, values, _ = load_dataset(datapath, name)
     data_syntax = np.concatenate([syntax, consts[:, :, np.newaxis]], axis=-1)
 
-    if max_length is not None:
-        data_syntax = data_syntax[:max_length]
-        values = values[:max_length]
+    if cfg.training.dataset_len_limit is not None:
+        data_syntax = data_syntax[:cfg.training.dataset_len_limit]
+        values = values[:cfg.training.dataset_len_limit]
 
     # Create the full dataset
-    full_dataset = CustomTorchDataset(data_syntax, values, value_transform=value_transform, device=device)
+    full_dataset = CustomTorchDataset(data_syntax, values, value_transform=value_transform, device=cfg.training.device)
 
     # Split the dataset
-    test_size = int(test_split * len(full_dataset))
+    test_size = int(cfg.training.test_split * len(full_dataset))
     train_size = len(full_dataset) - test_size
     train_dataset, test_dataset = random_split(full_dataset, [train_size, test_size], generator=gen)
 
     # Create DataLoaders
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
+    train_loader = DataLoader(train_dataset, batch_size=cfg.training.batch_size, shuffle=True)
+    test_loader = DataLoader(test_dataset, batch_size=cfg.training.batch_size, shuffle=False)
 
     # Create hashes
     assert id(full_dataset) == id(train_loader.dataset.dataset) == id(test_loader.dataset.dataset), "Datasets are not the same"

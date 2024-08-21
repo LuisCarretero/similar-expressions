@@ -16,12 +16,12 @@ def train_one_epoch(train_loader, epoch_idx: int):
     for step, (x, y_syntax, y_consts, y_values) in tqdm(enumerate(train_loader, 1), desc=f'Epoch {epoch_idx}/{cfg.training.epochs}', total=len(train_loader)):
         mu, sigma = model.encoder(x)
         z = model.sample(mu, sigma)
-        logits = model.decoder(z, max_length=cfg.architecture.io_format.seq_len)
+        logits = model.decoder(z, max_length=cfg.model.io_format.seq_len)
         values = model.value_decoder(z)
         
         loss_syntax, loss_consts, loss_values, loss = criterion(logits, values, y_syntax, y_consts, y_values)
         kl = model.kl(mu, sigma)
-        alpha = anneal.alpha(epoch_idx)   # FIXME: Step vs epoch
+        alpha = anneal.alpha(epoch_idx)
         elbo = loss + alpha*kl
 
         optimizer.zero_grad()
@@ -55,7 +55,7 @@ def test(test_loader, epoch_idx: int):
         for step, (x, y_syntax, y_consts, y_values) in tqdm(enumerate(test_loader, 1), desc='Test', total=len(test_loader)):
             mu, sigma = model.encoder(x)
             z = model.sample(mu, sigma)
-            logits = model.decoder(z, max_length=cfg.architecture.io_format.seq_len)
+            logits = model.decoder(z, max_length=cfg.model.io_format.seq_len)
             values = model.value_decoder(z)
             
             loss_syntax, loss_consts, loss_values, loss = criterion(logits, values, y_syntax, y_consts, y_values)
@@ -77,27 +77,22 @@ if __name__ == '__main__':
 
     # Init model
     torch.manual_seed(42)
-    model = GrammarVAE(cfg.architecture, cfg.misc.device)
+    model = GrammarVAE(cfg)
 
     # Init optimizer
     optimizer = torch.optim.Adam(model.parameters(), lr=cfg.training.optimizer.lr)
-    anneal = AnnealKLSigmoid(total_epochs=cfg.training.epochs, midpoint=0.3, steepness=10)
+    anneal = AnnealKLSigmoid(cfg)
 
     # Load data
     def value_transform(x):
         return torch.arcsinh(x)*0.1  # Example transformation. TODO: adjust scaling dynamically (arcsinh(1e5)=12.2 so currently this gives us 1.22)
     datapath = '/Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/similar-expressions/data'
-    train_loader, test_loader, hashes = create_dataloader(datapath, 'dataset_240817_2', 
-                                                        test_split=1/4, 
-                                                        batch_size=cfg.training.batch_size, 
-                                                        value_transform=value_transform, 
-                                                        device=cfg.misc.device,
-                                                        max_length=None)
+    train_loader, test_loader, hashes = create_dataloader(datapath, 'dataset_240817_2', cfg, value_transform)
 
     # Init loss function (given priors) and means
     priors, means = calc_priors_and_means(train_loader)
-    criterion = criterion_factory(cfg.training.criterion, priors)
-    if cfg.misc.values_init_bias:
+    criterion = criterion_factory(cfg, priors)
+    if cfg.training.values_init_bias:
         with torch.no_grad():
             model.value_decoder.fc3.bias.data = means['values_mean']
             # FIXME: Check if LSTM decoder bias can also be initialized?

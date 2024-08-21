@@ -2,5 +2,5 @@ data
 .DS_Store
 checkpoints
 log
-wandb
 wandb_cache
+wandb
