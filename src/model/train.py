@@ -3,6 +3,7 @@ from model import GrammarVAE
 from util import AnnealKL, AnnealKLSigmoid, create_dataloader, load_config, criterion_factory, calc_syntax_accuracy
 import wandb
 from tqdm import tqdm
+import hashlib
 
 def train_one_epoch(train_loader, epoch_idx: int):
     log_accumulators = {
@@ -103,6 +104,11 @@ if __name__ == '__main__':
                                                   value_transform=value_transform, 
                                                   device=config['device'],
                                                   max_length=None)
+
+
+    # hash_string = hashlib.md5(str([train_loader.dataset[i][3].std().item() for i in range(1000)]).encode()).hexdigest()
+    # print(f'Hash string: {hash_string}')
+    # exit()
 
     for epoch in range(1, config['epochs']+1):
         train_one_epoch(train_loader, epoch)

@@ -12,6 +12,7 @@ from scipy.special import softmax
 from torch.utils.data import DataLoader, random_split, Dataset
 import json
 import math
+import hashlib
 
 class Stack:
     """A simple first in last out stack.
@@ -117,7 +118,7 @@ class CustomTorchDataset(Dataset):
     def __init__(self, data_syntax, data_values, value_transform=None, device='cpu'):
         assert data_syntax.shape[0] == data_values.shape[0]
         self.data_syntax = torch.tensor(data_syntax, dtype=torch.float32).to(device)
-        self.values = torch.tensor(data_values, dtype=torch.float32).to(device)
+        self.values_transformed = value_transform(torch.tensor(data_values, dtype=torch.float32).to(device))
 
         self.value_transform = value_transform
 
@@ -129,13 +130,25 @@ class CustomTorchDataset(Dataset):
         # x_syn = Variable(x_syn)
         y_rule_idx = self.data_syntax[idx, :, :-1].argmax(axis=1) # The rule index (argmax over onehot part, excluding consts)
         y_consts = self.data_syntax[idx, :, -1]
+        x = self.data_syntax[idx].transpose(-2, -1)
+        values = self.values_transformed[idx]
 
-        if self.value_transform is not None:
-            y_val = self.value_transform(self.values[idx])
-        else:
-            y_val = self.values[idx]
+        return x, y_rule_idx, y_consts, values
+    
+    def get_hash(self, N=1000):
+        """
+        FIXME: This is not robust!! But should be good enough for making sure the dataset is the same.
 
-        return self.data_syntax[idx].transpose(-2, -1), y_rule_idx, y_consts, y_val
+        Only using N evenly spaceed samples in dataset to compute hash on. Also only considering std of tensors
+        """
+        N = min(N, len(self))
+
+        hash_string = ''
+        for i in np.linspace(0, len(self)-1, N, dtype=int):
+            x, y_syn, y_const, y_val = self[i]
+            res = x.std().item() * y_val.std().item() * y_syn.float().std().item() * y_const.std().item()
+            hash_string += str(res)
+        return hashlib.md5(hash_string.encode()).hexdigest()
 
 def load_dataset(datapath, name):
     with h5py.File(os.path.join(datapath, f'{name}.h5'), 'r') as f:
@@ -148,7 +161,10 @@ def load_dataset(datapath, name):
 
     return syntax, consts, val_x, val, syntax_cats
 
-def create_dataloader(datapath: str, name: str, test_split: float = 0.2, batch_size: int = 32, max_length: int = None, value_transform=None, device='cpu'):
+def create_dataloader(datapath: str, name: str, test_split: float = 0.2, batch_size: int = 32, max_length: int = None, value_transform=None, device='cpu', random_seed=0):
+    gen = torch.Generator()
+    gen.manual_seed(random_seed)
+
     syntax, consts, _, values, _ = load_dataset(datapath, name)
     data_syntax = np.concatenate([syntax, consts[:, :, np.newaxis]], axis=-1)
 
@@ -162,13 +178,21 @@ def create_dataloader(datapath: str, name: str, test_split: float = 0.2, batch_s
     # Split the dataset
     test_size = int(test_split * len(full_dataset))
     train_size = len(full_dataset) - test_size
-    train_dataset, test_dataset = random_split(full_dataset, [train_size, test_size])
+    train_dataset, test_dataset = random_split(full_dataset, [train_size, test_size], generator=gen)
 
     # Create DataLoaders
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
-    return train_loader, test_loader
+    assert id(full_dataset) == id(train_loader.dataset.dataset) == id(test_loader.dataset.dataset), "Datasets are not the same"
+    hashes = {
+        'dataset': full_dataset.get_hash(),
+        'train_idx': hashlib.md5(str(train_loader.dataset.indices).encode()).hexdigest(),
+        'test_idx': hashlib.md5(str(test_loader.dataset.indices).encode()).hexdigest(),
+        'random_seed': random_seed
+    }
+
+    return train_loader, test_loader, hashes
 
 def batch_iter(data_syntax: np.ndarray, data_value: np.ndarray, batch_size: int):
     """A simple iterator over batches of data"""
