@@ -112,3 +112,4 @@ if __name__ == '__main__':
 
     # torch.save(model, f'{wandb.run.dir}/model.pt')
     torch.save({'model_state_dict': model.state_dict()}, f'{wandb.run.dir}/model.pth')
+    run.finish()
