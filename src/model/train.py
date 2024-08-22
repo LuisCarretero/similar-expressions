@@ -35,7 +35,7 @@ def train_one_epoch(train_loader, epoch_idx: int):
             log_accumulators[key] += value.item() if isinstance(value, torch.Tensor) else value
         log_steps += 1
 
-        if step % cfg.training.print_every == 0:
+        if step % cfg.training.print_every == 0 or step == 1:  # Log first step (init state)
             avg_logs = {f'train/{k}': v / log_steps for k, v in log_accumulators.items()}
             wandb.log(avg_logs)
             log_accumulators = {k: 0 for k in log_accumulators}
@@ -87,7 +87,8 @@ if __name__ == '__main__':
     def value_transform(x):
         return torch.arcsinh(x)*0.1  # Example transformation. TODO: adjust scaling dynamically (arcsinh(1e5)=12.2 so currently this gives us 1.22)
     datapath = '/Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/similar-expressions/data'
-    train_loader, test_loader, hashes = create_dataloader(datapath, 'dataset_240817_2', cfg, value_transform)
+    data_name = 'dataset_240822_1'
+    train_loader, test_loader, hashes = create_dataloader(datapath, data_name, cfg, value_transform)
 
     # Init loss function (given priors) and means
     priors, means = calc_priors_and_means(train_loader)
@@ -99,6 +100,7 @@ if __name__ == '__main__':
 
     # Init WandB
     cfg_dict['dataset_hashes'] = hashes
+    cfg_dict['dataset'] = data_name
     run = wandb.init(project="similar-expressions-01", config=cfg_dict)
 
     for epoch in range(1, cfg.training.epochs+1):

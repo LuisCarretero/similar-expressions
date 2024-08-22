@@ -26,20 +26,18 @@ class CustomTorchDataset(Dataset):
         return len(self.data_syntax)
 
     def __getitem__(self, idx):
-
         x = self.data_syntax[idx].transpose(-2, -1)
         y_rule_idx = self.data_syntax[idx, :, :-1].argmax(axis=1) # The rule index (argmax over onehot part, excluding consts)
         y_consts = self.data_syntax[idx, :, -1]
         y_values = self.values_transformed[idx]
-
         return x, y_rule_idx, y_consts, y_values
 
 
 def calc_priors_and_means(dataloader: torch.utils.data.DataLoader):
-    # Extract data from DataLoader
+    # Extract data from DataLoader FIXME: Calculate on GPU?
     x = dataloader.dataset.dataset[dataloader.dataset.indices][0]
-    syntax = x[:, :-1, :].detach().numpy().transpose(0, 2, 1)
-    consts = x[:, -1, :].squeeze().detach().numpy()
+    syntax = x[:, :-1, :].detach().numpy().cpu().transpose(0, 2, 1)
+    consts = x[:, -1, :].squeeze().detach().cpu().numpy()
     values = dataloader.dataset.dataset[dataloader.dataset.indices][3]  # Already transformed
 
     # Calculate priors and means

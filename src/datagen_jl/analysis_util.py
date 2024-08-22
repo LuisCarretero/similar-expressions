@@ -230,13 +230,13 @@ def plot_values(val_x, val, val_transformed, idx):
 
     # Original data
     ax1.set_title('First 10 Graphs: Original Values')
-    ax1.plot(val_x.flatten(), val[:, idx])
+    ax1.plot(val_x.flatten(), val[idx, :].T)
     ax1.set_xlabel('x')
     ax1.set_ylabel('y')
 
     # Transformed data
     ax2.set_title('First 10 Graphs: Transformed Values')
-    ax2.plot(val_x.flatten(), val_transformed[:, idx])
+    ax2.plot(val_x.flatten(), val_transformed[idx, :].T)
     ax2.set_xlabel('x')
     ax2.set_ylabel('y')
 

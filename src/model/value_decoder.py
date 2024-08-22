@@ -7,11 +7,11 @@ class ValueDecoder(nn.Module):
         super().__init__()
         
         # Define the layers
-        self.fc1 = nn.Linear(cfg.z_size, 64)
-        self.fc2 = nn.Linear(64, 128)
-        self.fc2_5 = nn.Linear(128, 256)
-        self.fc2_6 = nn.Linear(256, 256)
-        self.fc3 = nn.Linear(256, cfg.io_format.val_points)
+        self.fc1 = nn.Linear(cfg.z_size, 256)
+        self.fc2 = nn.Linear(256, 256)
+        self.fc2_5 = nn.Linear(256, 512)
+        self.fc2_6 = nn.Linear(512, 512)
+        self.fc3 = nn.Linear(512, cfg.io_format.val_points)
         print("Using updated value decoder 2.0!")
     
     def forward(self, x):

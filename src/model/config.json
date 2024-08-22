@@ -1,10 +1,10 @@
 {
   "architecture": {
     "encoder": {
-      "size_hidden": 128,
+      "size_hidden": 192,
       "conv_size": "large"
     },
-    "z_size": 128,
+    "z_size": 192,
     "decoder": {
       "size_hidden": 64,
       "rnn_type": "lstm"
@@ -19,18 +19,18 @@
     }
   },
   "training": {
-    "batch_size": 128,
+    "batch_size": 256,
     "print_every": 200,
     "epochs": 1,
     "test_split": 0.1,
     "dataset_len_limit": null,
     "criterion": {
-      "values_loss_weight": 3,
+      "values_loss_weight": 4,
       "consts_loss_weight": 1,
       "syntax_loss_weight": 1
     },
     "optimizer": {
-      "lr": 3e-3,
+      "lr": 1e-3,
       "clip": 5.0
     },
     "anneal": {
