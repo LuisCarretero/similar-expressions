@@ -36,7 +36,7 @@ class CustomTorchDataset(Dataset):
 def calc_priors_and_means(dataloader: torch.utils.data.DataLoader):
     # Extract data from DataLoader FIXME: Calculate on GPU?
     x = dataloader.dataset.dataset[dataloader.dataset.indices][0]
-    syntax = x[:, :-1, :].detach().numpy().cpu().transpose(0, 2, 1)
+    syntax = x[:, :-1, :].detach().cpu().numpy().transpose(0, 2, 1)
     consts = x[:, -1, :].squeeze().detach().cpu().numpy()
     values = dataloader.dataset.dataset[dataloader.dataset.indices][3]  # Already transformed
 

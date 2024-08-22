@@ -1,10 +1,10 @@
 {
   "architecture": {
     "encoder": {
-      "size_hidden": 192,
+      "size_hidden": 128,
       "conv_size": "large"
     },
-    "z_size": 192,
+    "z_size": 128,
     "decoder": {
       "size_hidden": 64,
       "rnn_type": "lstm"
@@ -19,9 +19,9 @@
     }
   },
   "training": {
-    "batch_size": 256,
+    "batch_size": 128,
     "print_every": 200,
-    "epochs": 1,
+    "epochs": 4,
     "test_split": 0.1,
     "dataset_len_limit": null,
     "criterion": {

@@ -27,20 +27,20 @@ class GrammarVAE(nn.Module):
         self.value_decoder = ValueDecoder(cfg.model).to(self.device)
         self.to(self.device)
 
-    def sample(self, mu, sigma):
+    def sample(self, mean, ln_var):
         """Reparametrized sample from a N(mu, sigma) distribution"""
-        normal = Normal(torch.zeros(mu.shape).to(self.device), torch.ones(sigma.shape).to(self.device))
-        eps = Variable(normal.sample())
-        z = mu + eps*torch.sqrt(sigma)
+        normal = Normal(torch.zeros(mean.shape), torch.ones(ln_var.shape))
+        eps = normal.sample()
+        z = mean + eps * torch.exp(ln_var/2)
         return z
 
-    def kl(self, mu, sigma):
+    def kl(self, mean, ln_var):
         """KL divergence between two normal distributions"""
-        return torch.mean(-0.5 * torch.sum(1 + sigma - mu.pow(2) - sigma.exp(), 1))
+        return -0.5 * torch.mean(torch.sum(1 + ln_var - mean.pow(2) - ln_var.exp(), 1))
 
     def forward(self, x, max_length=15):
-        mu, sigma = self.encoder(x)
-        z = self.sample(mu, sigma)
+        mean, ln_var = self.encoder(x)
+        z = self.sample(mean, ln_var)
         logits = self.decoder(z, max_length=max_length)
         values = self.value_decoder(z)
         return logits, values
