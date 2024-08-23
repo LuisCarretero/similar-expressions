@@ -30,7 +30,7 @@
       "syntax_loss_weight": 1
     },
     "optimizer": {
-      "lr": 1e-3,
+      "lr": 2e-3,
       "clip": 5.0
     },
     "anneal": {

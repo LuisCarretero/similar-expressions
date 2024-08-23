@@ -29,7 +29,7 @@ class GrammarVAE(nn.Module):
 
     def sample(self, mean, ln_var):
         """Reparametrized sample from a N(mu, sigma) distribution"""
-        normal = Normal(torch.zeros(mean.shape).to(self.device), torch.ones(ln_var.shape).to(self.device))
+        normal = Normal(torch.zeros(mean.shape).to(self.device), torch.ones(ln_var.shape).to(self.device)*0.01)
         eps = normal.sample()
         z = mean + eps * torch.exp(ln_var/2)
         return z

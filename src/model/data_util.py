@@ -76,7 +76,7 @@ def load_dataset(datapath, name):
 
     return syntax, consts, val_x, val, syntax_cats
 
-def create_dataloader(datapath: str, name: str, cfg: Config, value_transform=None, random_seed=0) -> Tuple[DataLoader, DataLoader, dict]:
+def create_dataloader(datapath: str, name: str, cfg: Config, value_transform=None, random_seed=0, shuffle_train=True) -> Tuple[DataLoader, DataLoader, dict]:
     gen = torch.Generator()
     gen.manual_seed(random_seed)
 
@@ -96,7 +96,7 @@ def create_dataloader(datapath: str, name: str, cfg: Config, value_transform=Non
     train_dataset, test_dataset = random_split(full_dataset, [train_size, test_size], generator=gen)
 
     # Create DataLoaders
-    train_loader = DataLoader(train_dataset, batch_size=cfg.training.batch_size, shuffle=True)
+    train_loader = DataLoader(train_dataset, batch_size=cfg.training.batch_size, shuffle=shuffle_train)
     test_loader = DataLoader(test_dataset, batch_size=cfg.training.batch_size, shuffle=False)
 
     # Create hashes
