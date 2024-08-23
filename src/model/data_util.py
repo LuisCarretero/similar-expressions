@@ -6,7 +6,10 @@ from torch.utils.data import DataLoader, random_split, Dataset
 import hashlib
 from config_util import Config
 from typing import Tuple
-
+import wandb
+import yaml
+from config_util import dict_to_config
+from model import GrammarVAE
 
 class CustomTorchDataset(Dataset):
     def __init__(self, data_syntax: np.ndarray, data_values: np.ndarray, value_transform=None, device='cpu'):
@@ -53,8 +56,6 @@ def calc_priors_and_means(dataloader: torch.utils.data.DataLoader):
         'consts_prior': consts_prior_mse,
         'values_prior': values_prior_mse
     }
-
-
 
     consts_bias = consts.mean(axis=0)
     values_bias = values.mean(axis=0)
@@ -112,3 +113,20 @@ def create_dataloader(datapath: str, name: str, cfg: Config, value_transform=Non
 
 def data2input(x: np.ndarray) -> torch.Tensor:
     return torch.from_numpy(x).float().unsqueeze(0).transpose(-2, -1)
+
+def load_wandb_model(run: str, device='cpu', wandb_cache_path='/Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/similar-expressions/wandb_cache'):
+    # Load model
+    with wandb.restore('model.pth', run_path=f"luis-carretero-eth-zurich/similar-expressions-01/runs/{run}", root=wandb_cache_path, replace=True) as io:
+        name = io.name
+    checkpoint = torch.load(name, map_location=device)
+
+    # Read the model parameters from the WandB config.yaml file
+    with wandb.restore('config.yaml', run_path=f"luis-carretero-eth-zurich/similar-expressions-01/runs/{run}", root=wandb_cache_path, replace=True) as config_file:
+        cfg_dict = yaml.safe_load(config_file)
+        cfg = {k: v['value'] for k, v in list(cfg_dict.items()) if k not in ['wandb_version', '_wandb']}
+        cfg = dict_to_config(cfg)
+
+    cfg.training.device = device
+    vae_model = GrammarVAE(cfg)
+    vae_model.load_state_dict(checkpoint['model_state_dict'])
+    return vae_model, cfg_dict, cfg

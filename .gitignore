@@ -4,3 +4,4 @@ checkpoints
 log
 wandb_cache
 wandb
+__pycache__
