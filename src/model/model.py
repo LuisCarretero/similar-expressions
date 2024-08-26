@@ -25,12 +25,16 @@ class GrammarVAE(nn.Module):
         self.encoder = Encoder(cfg.model).to(self.device)
         self.decoder = Decoder(cfg.model).to(self.device)
         self.value_decoder = ValueDecoder(cfg.model).to(self.device)
+
+        self.sample_eps = cfg.training.sample_eps
+        self.kl_weight = cfg.training.kl_weight
+
         self.to(self.device)
 
     def sample(self, mean, ln_var):
         """Reparametrized sample from a N(mu, sigma) distribution"""
-        normal = Normal(torch.zeros(mean.shape).to(self.device), torch.ones(ln_var.shape).to(self.device)*0.01)
-        eps = normal.sample()
+        normal = Normal(torch.zeros(mean.shape).to(self.device), torch.ones(ln_var.shape).to(self.device))
+        eps = normal.sample() * self.sample_eps
         z = mean + eps * torch.exp(ln_var/2)
         return z
 

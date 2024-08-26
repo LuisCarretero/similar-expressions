@@ -1,6 +1,7 @@
 import math
 from config_util import Config
 from typing import Dict
+import torch
 
 class Stack:
     """A simple first in last out stack.
@@ -33,6 +34,7 @@ class AnnealKLSigmoid:
         self.total_epochs = cfg.training.epochs
         self.midpoint = cfg.training.anneal.midpoint
         self.steepness = cfg.training.anneal.steepness
+        self.kl_weight = cfg.training.kl_weight
 
     def alpha(self, epoch):
         """
@@ -45,7 +47,7 @@ class AnnealKLSigmoid:
             float: Annealing factor between 0 and 1
         """
         x = (epoch / self.total_epochs - self.midpoint) * self.steepness
-        return 1 / (1 + math.exp(-x))
+        return 1 / (1 + math.exp(-x)) * self.kl_weight
 
 def criterion_factory(cfg: Config, priors: Dict):
     SYNTAX_LOSS_WEIGHT = cfg.training.criterion.syntax_loss_weight

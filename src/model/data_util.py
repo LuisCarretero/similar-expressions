@@ -146,7 +146,7 @@ def load_wandb_model(run: str, device='cpu', wandb_cache_path='/Users/luis/Deskt
     return vae_model, cfg_dict, cfg
 
 def create_dataloader_from_wandb(cfg_dict, cfg, value_transform=None, datapath='/Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/similar-expressions/data'):
-    train_loader, test_loader, info = create_dataloader(datapath, name=cfg_dict['dataset']['value'], cfg=cfg, value_transform=value_transform)
+    train_loader, test_loader, info = create_dataloader(datapath, name=cfg_dict['dataset_name']['value'], cfg=cfg, value_transform=value_transform)
     assert all([cfg_dict['dataset_hashes']['value'][key] == info['hashes'][key] for key in cfg_dict['dataset_hashes']['value']]), "Error: Using different dataset than used for training."
 
     return train_loader, test_loader, info
@@ -169,6 +169,7 @@ def data_from_loader(data_loader, data, idx=None, max_length=None, batch_size=No
         res = dataset
 
     # Add batch dimension if not present
-    if len(res.shape) == 2 and data in ['x', 'syntax'] or len(res.shape) == 1 and data in ['values', 'consts']:
-        res = res.unsqueeze(0)
+    if not isinstance(res, list):
+        if len(res.shape) == 2 and data in ['x', 'syntax'] or len(res.shape) == 1 and data in ['values', 'consts']:
+            res = res.unsqueeze(0)
     return res

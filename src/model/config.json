@@ -38,6 +38,8 @@
       "steepness": 10
     },
     "device": "cpu",
-    "values_init_bias": false
+    "values_init_bias": false,
+    "sample_eps": 0.01,
+    "kl_weight": 1
   }
 }

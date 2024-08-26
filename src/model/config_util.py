@@ -58,6 +58,8 @@ class TrainingConfig:
     anneal: AnnealConfig
     device: Literal["cpu"]
     values_init_bias: bool
+    sample_eps: float
+    kl_weight: float
 
 
 @dataclass
@@ -90,7 +92,9 @@ def dict_to_config(cfg_dict: dict) -> Config:
             optimizer=OptimizerConfig(**cfg_dict['training']['optimizer']),
             anneal=AnnealConfig(**cfg_dict['training']['anneal']),
             device=cfg_dict['training']['device'],
-            values_init_bias=cfg_dict['training']['values_init_bias']
+            values_init_bias=cfg_dict['training']['values_init_bias'],
+            sample_eps=cfg_dict['training']['sample_eps'],
+            kl_weight=cfg_dict['training']['kl_weight']
         )
     )
 

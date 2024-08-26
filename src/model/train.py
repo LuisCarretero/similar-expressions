@@ -5,7 +5,6 @@ from data_util import calc_priors_and_means, create_dataloader
 from config_util import load_config
 import wandb
 from tqdm import tqdm
-import inspect
 
 def train_one_epoch(train_loader, epoch_idx: int):
     log_accumulators = {
