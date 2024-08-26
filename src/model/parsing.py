@@ -199,7 +199,7 @@ def eval_from_logits(logits, val_x):
     assert len(val_x.shape) == 1, "val_x should be 1D"
     x1 = sp.Symbol('x1')
 
-    infix = logits_to_infix(logits.squeeze(0))
+    infix = logits_to_infix(logits)
     expr = sp.sympify(infix.lower())
 
     return np.array([expr.subs(x1, x) for x in val_x])

@@ -77,7 +77,7 @@ def load_dataset(datapath, name):
 
     return syntax, consts, values, val_x, syntax_cats
 
-def create_dataloader(datapath: str, name: str, cfg: Config, random_seed=0, shuffle_train=True) -> Tuple[DataLoader, DataLoader, dict]:
+def create_dataloader(datapath: str, name: str, cfg: Config, random_seed=0, shuffle_train=True, value_transform=None) -> Tuple[DataLoader, DataLoader, dict]:
     gen = torch.Generator()
     gen.manual_seed(random_seed)
 
@@ -90,7 +90,8 @@ def create_dataloader(datapath: str, name: str, cfg: Config, random_seed=0, shuf
 
     # Create value transform
     min_, max_ = np.arcsinh(values.min()), np.arcsinh(values.max())
-    value_transform = lambda x: (torch.arcsinh(x)-min_)/(max_-min_)
+    if value_transform is None:
+        value_transform = lambda x: (torch.arcsinh(x)-min_)/(max_-min_)
 
     # Create the full dataset
     full_dataset = CustomTorchDataset(data_syntax, values, value_transform=value_transform, device=cfg.training.device)
@@ -144,10 +145,9 @@ def load_wandb_model(run: str, device='cpu', wandb_cache_path='/Users/luis/Deskt
     vae_model.load_state_dict(checkpoint['model_state_dict'])
     return vae_model, cfg_dict, cfg
 
-def create_dataloader_from_wandb(cfg_dict, cfg, datapath='/Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/similar-expressions/data'):
-    train_loader, test_loader, info = create_dataloader(datapath, name=cfg_dict['dataset']['value'], cfg=cfg)
+def create_dataloader_from_wandb(cfg_dict, cfg, value_transform=None, datapath='/Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/similar-expressions/data'):
+    train_loader, test_loader, info = create_dataloader(datapath, name=cfg_dict['dataset']['value'], cfg=cfg, value_transform=value_transform)
     assert all([cfg_dict['dataset_hashes']['value'][key] == info['hashes'][key] for key in cfg_dict['dataset_hashes']['value']]), "Error: Using different dataset than used for training."
-
 
     return train_loader, test_loader, info
 
