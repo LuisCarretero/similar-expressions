@@ -71,22 +71,26 @@ def load_dataset(datapath, name):
         # Extract onehot, values (eval_y), and consts
         syntax = f['onehot'][:].astype(np.float32).transpose([2, 1, 0])
         consts = f['consts'][:].astype(np.float32).T
+        values = f['eval_y'][:].astype(np.float32).T
         val_x = f['eval_x'][:].astype(np.float32)
-        val = f['eval_y'][:].astype(np.float32).T
         syntax_cats = list(map(lambda x: x.decode('utf-8'), f['onehot_legend'][:]))
 
-    return syntax, consts, val_x, val, syntax_cats
+    return syntax, consts, values, val_x, syntax_cats
 
-def create_dataloader(datapath: str, name: str, cfg: Config, value_transform=None, random_seed=0, shuffle_train=True) -> Tuple[DataLoader, DataLoader, dict]:
+def create_dataloader(datapath: str, name: str, cfg: Config, random_seed=0, shuffle_train=True) -> Tuple[DataLoader, DataLoader, dict]:
     gen = torch.Generator()
     gen.manual_seed(random_seed)
 
-    syntax, consts, _, values, _ = load_dataset(datapath, name)
+    syntax, consts, values, val_x, syntax_cats = load_dataset(datapath, name)
     data_syntax = np.concatenate([syntax, consts[:, :, np.newaxis]], axis=-1)
 
     if cfg.training.dataset_len_limit is not None:
         data_syntax = data_syntax[:cfg.training.dataset_len_limit]
         values = values[:cfg.training.dataset_len_limit]
+
+    # Create value transform
+    min_, max_ = np.arcsinh(values.min()), np.arcsinh(values.max())
+    value_transform = lambda x: (torch.arcsinh(x)-min_)/(max_-min_)
 
     # Create the full dataset
     full_dataset = CustomTorchDataset(data_syntax, values, value_transform=value_transform, device=cfg.training.device)
@@ -108,8 +112,17 @@ def create_dataloader(datapath: str, name: str, cfg: Config, value_transform=Non
         'test_idx': hashlib.md5(str(test_loader.dataset.indices).encode()).hexdigest(),
         'random_seed': random_seed
     }
-
-    return train_loader, test_loader, hashes
+    info = {
+        'hashes': hashes,
+        'min_value': min_,
+        'max_value': max_,
+        'value_transform': value_transform,
+        'dataset_name': name,
+        'datapath': datapath, 
+        'syntax_cats': syntax_cats,
+        'val_x': val_x
+    }
+    return train_loader, test_loader, info
 
 def data2input(x: np.ndarray) -> torch.Tensor:
     return torch.from_numpy(x).float().unsqueeze(0).transpose(-2, -1)
@@ -130,3 +143,32 @@ def load_wandb_model(run: str, device='cpu', wandb_cache_path='/Users/luis/Deskt
     vae_model = GrammarVAE(cfg)
     vae_model.load_state_dict(checkpoint['model_state_dict'])
     return vae_model, cfg_dict, cfg
+
+def create_dataloader_from_wandb(cfg_dict, cfg, datapath='/Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/similar-expressions/data'):
+    train_loader, test_loader, info = create_dataloader(datapath, name=cfg_dict['dataset']['value'], cfg=cfg)
+    assert all([cfg_dict['dataset_hashes']['value'][key] == info['hashes'][key] for key in cfg_dict['dataset_hashes']['value']]), "Error: Using different dataset than used for training."
+
+
+    return train_loader, test_loader, info
+
+def data_from_loader(data_loader, data, idx=None, max_length=None, batch_size=None):
+    data_idx = {'x': 0, 'syntax': 1, 'consts': 2, 'values': 3}[data]
+    dataset = data_loader.dataset.dataset[data_loader.dataset.indices][data_idx]
+    
+    if idx is not None:
+        res = dataset[idx, ...]
+    elif max_length is not None:
+        dataset = dataset[:max_length, ...]
+        if batch_size is not None:
+            res = [dataset[i:i+batch_size, ...] for i in range(0, len(dataset), batch_size)]
+        else:
+            res = dataset
+    elif batch_size is not None:
+        res = [dataset[i:i+batch_size, ...] for i in range(0, len(dataset), batch_size)]
+    else:
+        res = dataset
+
+    # Add batch dimension if not present
+    if len(res.shape) == 2 and data in ['x', 'syntax'] or len(res.shape) == 1 and data in ['values', 'consts']:
+        res = res.unsqueeze(0)
+    return res

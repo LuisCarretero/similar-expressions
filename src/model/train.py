@@ -5,6 +5,7 @@ from data_util import calc_priors_and_means, create_dataloader
 from config_util import load_config
 import wandb
 from tqdm import tqdm
+import inspect
 
 def train_one_epoch(train_loader, epoch_idx: int):
     log_accumulators = {
@@ -84,11 +85,8 @@ if __name__ == '__main__':
     anneal = AnnealKLSigmoid(cfg)
 
     # Load data
-    def value_transform(x):
-        return torch.arcsinh(x)*0.1  # Example transformation. TODO: adjust scaling dynamically (arcsinh(1e5)=12.2 so currently this gives us 1.22)
     datapath = '/Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/similar-expressions/data'
-    data_name = 'dataset_240817_2'
-    train_loader, test_loader, hashes = create_dataloader(datapath, data_name, cfg, value_transform)
+    train_loader, test_loader, info = create_dataloader(datapath, 'dataset_240817_2', cfg)
 
     # Init loss function (given priors) and means
     priors, means = calc_priors_and_means(train_loader)
@@ -99,8 +97,8 @@ if __name__ == '__main__':
             # FIXME: Check if LSTM decoder bias can also be initialized?
 
     # Init WandB
-    cfg_dict['dataset_hashes'] = hashes
-    cfg_dict['dataset'] = data_name
+    cfg_dict['dataset_hashes'] = info['hashes']
+    cfg_dict['dataset_name'] = info['dataset_name']
     run = wandb.init(project="similar-expressions-01", config=cfg_dict)
 
     for epoch in range(1, cfg.training.epochs+1):

@@ -5,7 +5,7 @@ from torch.distributions import Normal
 from encoder import Encoder
 from decoder import Decoder
 from value_decoder import ValueDecoder
-from util import logits_to_prods
+from parsing import logits_to_prods
 from grammar import GCFG
 from config_util import Config
 
