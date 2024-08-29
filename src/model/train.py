@@ -9,29 +9,37 @@ from tqdm import tqdm
 def train_one_epoch(train_loader, epoch_idx: int):
     log_accumulators = {
         'loss': 0, 'loss_syntax': 0, 'loss_consts': 0,
-        'loss_values': 0, 'kl': 0, 'alpha': 0, 'elbo': 0, 'syntax_accuracy': 0
+        'loss_values': 0, 'kl': 0, 'alpha': 0, 'elbo': 0, 'syntax_accuracy': 0, 
+        'mean_norm': 0, 'ln_var_norm': 0
     }
     log_steps = 0
 
     for step, (x, y_syntax, y_consts, y_values) in tqdm(enumerate(train_loader, 1), desc=f'Epoch {epoch_idx}/{cfg.training.epochs}', total=len(train_loader)):
-        mu, sigma = model.encoder(x)
-        z = model.sample(mu, sigma)
+        # Forward pass
+        mean, ln_var = model.encoder(x)
+        z = model.sample(mean, ln_var)
         logits = model.decoder(z, max_length=cfg.model.io_format.seq_len)
         values = model.value_decoder(z)
         
+        # Compute loss
         loss_syntax, loss_consts, loss_values, loss = criterion(logits, values, y_syntax, y_consts, y_values)
-        kl = model.kl(mu, sigma)
+        kl = model.kl(mean, ln_var)
         alpha = anneal.alpha(epoch_idx)
         elbo = loss + alpha*kl
 
+        # Backward pass
         optimizer.zero_grad()
         elbo.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), cfg.training.optimizer.clip)
         optimizer.step()
         assert not any(torch.isnan(param).any() for param in model.parameters()), "NaN found in model parameters"
 
+        # Compute metrics   
+        mean_norm = torch.norm(mean, dim=1).mean().item()
+        ln_var_norm = torch.norm(ln_var, dim=1).mean().item()
+
         syntax_accuracy = calc_syntax_accuracy(logits, y_syntax)
-        for key, value in zip(log_accumulators.keys(), [loss, loss_syntax, loss_consts, loss_values, kl, alpha, elbo, syntax_accuracy]):
+        for key, value in zip(log_accumulators.keys(), [loss, loss_syntax, loss_consts, loss_values, kl, alpha, elbo, syntax_accuracy, mean_norm, ln_var_norm]):
             log_accumulators[key] += value.item() if isinstance(value, torch.Tensor) else value
         log_steps += 1
 
@@ -48,22 +56,29 @@ def train_one_epoch(train_loader, epoch_idx: int):
 def test(test_loader, epoch_idx: int):
     metrics = {
         'loss_syntax': 0, 'loss_consts': 0, 'loss_values': 0,
-        'kl': 0, 'elbo': 0, 'loss': 0, 'syntax_accuracy': 0
+        'kl': 0, 'elbo': 0, 'loss': 0, 'syntax_accuracy': 0, 
+        'mean_norm': 0, 'ln_var_norm': 0
     }
 
     with torch.no_grad():
         for step, (x, y_syntax, y_consts, y_values) in tqdm(enumerate(test_loader, 1), desc='Test', total=len(test_loader)):
-            mu, sigma = model.encoder(x)
-            z = model.sample(mu, sigma)
+            # Forward pass
+            mean, ln_var = model.encoder(x)
+            z = model.sample(mean, ln_var)
             logits = model.decoder(z, max_length=cfg.model.io_format.seq_len)
             values = model.value_decoder(z)
             
+            # Compute loss
             loss_syntax, loss_consts, loss_values, loss = criterion(logits, values, y_syntax, y_consts, y_values)
-            kl = model.kl(mu, sigma)
+            kl = model.kl(mean, ln_var)
             elbo = loss + anneal.alpha(epoch_idx) * kl
             syntax_accuracy = calc_syntax_accuracy(logits, y_syntax)
 
-            for key, value in zip(metrics.keys(), [loss_syntax, loss_consts, loss_values, kl, elbo, loss, syntax_accuracy]):
+            # Compute metrics
+            mean_norm = torch.norm(mean, dim=1).mean().item()
+            ln_var_norm = torch.norm(ln_var, dim=1).mean().item()
+
+            for key, value in zip(metrics.keys(), [loss_syntax, loss_consts, loss_values, kl, elbo, loss, syntax_accuracy, mean_norm, ln_var_norm]):
                 metrics[key] += value
 
     for key in metrics:
