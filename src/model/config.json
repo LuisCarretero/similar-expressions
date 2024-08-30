@@ -27,8 +27,7 @@
     "criterion": {
       "ae_weight": 1,
       "kl_weight": 0.1,
-      "syntax_weight": 1,
-      "prior_std": 0.1
+      "syntax_weight": 1
     },
     "sampling": {
       "prior_std": 0.1,

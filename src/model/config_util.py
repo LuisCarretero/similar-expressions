@@ -35,7 +35,6 @@ class CriterionConfig:
     ae_weight: float
     kl_weight: float
     syntax_weight: float
-    prior_std: float
 
 @dataclass
 class SamplingConfig:
@@ -109,8 +108,7 @@ def load_config(file_path: str) -> Tuple[dict, Config]:
     "criterion": {
       "ae_weight": 1,
       "kl_weight": 0.1,
-      "syntax_weight": 1,
-      "prior_std": 0.1
+      "syntax_weight": 1
     },
     "sampling": {
       "prior_std": 0.1,
@@ -164,8 +162,7 @@ def dict_to_config(cfg_dict: dict, fallback_dict: dict = None) -> Config:
                 'criterion': {
                     'ae_weight': 1,
                     'kl_weight': 1,
-                    'syntax_weight': 0.5,
-                    'prior_std': 1
+                    'syntax_weight': 0.5
                 },
                 'sampling': {
                     'prior_std': 0.1,

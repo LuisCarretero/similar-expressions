@@ -112,11 +112,11 @@ def compute_latent_metrics(mean, ln_var):
     Compute the metrics for the latent space.
     """
     mean_norm = torch.norm(mean, dim=1).mean().item()
-    ln_var_norm = torch.norm(ln_var, dim=1).mean().item()
+    std_mean = ln_var.exp().sqrt().mean().item()
 
     metrics = {
         'mean_norm': mean_norm,
-        'ln_var_norm': ln_var_norm
+        'std_mean': std_mean
     }
 
     return metrics
