@@ -1,17 +1,13 @@
 import torch
 from model import GrammarVAE
-from util import AnnealKLSigmoid, criterion_factory, calc_syntax_accuracy
+from util import AnnealKLSigmoid, criterion_factory, calc_syntax_accuracy, compute_latent_metrics
 from data_util import calc_priors_and_means, create_dataloader
 from config_util import load_config
 import wandb
 from tqdm import tqdm
 
 def train_one_epoch(train_loader, epoch_idx: int):
-    log_accumulators = {
-        'loss': 0, 'loss_syntax': 0, 'loss_consts': 0,
-        'loss_values': 0, 'kl': 0, 'alpha': 0, 'elbo': 0, 'syntax_accuracy': 0, 
-        'mean_norm': 0, 'ln_var_norm': 0
-    }
+    metrics = {}
     log_steps = 0
 
     for step, (x, y_syntax, y_consts, y_values) in tqdm(enumerate(train_loader, 1), desc=f'Epoch {epoch_idx}/{cfg.training.epochs}', total=len(train_loader)):
@@ -21,44 +17,42 @@ def train_one_epoch(train_loader, epoch_idx: int):
         logits = model.decoder(z, max_length=cfg.model.io_format.seq_len)
         values = model.value_decoder(z)
         
-        # Compute loss
-        loss_syntax, loss_consts, loss_values, loss = criterion(logits, values, y_syntax, y_consts, y_values)
-        kl = model.kl(mean, ln_var)
+        # Compute losses
+        kl = model.calc_kl(mean, ln_var)  # Positive definite scalar, aim to minimize
         alpha = anneal.alpha(epoch_idx)
-        elbo = loss + alpha*kl
+        loss, partial_losses = criterion(logits, values, y_syntax, y_consts, y_values, kl, alpha)
 
         # Backward pass
         optimizer.zero_grad()
-        elbo.backward()
+        loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), cfg.training.optimizer.clip)
         optimizer.step()
         assert not any(torch.isnan(param).any() for param in model.parameters()), "NaN found in model parameters"
 
         # Compute metrics   
-        mean_norm = torch.norm(mean, dim=1).mean().item()
-        ln_var_norm = torch.norm(ln_var, dim=1).mean().item()
-
+        latent_metrics = compute_latent_metrics(mean, ln_var)
         syntax_accuracy = calc_syntax_accuracy(logits, y_syntax)
-        for key, value in zip(log_accumulators.keys(), [loss, loss_syntax, loss_consts, loss_values, kl, alpha, elbo, syntax_accuracy, mean_norm, ln_var_norm]):
-            log_accumulators[key] += value.item() if isinstance(value, torch.Tensor) else value
+
+        # Merge and sum up metrics
+        step_metrics = {**partial_losses, **latent_metrics, 'syntax_accuracy': syntax_accuracy}
+        for key, value in step_metrics.items():
+            if key not in metrics:
+                metrics[key] = 0
+            metrics[key] += value.item() if isinstance(value, torch.Tensor) else value
         log_steps += 1
 
-        if step % cfg.training.print_every == 0:
-            avg_logs = {f'train/{k}': v / log_steps for k, v in log_accumulators.items()}
+        if step % cfg.training.log_interval == 0:
+            avg_logs = {f'train/{k}': v / log_steps for k, v in metrics.items()}
             wandb.log(avg_logs)
-            log_accumulators = {k: 0 for k in log_accumulators}
+            metrics = {k: 0 for k in metrics}
             log_steps = 0
 
     if log_steps > 0:
-        avg_logs = {f'train/{k}': v / log_steps for k, v in log_accumulators.items()}
+        avg_logs = {f'train/{k}': v / log_steps for k, v in metrics.items()}
         wandb.log(avg_logs)
 
 def test(test_loader, epoch_idx: int):
-    metrics = {
-        'loss_syntax': 0, 'loss_consts': 0, 'loss_values': 0,
-        'kl': 0, 'elbo': 0, 'loss': 0, 'syntax_accuracy': 0, 
-        'mean_norm': 0, 'ln_var_norm': 0
-    }
+    metrics = {}
 
     with torch.no_grad():
         for step, (x, y_syntax, y_consts, y_values) in tqdm(enumerate(test_loader, 1), desc='Test', total=len(test_loader)):
@@ -67,20 +61,24 @@ def test(test_loader, epoch_idx: int):
             z = model.sample(mean, ln_var)
             logits = model.decoder(z, max_length=cfg.model.io_format.seq_len)
             values = model.value_decoder(z)
-            
-            # Compute loss
-            loss_syntax, loss_consts, loss_values, loss = criterion(logits, values, y_syntax, y_consts, y_values)
-            kl = model.kl(mean, ln_var)
-            elbo = loss + anneal.alpha(epoch_idx) * kl
-            syntax_accuracy = calc_syntax_accuracy(logits, y_syntax)
+
+            # Compute losses
+            kl = model.calc_kl(mean, ln_var)
+            alpha = anneal.alpha(epoch_idx)
+            _, partial_losses = criterion(logits, values, y_syntax, y_consts, y_values, kl, alpha)
 
             # Compute metrics
-            mean_norm = torch.norm(mean, dim=1).mean().item()
-            ln_var_norm = torch.norm(ln_var, dim=1).mean().item()
+            syntax_accuracy = calc_syntax_accuracy(logits, y_syntax)
+            latent_metrics = compute_latent_metrics(mean, ln_var)
 
-            for key, value in zip(metrics.keys(), [loss_syntax, loss_consts, loss_values, kl, elbo, loss, syntax_accuracy, mean_norm, ln_var_norm]):
-                metrics[key] += value
+            # Merge and sum up metrics
+            step_metrics = {**partial_losses, **latent_metrics, 'syntax_accuracy': syntax_accuracy}
+            for key, value in step_metrics.items():
+                if key not in metrics:
+                    metrics[key] = 0
+                metrics[key] += value.item() if isinstance(value, torch.Tensor) else value
 
+    # Calculate average
     for key in metrics:
         metrics[key] /= len(test_loader)
 
@@ -100,7 +98,7 @@ if __name__ == '__main__':
 
     # Load data
     datapath = '/Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/similar-expressions/data'
-    train_loader, test_loader, info = create_dataloader(datapath, 'dataset_240817_2', cfg)
+    train_loader, test_loader, info = create_dataloader(datapath, 'dataset_240822_1', cfg)
 
     # Init loss function (given priors) and means
     priors, means = calc_priors_and_means(train_loader)

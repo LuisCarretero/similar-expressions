@@ -8,6 +8,8 @@ from value_decoder import ValueDecoder
 from parsing import logits_to_prods
 from grammar import GCFG
 from config_util import Config
+import math
+
 
 class GrammarVAE(nn.Module):
     """Grammar Variational Autoencoder"""
@@ -26,21 +28,27 @@ class GrammarVAE(nn.Module):
         self.decoder = Decoder(cfg.model).to(self.device)
         self.value_decoder = ValueDecoder(cfg.model).to(self.device)
 
-        self.sample_eps = cfg.training.sample_eps
-        self.kl_weight = cfg.training.kl_weight
+        self.prior_std = cfg.training.sampling.prior_std  # Float
+        self.prior_var = self.prior_std**2
+        self.ln_prior_var = math.log(self.prior_var)
+        self.sampling_eps = cfg.training.sampling.eps
 
         self.to(self.device)
 
     def sample(self, mean, ln_var):
         """Reparametrized sample from a N(mu, sigma) distribution"""
         normal = Normal(torch.zeros(mean.shape).to(self.device), torch.ones(ln_var.shape).to(self.device))
-        eps = normal.sample() * self.sample_eps
+        eps = normal.sample() * self.sampling_eps  # Sample from N(0, self.prior_std)
         z = mean + eps * torch.exp(ln_var/2)
         return z
 
-    def kl(self, mean, ln_var):
-        """KL divergence between two normal distributions"""
-        return -0.5 * torch.mean(torch.sum(1 + ln_var - mean.pow(2) - ln_var.exp(), 1))
+    def calc_kl(self, mean, ln_var):
+        """KL divergence between N(mean, exp(ln_var)) and N(0, prior_std^2). Returns a positive definite scalar."""
+        kl_per_sample = 0.5 * torch.sum(  # Sum over all dimensions
+            -ln_var + self.ln_prior_var -1 + (mean**2 + ln_var.exp())/self.prior_var,
+            dim=1
+        )
+        return torch.mean(kl_per_sample)  # Average over samples
 
     def forward(self, x, max_length=15):
         mean, ln_var = self.encoder(x)

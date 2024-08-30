@@ -1,6 +1,6 @@
 import json
 from dataclasses import dataclass
-from typing import Literal, Tuple
+from typing import Literal, Tuple, Optional
 
 @dataclass
 class EncoderConfig:
@@ -32,9 +32,15 @@ class ModelConfig:
 
 @dataclass
 class CriterionConfig:
-    values_loss_weight: float
-    consts_loss_weight: float
-    syntax_loss_weight: float
+    ae_weight: float
+    kl_weight: float
+    syntax_weight: float
+    prior_std: float
+
+@dataclass
+class SamplingConfig:
+    prior_std: float
+    eps: float
 
 @dataclass
 class OptimizerConfig:
@@ -43,23 +49,23 @@ class OptimizerConfig:
 
 @dataclass
 class AnnealConfig:
+    schedule: Literal["sigmoid"]
     midpoint: float
     steepness: float
 
 @dataclass
 class TrainingConfig:
     batch_size: int
-    print_every: int
+    log_interval: int
     epochs: int
     test_split: float
-    dataset_len_limit: int
+    dataset_len_limit: Optional[int]
     criterion: CriterionConfig
+    sampling: SamplingConfig
     optimizer: OptimizerConfig
-    anneal: AnnealConfig
+    kl_anneal: AnnealConfig
     device: Literal["cpu"]
     values_init_bias: bool
-    sample_eps: float
-    kl_weight: float
 
 
 @dataclass
@@ -73,28 +79,143 @@ def load_config(file_path: str) -> Tuple[dict, Config]:
 
     return cfg_dict, dict_to_config(cfg_dict)
 
-def dict_to_config(cfg_dict: dict) -> Config:
+"""
+{
+  "model": {
+    "encoder": {
+      "size_hidden": 128,
+      "conv_size": "large"
+    },
+    "z_size": 32,
+    "decoder": {
+      "size_hidden": 64,
+      "rnn_type": "lstm"
+    },
+    "value_decoder": {
+      "size_lin1": 64
+    },
+    "io_format": {
+      "seq_len": 15,
+      "token_cnt": 10,
+      "val_points": 100
+    }
+  },
+  "training": {
+    "batch_size": 128,
+    "log_interval": 200,
+    "epochs": 40,
+    "test_split": 0.1,
+    "dataset_len_limit": null,
+    "criterion": {
+      "ae_weight": 1,
+      "kl_weight": 0.1,
+      "syntax_weight": 1,
+      "prior_std": 0.1
+    },
+    "sampling": {
+      "prior_std": 0.1,
+      "eps": 1
+    },
+    "optimizer": {
+      "lr": 1e-3,
+      "clip": 5.0
+    },
+    "kl_anneal": {
+      "schedule": "sigmoid",
+      "midpoint": 0.4,
+      "steepness": 10
+    },
+    "device": "cpu",
+    "values_init_bias": false
+  }
+}
+"""
+
+
+def dict_to_config(cfg_dict: dict, fallback_dict: dict = None) -> Config:
+    # Define fallback values
+    if not fallback_dict:
+        fallback_dict = {
+            'model': {
+                'encoder': {
+                    'size_hidden': 128,
+                    'conv_size': 'large'
+                },
+                'z_size': 128,
+                'decoder': {
+                    'size_hidden': 64,
+                    'rnn_type': 'lstm'
+                },
+                'value_decoder': {
+                    'size_lin1': 64
+                },
+                'io_format': {
+                    'seq_len': 15,
+                    'token_cnt': 10,
+                    'val_points': 100
+                }
+            },
+            'training': {
+                'batch_size': 128,
+                'log_interval': 200,
+                'epochs': 4,
+                'test_split': 0.1,
+                'dataset_len_limit': None,
+                'criterion': {
+                    'ae_weight': 1,
+                    'kl_weight': 1,
+                    'syntax_weight': 0.5,
+                    'prior_std': 1
+                },
+                'sampling': {
+                    'prior_std': 0.1,
+                    'eps': 1
+                },
+                'optimizer': {
+                    'lr': 2e-3,
+                    'clip': 5.0
+                },
+                'kl_anneal': {
+                    'schedule': 'sigmoid',
+                    'midpoint': 0.3,
+                    'steepness': 10
+                },
+                'device': 'cpu',
+                'values_init_bias': False
+            }
+        }
+
+    # Merge fallback values with provided cfg_dict and print messages for fallback usage
+    merged_cfg = {}
+    for section in ['model', 'training']:
+        merged_cfg[section] = {}
+        for key, default_value in fallback_dict[section].items():
+            if section not in cfg_dict or key not in cfg_dict[section]:
+                print(f"Using fallback value for {section}.{key}: {default_value}")
+                merged_cfg[section][key] = default_value
+            else:
+                merged_cfg[section][key] = cfg_dict[section][key]
+
     return Config(
         model=ModelConfig(
-            encoder=EncoderConfig(**cfg_dict['architecture']['encoder']),
-            z_size=cfg_dict['architecture']['z_size'],
-            decoder=DecoderConfig(**cfg_dict['architecture']['decoder']),
-            value_decoder=ValueDecoderConfig(**cfg_dict['architecture']['value_decoder']),
-            io_format=IoFormatConfig(**cfg_dict['architecture']['io_format'])
+            encoder=EncoderConfig(**merged_cfg['model']['encoder']),
+            z_size=merged_cfg['model']['z_size'],
+            decoder=DecoderConfig(**merged_cfg['model']['decoder']),
+            value_decoder=ValueDecoderConfig(**merged_cfg['model']['value_decoder']),
+            io_format=IoFormatConfig(**merged_cfg['model']['io_format'])
         ),
         training=TrainingConfig(
-            batch_size=cfg_dict['training']['batch_size'],
-            print_every=cfg_dict['training']['print_every'],
-            epochs=cfg_dict['training']['epochs'],
-            test_split=cfg_dict['training']['test_split'],
-            dataset_len_limit=cfg_dict['training']['dataset_len_limit'],
-            criterion=CriterionConfig(**cfg_dict['training']['criterion']),
-            optimizer=OptimizerConfig(**cfg_dict['training']['optimizer']),
-            anneal=AnnealConfig(**cfg_dict['training']['anneal']),
-            device=cfg_dict['training']['device'],
-            values_init_bias=cfg_dict['training']['values_init_bias'],
-            sample_eps=cfg_dict['training']['sample_eps'],
-            kl_weight=cfg_dict['training']['kl_weight']
+            batch_size=merged_cfg['training']['batch_size'],
+            log_interval=merged_cfg['training']['log_interval'],
+            epochs=merged_cfg['training']['epochs'],
+            test_split=merged_cfg['training']['test_split'],
+            dataset_len_limit=merged_cfg['training']['dataset_len_limit'],
+            criterion=CriterionConfig(**merged_cfg['training']['criterion']),
+            sampling=SamplingConfig(**merged_cfg['training']['sampling']),
+            optimizer=OptimizerConfig(**merged_cfg['training']['optimizer']),
+            kl_anneal=AnnealConfig(**merged_cfg['training']['kl_anneal']),
+            device=merged_cfg['training']['device'],
+            values_init_bias=merged_cfg['training']['values_init_bias']
         )
     )
 

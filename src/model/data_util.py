@@ -12,6 +12,15 @@ from config_util import dict_to_config
 from model import GrammarVAE
 
 class CustomTorchDataset(Dataset):
+    """
+    
+    Data dimensions:
+    - data_syntax: (n_samples, seq_len, n_tokens+1)
+    - data_values: (n_samples, n_values)
+    
+
+
+    """
     def __init__(self, data_syntax: np.ndarray, data_values: np.ndarray, value_transform=None, device='cpu'):
         assert data_syntax.shape[0] == data_values.shape[0]
 
@@ -24,13 +33,21 @@ class CustomTorchDataset(Dataset):
         self.data_syntax = torch.tensor(data_syntax, dtype=torch.float32).to(device)
         self.values_transformed = value_transform(torch.tensor(data_values, dtype=torch.float32).to(device))
         self.value_transform = value_transform
+        self.x_shape = data_syntax.shape
 
     def __len__(self):
         return len(self.data_syntax)
 
     def __getitem__(self, idx):
-        x = self.data_syntax[idx].transpose(-2, -1)
-        y_rule_idx = self.data_syntax[idx, :, :-1].argmax(axis=1) # The rule index (argmax over onehot part, excluding consts)
+        """
+        Careful: idx can be int, list of int of slice. Make sure that beheviour is the same in all cases. When calling DataLoader, an idx is passed for each item in the batch.
+        For custom access in analysis script (e.g. data_loader.dataset.dataset[data_loader.dataset.indices]), a list of indices is passed instead.
+
+        Use -ve indexing to make it independent of shape (i.e. with or without batch_size dimension.)
+        """
+        x = self.data_syntax[idx].transpose(-2, -1)  # Shape: (1, n_tokens+1, seq_len)
+        
+        y_rule_idx = self.data_syntax[idx, :, :-1].argmax(axis=-1) # The rule index (argmax over onehot part, excluding consts) 
         y_consts = self.data_syntax[idx, :, -1]
         y_values = self.values_transformed[idx]
         return x, y_rule_idx, y_consts, y_values
@@ -69,10 +86,10 @@ def calc_priors_and_means(dataloader: torch.utils.data.DataLoader):
 def load_dataset(datapath, name):
     with h5py.File(os.path.join(datapath, f'{name}.h5'), 'r') as f:
         # Extract onehot, values (eval_y), and consts
-        syntax = f['onehot'][:].astype(np.float32).transpose([2, 1, 0])
-        consts = f['consts'][:].astype(np.float32).T
-        values = f['eval_y'][:].astype(np.float32).T
-        val_x = f['eval_x'][:].astype(np.float32)
+        syntax = f['onehot'][:].astype(np.float32).transpose([2, 1, 0])  # Shape: (n_samples, seq_len, n_tokens)
+        consts = f['consts'][:].astype(np.float32).T  # Shape: (n_samples, seq_len)
+        values = f['eval_y'][:].astype(np.float32).T  # Shape: (n_samples, n_values)
+        val_x = f['eval_x'][:].astype(np.float32)  # Shape: (n_values, 1)
         syntax_cats = list(map(lambda x: x.decode('utf-8'), f['onehot_legend'][:]))
 
     return syntax, consts, values, val_x, syntax_cats
@@ -82,7 +99,7 @@ def create_dataloader(datapath: str, name: str, cfg: Config, random_seed=0, shuf
     gen.manual_seed(random_seed)
 
     syntax, consts, values, val_x, syntax_cats = load_dataset(datapath, name)
-    data_syntax = np.concatenate([syntax, consts[:, :, np.newaxis]], axis=-1)
+    data_syntax = np.concatenate([syntax, consts[:, :, np.newaxis]], axis=-1)  # Shape: (n_samples, seq_len, n_tokens+1)
 
     if cfg.training.dataset_len_limit is not None:
         data_syntax = data_syntax[:cfg.training.dataset_len_limit]
@@ -91,7 +108,7 @@ def create_dataloader(datapath: str, name: str, cfg: Config, random_seed=0, shuf
     # Create value transform
     min_, max_ = np.arcsinh(values.min()), np.arcsinh(values.max())
     if value_transform is None:
-        value_transform = lambda x: (torch.arcsinh(x)-min_)/(max_-min_)
+        value_transform = lambda x: 2 * (torch.arcsinh(x) - min_) / (max_ - min_) - 1  # Center in range
 
     # Create the full dataset
     full_dataset = CustomTorchDataset(data_syntax, values, value_transform=value_transform, device=cfg.training.device)
@@ -146,12 +163,18 @@ def load_wandb_model(run: str, device='cpu', wandb_cache_path='/Users/luis/Deskt
     return vae_model, cfg_dict, cfg
 
 def create_dataloader_from_wandb(cfg_dict, cfg, value_transform=None, datapath='/Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/similar-expressions/data'):
-    train_loader, test_loader, info = create_dataloader(datapath, name=cfg_dict['dataset_name']['value'], cfg=cfg, value_transform=value_transform)
+    # Quick fix:
+    try:
+        name = cfg_dict['dataset_name']['value']
+    except KeyError:
+        name = cfg_dict['dataset']['value']
+
+    train_loader, test_loader, info = create_dataloader(datapath, name=name, cfg=cfg, value_transform=value_transform)
     assert all([cfg_dict['dataset_hashes']['value'][key] == info['hashes'][key] for key in cfg_dict['dataset_hashes']['value']]), "Error: Using different dataset than used for training."
 
     return train_loader, test_loader, info
 
-def data_from_loader(data_loader, data, idx=None, max_length=None, batch_size=None):
+def data_from_loader(data_loader: DataLoader, data: str, idx=None, max_length=None, batch_size=None):
     data_idx = {'x': 0, 'syntax': 1, 'consts': 2, 'values': 3}[data]
     dataset = data_loader.dataset.dataset[data_loader.dataset.indices][data_idx]
     
