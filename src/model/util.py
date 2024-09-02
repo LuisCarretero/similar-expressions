@@ -2,6 +2,11 @@ import math
 from config_util import Config
 from typing import Dict
 import torch
+import grammar
+
+MAX_LEN, DIM = 15, 9  # FIXME: use config
+masks = torch.tensor(grammar.masks)
+ind_of_ind = torch.tensor(grammar.ind_of_ind)
 
 class Stack:
     """A simple first in last out stack.
@@ -67,10 +72,10 @@ def criterion_factory(cfg: Config, priors: Dict):
     cross_entropy = torch.nn.CrossEntropyLoss()  # default reduction is mean over batch and time steps
     mse = torch.nn.MSELoss()
 
-    def criterion(logits_pred: torch.Tensor, values_pred: torch.Tensor, y_rule_idx: torch.Tensor, y_consts: torch.Tensor, y_val: torch.Tensor, kl: float, alpha: float):
+    def criterion(expr_pred: torch.Tensor, values_pred: torch.Tensor, y_rule_idx: torch.Tensor, y_consts: torch.Tensor, y_val: torch.Tensor, kl: float, alpha: float):
         """
-        logits: syntax and consts prediction of the model
-        values: value prediction of the model
+        expr_pred: expression prediction of the model
+        values_pred: value prediction of the model
         y_rule_idx: true one-hot encoded syntax indices
         y_consts: true real-valued consts
         y_val: true values
@@ -79,9 +84,9 @@ def criterion_factory(cfg: Config, priors: Dict):
 
         """
         # VAE reconstruction loss
-        logits_onehot = logits_pred[:, :, :-1]
-        loss_syntax = cross_entropy(logits_onehot.reshape(-1, logits_onehot.size(-1)), y_rule_idx.reshape(-1))/SYNTAX_PRIOR
-        loss_consts = mse(logits_pred[:, :, -1], y_consts)/CONSTS_PRIOR
+        logits_syntax = expr_pred[:, :, :-1]
+        loss_syntax = cross_entropy(logits_syntax.reshape(-1, logits_syntax.size(-1)), y_rule_idx.reshape(-1))/SYNTAX_PRIOR
+        loss_consts = mse(expr_pred[:, :, -1], y_consts)/CONSTS_PRIOR
         loss_recon_ae = SYNTAX_WEIGHT*loss_syntax + (1-SYNTAX_WEIGHT)*loss_consts
 
         # VAE total loss (loss_ae = -ELBO = -log p(x|z) + KL_WEIGHT*KL(q(z|x)||p(z)) where KL_WEIGHT is usually denoted as beta)
@@ -121,8 +126,18 @@ def compute_latent_metrics(mean, ln_var):
 
     return metrics
 
-
 def calc_syntax_accuracy(logits, y_rule_idx):
     y_hat = logits.argmax(-1)
     a = (y_hat == y_rule_idx).float().mean()
     return 100 * a.item()
+
+def calc_grammar_mask(y_syntax: torch.Tensor):
+    """
+    Use true indices to mask predictions. Spefically, only the LHS of the true rule at step t is allowed to be applied at step t. Consequently, all other productions with different LHS are set to zero.
+
+    """
+    true_prod_idx = y_syntax.reshape(-1)  # True indices but whole batch flattened
+    true_lhs_idx = torch.gather(ind_of_ind, 0, true_prod_idx) # LHS rule idx (here 0-S or 1-END)
+    allowed_prods_mask = masks[true_lhs_idx]  # get slices of masks with indices
+    allowed_prods_mask = allowed_prods_mask.reshape(-1, MAX_LEN, DIM)  # reshape them to have masks as rows
+    return allowed_prods_mask

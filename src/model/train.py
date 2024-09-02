@@ -15,6 +15,8 @@ def train_one_epoch(train_loader, epoch_idx: int):
         mean, ln_var = model.encoder(x)
         z = model.sample(mean, ln_var)
         logits = model.decoder(z, max_length=cfg.model.io_format.seq_len)
+        if use_mask:
+            logits = logits * calc_grammar_mask(y_syntax)
         values = model.value_decoder(z)
         
         # Compute losses
@@ -34,7 +36,7 @@ def train_one_epoch(train_loader, epoch_idx: int):
         syntax_accuracy = calc_syntax_accuracy(logits, y_syntax)
 
         # Merge and sum up metrics
-        step_metrics = {**partial_losses, **latent_metrics, 'syntax_accuracy': syntax_accuracy}
+        step_metrics = {**partial_losses, **latent_metrics, 'syntax_accuracy': syntax_accuracy, 'lr': scheduler.get_last_lr()[0]}
         for key, value in step_metrics.items():
             if key not in metrics:
                 metrics[key] = 0
@@ -60,19 +62,24 @@ def test(test_loader, epoch_idx: int):
             mean, ln_var = model.encoder(x)
             z = model.sample(mean, ln_var)
             logits = model.decoder(z, max_length=cfg.model.io_format.seq_len)
+            if use_mask:
+                logits = logits * calc_grammar_mask(y_syntax)
             values = model.value_decoder(z)
 
             # Compute losses
             kl = model.calc_kl(mean, ln_var)
             alpha = anneal.alpha(epoch_idx)
-            _, partial_losses = criterion(logits, values, y_syntax, y_consts, y_values, kl, alpha)
+            loss, partial_losses = criterion(logits, values, y_syntax, y_consts, y_values, kl, alpha)
+
+            # Update scheduler
+            scheduler.step(loss)
 
             # Compute metrics
             syntax_accuracy = calc_syntax_accuracy(logits, y_syntax)
             latent_metrics = compute_latent_metrics(mean, ln_var)
 
             # Merge and sum up metrics
-            step_metrics = {**partial_losses, **latent_metrics, 'syntax_accuracy': syntax_accuracy}
+            step_metrics = {**partial_losses, **latent_metrics, 'syntax_accuracy': syntax_accuracy, 'lr': scheduler.get_last_lr()[0]}
             for key, value in step_metrics.items():
                 if key not in metrics:
                     metrics[key] = 0
@@ -94,6 +101,7 @@ if __name__ == '__main__':
 
     # Init optimizer
     optimizer = torch.optim.Adam(model.parameters(), lr=cfg.training.optimizer.lr)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min')
     anneal = AnnealKLSigmoid(cfg)
 
     # Load data
@@ -116,6 +124,9 @@ if __name__ == '__main__':
     for epoch in range(1, cfg.training.epochs+1):
         train_one_epoch(train_loader, epoch)
         test(test_loader, epoch)
+
+    # Use mask
+    use_mask = True
 
     # torch.save(model, f'{wandb.run.dir}/model.pt')
     torch.save({'model_state_dict': model.state_dict()}, f'{wandb.run.dir}/model.pth')

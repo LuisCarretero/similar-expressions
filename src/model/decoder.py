@@ -22,7 +22,7 @@ class Decoder(nn.Module):
             raise ValueError('Select rnn_type from [lstm, gru]')
 
         self.relu = nn.ReLU()
-
+    
     def forward(self, z, max_length):
         """The forward pass used for training the Grammar VAE.
         TODO: Does it make sense to have max_length as parameter?

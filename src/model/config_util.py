@@ -193,13 +193,23 @@ def dict_to_config(cfg_dict: dict, fallback_dict: dict = None) -> Config:
             else:
                 merged_cfg[section][key] = cfg_dict[section][key]
 
+    def create_config_with_error_check(config_class, config_dict):
+        expected_keys = set(config_class.__annotations__.keys())
+        provided_keys = set(config_dict.keys())
+        unexpected_keys = provided_keys - expected_keys
+        if unexpected_keys:
+            for key in unexpected_keys:
+                print(f"Unexpected key in {config_class.__name__}: {key}")
+            # raise TypeError(f"{config_class.__name__} got unexpected keyword argument(s): {', '.join(unexpected_keys)}")
+        return config_class(**{k: v for k, v in config_dict.items() if k in expected_keys})
+
     return Config(
         model=ModelConfig(
-            encoder=EncoderConfig(**merged_cfg['model']['encoder']),
+            encoder=create_config_with_error_check(EncoderConfig, merged_cfg['model']['encoder']),
             z_size=merged_cfg['model']['z_size'],
-            decoder=DecoderConfig(**merged_cfg['model']['decoder']),
-            value_decoder=ValueDecoderConfig(**merged_cfg['model']['value_decoder']),
-            io_format=IoFormatConfig(**merged_cfg['model']['io_format'])
+            decoder=create_config_with_error_check(DecoderConfig, merged_cfg['model']['decoder']),
+            value_decoder=create_config_with_error_check(ValueDecoderConfig, merged_cfg['model']['value_decoder']),
+            io_format=create_config_with_error_check(IoFormatConfig, merged_cfg['model']['io_format'])
         ),
         training=TrainingConfig(
             batch_size=merged_cfg['training']['batch_size'],
@@ -207,10 +217,10 @@ def dict_to_config(cfg_dict: dict, fallback_dict: dict = None) -> Config:
             epochs=merged_cfg['training']['epochs'],
             test_split=merged_cfg['training']['test_split'],
             dataset_len_limit=merged_cfg['training']['dataset_len_limit'],
-            criterion=CriterionConfig(**merged_cfg['training']['criterion']),
-            sampling=SamplingConfig(**merged_cfg['training']['sampling']),
-            optimizer=OptimizerConfig(**merged_cfg['training']['optimizer']),
-            kl_anneal=AnnealConfig(**merged_cfg['training']['kl_anneal']),
+            criterion=create_config_with_error_check(CriterionConfig, merged_cfg['training']['criterion']),
+            sampling=create_config_with_error_check(SamplingConfig, merged_cfg['training']['sampling']),
+            optimizer=create_config_with_error_check(OptimizerConfig, merged_cfg['training']['optimizer']),
+            kl_anneal=create_config_with_error_check(AnnealConfig, merged_cfg['training']['kl_anneal']),
             device=merged_cfg['training']['device'],
             values_init_bias=merged_cfg['training']['values_init_bias']
         )
