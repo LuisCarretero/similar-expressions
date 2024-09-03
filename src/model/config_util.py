@@ -66,7 +66,6 @@ class TrainingConfig:
     device: Literal["cpu"]
     values_init_bias: bool
 
-
 @dataclass
 class Config:
     model: ModelConfig
@@ -77,58 +76,6 @@ def load_config(file_path: str) -> Tuple[dict, Config]:
         cfg_dict = json.load(f)
 
     return cfg_dict, dict_to_config(cfg_dict)
-
-"""
-{
-  "model": {
-    "encoder": {
-      "size_hidden": 128,
-      "conv_size": "large"
-    },
-    "z_size": 32,
-    "decoder": {
-      "size_hidden": 64,
-      "rnn_type": "lstm"
-    },
-    "value_decoder": {
-      "size_lin1": 64
-    },
-    "io_format": {
-      "seq_len": 15,
-      "token_cnt": 10,
-      "val_points": 100
-    }
-  },
-  "training": {
-    "batch_size": 128,
-    "log_interval": 200,
-    "epochs": 40,
-    "test_split": 0.1,
-    "dataset_len_limit": null,
-    "criterion": {
-      "ae_weight": 1,
-      "kl_weight": 0.1,
-      "syntax_weight": 1
-    },
-    "sampling": {
-      "prior_std": 0.1,
-      "eps": 1
-    },
-    "optimizer": {
-      "lr": 1e-3,
-      "clip": 5.0
-    },
-    "kl_anneal": {
-      "schedule": "sigmoid",
-      "midpoint": 0.4,
-      "steepness": 10
-    },
-    "device": "cpu",
-    "values_init_bias": false
-  }
-}
-"""
-
 
 def dict_to_config(cfg_dict: dict, fallback_dict: dict = None) -> Config:
     # Define fallback values
@@ -225,6 +172,3 @@ def dict_to_config(cfg_dict: dict, fallback_dict: dict = None) -> Config:
             values_init_bias=merged_cfg['training']['values_init_bias']
         )
     )
-
-# Usage example:
-# config = load_config('similar-expressions/src/model/hyperparameters.json')

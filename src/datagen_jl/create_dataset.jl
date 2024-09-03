@@ -11,13 +11,13 @@ using HDF5
 
 # Settings
 op_cnt_min = 1
-op_cnt_max = 5
+op_cnt_max = 7
 nfeatures = 1
 ops = OperatorEnum((+, -, *, /), (sin, exp))
 op_probs = ExpressionGenerator.OperatorProbEnum(ops, [1.0, 1.0, 1.0, 1.0], [1.0, 1.0])
 seq_len = 15  # Max number of nodes in the tree
-N = 800_000  # You can adjust this number as needed
-name = "dataset_240827_1"
+N = 1_200_000  # You can adjust this number as needed
+name = "dataset_240903_1"
 
 # Generate trees
 println("Generating trees...")

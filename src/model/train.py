@@ -71,15 +71,12 @@ def test(test_loader, epoch_idx: int):
             alpha = anneal.alpha(epoch_idx)
             loss, partial_losses = criterion(logits, values, y_syntax, y_consts, y_values, kl, alpha)
 
-            # Update scheduler
-            scheduler.step(loss)
-
             # Compute metrics
             syntax_accuracy = calc_syntax_accuracy(logits, y_syntax)
             latent_metrics = compute_latent_metrics(mean, ln_var)
 
             # Merge and sum up metrics
-            step_metrics = {**partial_losses, **latent_metrics, 'syntax_accuracy': syntax_accuracy, 'lr': scheduler.get_last_lr()[0]}
+            step_metrics = {**partial_losses, **latent_metrics, 'syntax_accuracy': syntax_accuracy}
             for key, value in step_metrics.items():
                 if key not in metrics:
                     metrics[key] = 0
@@ -88,6 +85,10 @@ def test(test_loader, epoch_idx: int):
     # Calculate average
     for key in metrics:
         metrics[key] /= len(test_loader)
+
+    # Update scheduler (once per test cycle.)
+    scheduler.step(metrics['loss'])  # Use mean test loss
+    metrics['lr'] = scheduler.get_last_lr()[0]
 
     wandb.log({f'test/{key}': value for key, value in metrics.items()})
 
@@ -101,7 +102,15 @@ if __name__ == '__main__':
 
     # Init optimizer
     optimizer = torch.optim.Adam(model.parameters(), lr=cfg.training.optimizer.lr)
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min')
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer,
+        mode='min',
+        factor=0.5,
+        patience=40,
+        threshold_mode='rel',
+        cooldown=20,
+        min_lr=1e-5
+    )
     anneal = AnnealKLSigmoid(cfg)
 
     # Load data
@@ -121,12 +130,17 @@ if __name__ == '__main__':
     cfg_dict['dataset_name'] = info['dataset_name']
     run = wandb.init(project="similar-expressions-01", config=cfg_dict)
 
-    for epoch in range(1, cfg.training.epochs+1):
-        train_one_epoch(train_loader, epoch)
-        test(test_loader, epoch)
-
     # Use mask
     use_mask = True
+
+    try:
+      for epoch in range(1, cfg.training.epochs+1):
+          train_one_epoch(train_loader, epoch)
+          test(test_loader, epoch)
+    except KeyboardInterrupt:
+        print("KeyboardInterrupt detected. Saving model and finishing run.")
+        torch.save({'model_state_dict': model.state_dict()}, f'{wandb.run.dir}/model.pth')
+        run.finish()
 
     torch.save({'model_state_dict': model.state_dict()}, f'{wandb.run.dir}/model.pth')
     run.finish()
