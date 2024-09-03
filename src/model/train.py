@@ -1,6 +1,6 @@
 import torch
 from model import GrammarVAE
-from util import AnnealKLSigmoid, criterion_factory, calc_syntax_accuracy, compute_latent_metrics
+from util import AnnealKLSigmoid, criterion_factory, calc_syntax_accuracy, compute_latent_metrics, calc_grammar_mask
 from data_util import calc_priors_and_means, create_dataloader
 from config_util import load_config
 import wandb

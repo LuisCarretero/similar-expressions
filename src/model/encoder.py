@@ -38,10 +38,11 @@ class Encoder(nn.Module):
     def forward(self, x):
         """
         Encode x into a mean and variance of a Normal.
-        
-        Takes a one-hot encoded input of shape [batch, 12, 15] and returns
-        a mean and variance of a Normal distribution of shape [batch, 2].
+
+        Input size is size is [batch, max_length, token_cnt]
         """
+        x = x.permute(0, 2, 1)  # conv1d expects [batch, in_channels, seq_len]
+
         h = self.relu(self.conv1(x))
         h = self.relu(self.conv2(h))
         h = self.relu(self.conv3(h))

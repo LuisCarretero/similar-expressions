@@ -32,6 +32,8 @@ class Decoder(nn.Module):
         See line 138 of
             https://github.com/mkusner/grammarVAE/blob/master/models/model_eq.py
         for reference.
+
+        Output size is [batch, max_length, token_cnt]  where token_cnt includes const category
         """
         x = self.linear_in(z)
         x = self.relu(x)
@@ -41,17 +43,14 @@ class Decoder(nn.Module):
 
         batch_size = z.size(0)
         if self.rnn_type == 'lstm':
+            # Init hidden and cell states
             h0 = torch.zeros(1, batch_size, self.hidden_size).to(z.device)
             c0 = torch.zeros(1, batch_size, self.hidden_size).to(z.device)
             hx = (h0, c0)
         else:  # for GRU
             hx = torch.zeros(1, batch_size, self.hidden_size).to(z.device)
 
-        # hx = Variable(torch.zeros(x.size(0), self.hidden_size))
-        # hx = (hx, hx) if self.rnn_type == 'lstm' else hx
-
         x, _ = self.rnn(x, hx)
-
         x = self.relu(x)
         x = self.linear_out(x)
         return x

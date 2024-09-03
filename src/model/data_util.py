@@ -21,7 +21,7 @@ class CustomTorchDataset(Dataset):
 
 
     """
-    def __init__(self, data_syntax: np.ndarray, data_values: np.ndarray, value_transform=None, device='cpu'):
+    def __init__(self, data_syntax: np.ndarray, data_values: np.ndarray, value_transform=None, device='cpu', old_x_format=False):
         assert data_syntax.shape[0] == data_values.shape[0]
 
         # Calculate hashes  FIXME: Might want to only take hash of parts? Check performance impact.
@@ -34,6 +34,7 @@ class CustomTorchDataset(Dataset):
         self.values_transformed = value_transform(torch.tensor(data_values, dtype=torch.float32).to(device))
         self.value_transform = value_transform
         self.x_shape = data_syntax.shape
+        self.old_x_format = old_x_format
 
     def __len__(self):
         return len(self.data_syntax)
@@ -45,7 +46,10 @@ class CustomTorchDataset(Dataset):
 
         Use -ve indexing to make it independent of shape (i.e. with or without batch_size dimension.)
         """
-        x = self.data_syntax[idx].transpose(-2, -1)  # Shape: (1, n_tokens+1, seq_len)
+        if self.old_x_format:
+            x = self.data_syntax[idx].transpose(-2, -1)  # Shape: (1, n_tokens+1, seq_len)
+        else:
+            x = self.data_syntax[idx]  # Shape: (1, n_tokens+1, seq_len), 
         
         y_rule_idx = self.data_syntax[idx, :, :-1].argmax(axis=-1) # The rule index (argmax over onehot part, excluding consts) 
         y_consts = self.data_syntax[idx, :, -1]
@@ -94,7 +98,7 @@ def load_dataset(datapath, name):
 
     return syntax, consts, values, val_x, syntax_cats
 
-def create_dataloader(datapath: str, name: str, cfg: Config, random_seed=0, shuffle_train=True, value_transform=None) -> Tuple[DataLoader, DataLoader, dict]:
+def create_dataloader(datapath: str, name: str, cfg: Config, random_seed=0, shuffle_train=True, value_transform=None, old_x_format=False) -> Tuple[DataLoader, DataLoader, dict]:
     gen = torch.Generator()
     gen.manual_seed(random_seed)
 
@@ -111,7 +115,7 @@ def create_dataloader(datapath: str, name: str, cfg: Config, random_seed=0, shuf
         value_transform = lambda x: 2 * (torch.arcsinh(x) - min_) / (max_ - min_) - 1  # Center in range
 
     # Create the full dataset
-    full_dataset = CustomTorchDataset(data_syntax, values, value_transform=value_transform, device=cfg.training.device)
+    full_dataset = CustomTorchDataset(data_syntax, values, value_transform=value_transform, device=cfg.training.device, old_x_format=old_x_format)
 
     # Split the dataset
     test_size = int(cfg.training.test_split * len(full_dataset))
@@ -142,9 +146,6 @@ def create_dataloader(datapath: str, name: str, cfg: Config, random_seed=0, shuf
     }
     return train_loader, test_loader, info
 
-def data2input(x: np.ndarray) -> torch.Tensor:
-    return torch.from_numpy(x).float().unsqueeze(0).transpose(-2, -1)
-
 def load_wandb_model(run: str, device='cpu', wandb_cache_path='/Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/similar-expressions/wandb_cache'):
     # Load model
     with wandb.restore('model.pth', run_path=f"luis-carretero-eth-zurich/similar-expressions-01/runs/{run}", root=wandb_cache_path, replace=True) as io:
@@ -162,14 +163,14 @@ def load_wandb_model(run: str, device='cpu', wandb_cache_path='/Users/luis/Deskt
     vae_model.load_state_dict(checkpoint['model_state_dict'])
     return vae_model, cfg_dict, cfg
 
-def create_dataloader_from_wandb(cfg_dict, cfg, value_transform=None, datapath='/Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/similar-expressions/data'):
+def create_dataloader_from_wandb(cfg_dict, cfg, value_transform=None, datapath='/Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/similar-expressions/data', old_x_format=False):
     # Quick fix:
     try:
         name = cfg_dict['dataset_name']['value']
     except KeyError:
         name = cfg_dict['dataset']['value']
 
-    train_loader, test_loader, info = create_dataloader(datapath, name=name, cfg=cfg, value_transform=value_transform)
+    train_loader, test_loader, info = create_dataloader(datapath, name=name, cfg=cfg, value_transform=value_transform, old_x_format=old_x_format)
     assert all([cfg_dict['dataset_hashes']['value'][key] == info['hashes'][key] for key in cfg_dict['dataset_hashes']['value']]), "Error: Using different dataset than used for training."
 
     return train_loader, test_loader, info
