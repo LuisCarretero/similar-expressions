@@ -6,7 +6,7 @@ import grammar
 
 MAX_LEN, DIM = 15, 9  # FIXME: use config
 masks = torch.tensor(grammar.masks)
-ind_of_ind = torch.tensor(grammar.ind_of_ind)
+allowed_prod_idx = torch.tensor(grammar.allowed_prod_idx)
 
 class Stack:
     """A simple first in last out stack.
@@ -137,7 +137,7 @@ def calc_grammar_mask(y_syntax: torch.Tensor):
 
     """
     true_prod_idx = y_syntax.reshape(-1)  # True indices but whole batch flattened
-    true_lhs_idx = torch.gather(ind_of_ind, 0, true_prod_idx) # LHS rule idx (here 0-S or 1-END)
-    allowed_prods_mask = masks[true_lhs_idx]  # get slices of masks with indices
+    true_lhs_idx = torch.gather(allowed_prod_idx, 0, true_prod_idx) # LHS rule idx (here 0-S or 1-END)
+    allowed_prods_mask = masks[true_lhs_idx]  # get slices of masks with indices FIXME: Use gather?
     allowed_prods_mask = allowed_prods_mask.reshape(-1, MAX_LEN, DIM)  # reshape them to have masks as rows
     return allowed_prods_mask
