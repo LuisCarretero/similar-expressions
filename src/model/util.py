@@ -2,11 +2,6 @@ import math
 from config_util import Config
 from typing import Dict
 import torch
-import grammar
-
-MAX_LEN, DIM = 15, 9  # FIXME: use config
-masks = torch.tensor(grammar.masks)
-allowed_prod_idx = torch.tensor(grammar.allowed_prod_idx)
 
 class Stack:
     """A simple first in last out stack.
@@ -40,7 +35,7 @@ class AnnealKLSigmoid:
         self.midpoint = cfg.training.kl_anneal.midpoint
         self.steepness = cfg.training.kl_anneal.steepness
 
-    def alpha(self, epoch):
+    def alpha(self, epoch: int) -> float:
         """
         Calculate the annealing factor using a sigmoid function.
         
@@ -99,20 +94,20 @@ def criterion_factory(cfg: Config, priors: Dict):
         loss = AE_WEIGHT*loss_ae + (1-AE_WEIGHT)*loss_values
 
         partial_losses = {
-            'loss_syntax': loss_syntax,
-            'loss_consts': loss_consts,
-            'loss_recon_ae': loss_recon_ae,
-            'kl': kl,
+            'loss_syntax': loss_syntax.item(),
+            'loss_consts': loss_consts.item(),
+            'loss_recon_ae': loss_recon_ae.item(),
+            'kl': kl.item(),
             'alpha': alpha,
-            'loss_ae': loss_ae,   # -ELBO but with KL_WEIGHT*alpha so really only some distant cousing of ELBO
-            'loss_values': loss_values,
-            'loss': loss
+            'loss_vae': loss_ae.item(),   # -ELBO but with KL_WEIGHT*alpha so really only some distant cousing of ELBO
+            'loss_values': loss_values.item(),
+            'loss': loss.item()
         }
 
         return loss, partial_losses
     return criterion
 
-def compute_latent_metrics(mean, ln_var):
+def compute_latent_metrics(mean: torch.Tensor, ln_var: torch.Tensor) -> Dict[str, float]:
     """
     Compute the metrics for the latent space.
     """
@@ -126,18 +121,7 @@ def compute_latent_metrics(mean, ln_var):
 
     return metrics
 
-def calc_syntax_accuracy(logits, y_rule_idx):
+def calc_syntax_accuracy(logits: torch.Tensor, y_rule_idx: torch.Tensor) -> float:
     y_hat = logits.argmax(-1)
     a = (y_hat == y_rule_idx).float().mean()
     return 100 * a.item()
-
-def calc_grammar_mask(y_syntax: torch.Tensor):
-    """
-    Use true indices to mask predictions. Spefically, only the LHS of the true rule at step t is allowed to be applied at step t. Consequently, all other productions with different LHS are set to zero.
-
-    """
-    true_prod_idx = y_syntax.reshape(-1)  # True indices but whole batch flattened
-    true_lhs_idx = torch.gather(allowed_prod_idx, 0, true_prod_idx) # LHS rule idx (here 0-S or 1-END)
-    allowed_prods_mask = masks[true_lhs_idx]  # get slices of masks with indices FIXME: Use gather?
-    allowed_prods_mask = allowed_prods_mask.reshape(-1, MAX_LEN, DIM)  # reshape them to have masks as rows
-    return allowed_prods_mask

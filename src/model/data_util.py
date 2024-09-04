@@ -9,7 +9,9 @@ from typing import Tuple
 import wandb
 import yaml
 from config_util import dict_to_config
-from model import GrammarVAE
+from model import LitGVAE
+from matplotlib import pyplot as plt
+from scipy.special import softmax
 
 class CustomTorchDataset(Dataset):
     """
@@ -17,11 +19,9 @@ class CustomTorchDataset(Dataset):
     Data dimensions:
     - data_syntax: (n_samples, seq_len, n_tokens+1)
     - data_values: (n_samples, n_values)
-    
-
 
     """
-    def __init__(self, data_syntax: np.ndarray, data_values: np.ndarray, value_transform=None, device='cpu', old_x_format=False):
+    def __init__(self, data_syntax: np.ndarray, data_values: np.ndarray, value_transform=None, old_x_format=False):
         assert data_syntax.shape[0] == data_values.shape[0]
 
         # Calculate hashes  FIXME: Might want to only take hash of parts? Check performance impact.
@@ -30,9 +30,8 @@ class CustomTorchDataset(Dataset):
         md5.update(data_values.tobytes())
         self.hash = md5.hexdigest()
 
-        self.data_syntax = torch.tensor(data_syntax, dtype=torch.float32).to(device)
-        self.values_transformed = value_transform(torch.tensor(data_values, dtype=torch.float32).to(device))
-        self.value_transform = value_transform
+        self.data_syntax = torch.tensor(data_syntax, dtype=torch.float32)
+        self.values_transformed = value_transform(torch.tensor(data_values, dtype=torch.float32))
         self.x_shape = data_syntax.shape
         self.old_x_format = old_x_format
 
@@ -87,6 +86,13 @@ def calc_priors_and_means(dataloader: torch.utils.data.DataLoader):
     }
     return priors, means
 
+def get_empty_priors():
+    return {
+        'syntax_prior': 0,
+        'consts_prior': 0,
+        'values_prior': 0
+    }
+
 def load_dataset(datapath, name):
     with h5py.File(os.path.join(datapath, f'{name}.h5'), 'r') as f:
         # Extract onehot, values (eval_y), and consts
@@ -98,7 +104,7 @@ def load_dataset(datapath, name):
 
     return syntax, consts, values, val_x, syntax_cats
 
-def create_dataloader(datapath: str, name: str, cfg: Config, random_seed=0, shuffle_train=True, value_transform=None, old_x_format=False) -> Tuple[DataLoader, DataLoader, dict]:
+def create_dataloader(datapath: str, name: str, cfg: Config, random_seed=0, shuffle_train=True, value_transform=None, old_x_format=False, num_workers=4) -> Tuple[DataLoader, DataLoader, dict]:
     gen = torch.Generator()
     gen.manual_seed(random_seed)
 
@@ -115,7 +121,7 @@ def create_dataloader(datapath: str, name: str, cfg: Config, random_seed=0, shuf
         value_transform = lambda x: 2 * (torch.arcsinh(x) - min_) / (max_ - min_) - 1  # Center in range
 
     # Create the full dataset
-    full_dataset = CustomTorchDataset(data_syntax, values, value_transform=value_transform, device=cfg.training.device, old_x_format=old_x_format)
+    full_dataset = CustomTorchDataset(data_syntax, values, value_transform=value_transform, old_x_format=old_x_format)
 
     # Split the dataset
     test_size = int(cfg.training.test_split * len(full_dataset))
@@ -123,8 +129,8 @@ def create_dataloader(datapath: str, name: str, cfg: Config, random_seed=0, shuf
     train_dataset, test_dataset = random_split(full_dataset, [train_size, test_size], generator=gen)
 
     # Create DataLoaders
-    train_loader = DataLoader(train_dataset, batch_size=cfg.training.batch_size, shuffle=shuffle_train)
-    test_loader = DataLoader(test_dataset, batch_size=cfg.training.batch_size, shuffle=False)
+    train_loader = DataLoader(train_dataset, batch_size=cfg.training.batch_size, shuffle=shuffle_train, num_workers=num_workers, pin_memory=True, persistent_workers=True)
+    test_loader = DataLoader(test_dataset, batch_size=cfg.training.batch_size, shuffle=False, num_workers=num_workers, pin_memory=True, persistent_workers=True)
 
     # Create hashes
     assert id(full_dataset) == id(train_loader.dataset.dataset) == id(test_loader.dataset.dataset), "Datasets are not the same"
@@ -159,7 +165,7 @@ def load_wandb_model(run: str, device='cpu', wandb_cache_path='/Users/luis/Deskt
         cfg = dict_to_config(cfg)
 
     cfg.training.device = device
-    vae_model = GrammarVAE(cfg)
+    vae_model = LitGVAE(cfg, get_empty_priors())
     vae_model.load_state_dict(checkpoint['model_state_dict'])
     return vae_model, cfg_dict, cfg
 
@@ -176,6 +182,9 @@ def create_dataloader_from_wandb(cfg_dict, cfg, value_transform=None, datapath='
     return train_loader, test_loader, info
 
 def data_from_loader(data_loader: DataLoader, data: str, idx=None, max_length=None, batch_size=None):
+    """
+    Used for debugging and latent space analysis.
+    """
     data_idx = {'x': 0, 'syntax': 1, 'consts': 2, 'values': 3}[data]
     dataset = data_loader.dataset.dataset[data_loader.dataset.indices][data_idx]
     
@@ -197,3 +206,22 @@ def data_from_loader(data_loader: DataLoader, data: str, idx=None, max_length=No
         if len(res.shape) == 2 and data in ['x', 'syntax'] or len(res.shape) == 1 and data in ['values', 'consts']:
             res = res.unsqueeze(0)
     return res
+
+
+def plot_onehot(onehot_matrix, xticks, apply_softmax=False, figsize=(10, 5)):
+    onehot_matrix = onehot_matrix.copy()
+    fig, [ax1, ax2] = plt.subplots(nrows=1, ncols=2, figsize=figsize)
+    if apply_softmax:
+        onehot_matrix[:, :-1] = softmax(onehot_matrix[:, :-1], axis=-1)
+    im1 = ax1.imshow(onehot_matrix[:, :-1])
+    im2 = ax2.imshow(np.expand_dims(onehot_matrix[:, -1], axis=1))
+
+    ax1.set_ylabel('Sequence')
+    ax1.set_xlabel('Rule')
+
+    ax1.set_xticks(range(len(xticks)), xticks, rotation='vertical')
+    ax2.set_xticks([0], ['[CON]'], rotation='vertical')
+    plt.colorbar(im1, ax=ax1)
+    plt.colorbar(im2, ax=ax2)
+    plt.tight_layout()
+    plt.show()

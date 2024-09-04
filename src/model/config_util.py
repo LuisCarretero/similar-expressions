@@ -57,7 +57,7 @@ class AnnealConfig:
 @dataclass
 class TrainingConfig:
     batch_size: int
-    log_interval: int
+    log_interval: int  # FIXME: REMOVE
     epochs: int
     test_split: float
     dataset_len_limit: Optional[int]
@@ -174,6 +174,7 @@ def dict_to_config(cfg_dict: dict, fallback_dict: dict = None) -> Config:
             optimizer=create_config_with_error_check(OptimizerConfig, merged_cfg['training']['optimizer']),
             kl_anneal=create_config_with_error_check(AnnealConfig, merged_cfg['training']['kl_anneal']),
             device=merged_cfg['training']['device'],
-            values_init_bias=merged_cfg['training']['values_init_bias']
+            values_init_bias=merged_cfg['training']['values_init_bias'],
+            use_grammar_mask=merged_cfg['training']['use_grammar_mask']
         )
     )
