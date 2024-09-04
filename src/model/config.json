@@ -35,7 +35,9 @@
     },
     "optimizer": {
       "lr": 1e-3,
-      "clip": 5.0
+      "clip": 5.0,
+      "scheduler_factor": 0.1,
+      "scheduler_patience": 5
     },
     "kl_anneal": {
       "schedule": "sigmoid",
@@ -43,6 +45,7 @@
       "steepness": 10
     },
     "device": "cpu",
-    "values_init_bias": false
+    "values_init_bias": false,
+    "use_grammar_mask": false
   }
 }

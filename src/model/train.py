@@ -15,7 +15,7 @@ def train_one_epoch(train_loader, epoch_idx: int):
         mean, ln_var = model.encoder(x)
         z = model.sample(mean, ln_var)
         logits = model.decoder(z, max_length=cfg.model.io_format.seq_len)
-        if use_mask:
+        if cfg.training.use_grammar_mask:
             logits = logits * calc_grammar_mask(y_syntax)
         values = model.value_decoder(z)
         
@@ -62,7 +62,7 @@ def test(test_loader, epoch_idx: int):
             mean, ln_var = model.encoder(x)
             z = model.sample(mean, ln_var)
             logits = model.decoder(z, max_length=cfg.model.io_format.seq_len)
-            if use_mask:
+            if cfg.training.use_grammar_mask:
                 logits = logits * calc_grammar_mask(y_syntax)
             values = model.value_decoder(z)
 
@@ -102,15 +102,7 @@ if __name__ == '__main__':
 
     # Init optimizer
     optimizer = torch.optim.Adam(model.parameters(), lr=cfg.training.optimizer.lr)
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer,
-        mode='min',
-        factor=0.5,
-        patience=40,
-        threshold_mode='rel',
-        cooldown=20,
-        min_lr=1e-5
-    )
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=cfg.training.optimizer.scheduler_factor, patience=cfg.training.optimizer.scheduler_patience)
     anneal = AnnealKLSigmoid(cfg)
 
     # Load data
@@ -130,17 +122,12 @@ if __name__ == '__main__':
     cfg_dict['dataset_name'] = info['dataset_name']
     run = wandb.init(project="similar-expressions-01", config=cfg_dict)
 
-    # Use mask
-    use_mask = True
-
     try:
       for epoch in range(1, cfg.training.epochs+1):
           train_one_epoch(train_loader, epoch)
           test(test_loader, epoch)
     except KeyboardInterrupt:
         print("KeyboardInterrupt detected. Saving model and finishing run.")
+    finally:
         torch.save({'model_state_dict': model.state_dict()}, f'{wandb.run.dir}/model.pth')
         run.finish()
-
-    torch.save({'model_state_dict': model.state_dict()}, f'{wandb.run.dir}/model.pth')
-    run.finish()

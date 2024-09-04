@@ -45,6 +45,8 @@ class SamplingConfig:
 class OptimizerConfig:
     lr: float
     clip: float
+    scheduler_factor: float
+    scheduler_patience: int
 
 @dataclass
 class AnnealConfig:
@@ -65,6 +67,7 @@ class TrainingConfig:
     kl_anneal: AnnealConfig
     device: Literal["cpu"]
     values_init_bias: bool
+    use_grammar_mask: bool
 
 @dataclass
 class Config:
@@ -117,7 +120,9 @@ def dict_to_config(cfg_dict: dict, fallback_dict: dict = None) -> Config:
                 },
                 'optimizer': {
                     'lr': 2e-3,
-                    'clip': 5.0
+                    'clip': 5.0,
+                    'scheduler_factor': 0.1,
+                    'scheduler_patience': 10
                 },
                 'kl_anneal': {
                     'schedule': 'sigmoid',
@@ -125,7 +130,8 @@ def dict_to_config(cfg_dict: dict, fallback_dict: dict = None) -> Config:
                     'steepness': 10
                 },
                 'device': 'cpu',
-                'values_init_bias': False
+                'values_init_bias': False,
+                'use_grammar_mask': False
             }
         }
 
@@ -147,7 +153,6 @@ def dict_to_config(cfg_dict: dict, fallback_dict: dict = None) -> Config:
         if unexpected_keys:
             for key in unexpected_keys:
                 print(f"Unexpected key in {config_class.__name__}: {key}")
-            # raise TypeError(f"{config_class.__name__} got unexpected keyword argument(s): {', '.join(unexpected_keys)}")
         return config_class(**{k: v for k, v in config_dict.items() if k in expected_keys})
 
     return Config(
