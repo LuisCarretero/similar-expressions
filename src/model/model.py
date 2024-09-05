@@ -29,7 +29,7 @@ class LitGVAE(L.LightningModule):
 
         self.use_grammar_mask = cfg.training.use_grammar_mask
         self.max_length = cfg.model.io_format.seq_len
-
+        
         self.priors = priors
         self.criterion = criterion_factory(cfg, self.priors)
         self.kl_anneal = AnnealKLSigmoid(cfg)
@@ -40,8 +40,8 @@ class LitGVAE(L.LightningModule):
     def sample(self, mean, ln_var):
         """Reparametrized sample from a N(mu, sigma) distribution"""
         normal = Normal(torch.zeros(mean.shape).to(self.device), torch.ones(ln_var.shape).to(self.device))
-        eps = normal.sample() * self.sampling_eps  # Sample from N(0, self.prior_std)
-        z = mean + eps * torch.exp(ln_var/2)
+        eps = normal.sample() * self.sampling_eps  # Sample from N(0, self.sampling_eps^2), i.e. std is self.sampling_eps
+        z = mean + eps * torch.exp(ln_var/2)  # Reparametrization trick. Effectively sample from N(mean, var*sampling_eps^2)
         return z
 
     def calc_kl(self, mean: torch.Tensor, ln_var: torch.Tensor) -> torch.Tensor:
@@ -129,7 +129,8 @@ class LitGVAE(L.LightningModule):
             optimizer,
             factor=self.cfg.training.optimizer.scheduler_factor,
             patience=self.cfg.training.optimizer.scheduler_patience,
-            threshold=self.cfg.training.optimizer.scheduler_threshold
+            threshold=self.cfg.training.optimizer.scheduler_threshold,
+            min_lr=self.cfg.training.optimizer.scheduler_min_lr
         )
         return {
             "optimizer": optimizer,
@@ -140,7 +141,6 @@ class LitGVAE(L.LightningModule):
                 "frequency": 1,
             },
         }
-    
 
     def on_train_batch_end(self, outputs, batch, batch_idx):
         if torch.isnan(outputs['loss']):
