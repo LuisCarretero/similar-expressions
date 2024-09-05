@@ -1,134 +1,56 @@
-import torch
-from model import GrammarVAE
-from util import AnnealKLSigmoid, criterion_factory, calc_syntax_accuracy, compute_latent_metrics
-from grammar import calc_grammar_mask
-from data_util import calc_priors_and_means, create_dataloader
+from model import LitGVAE
 from config_util import load_config
+import lightning as L
+from data_util import create_dataloader, calc_priors_and_means
+from lightning.pytorch.loggers import WandbLogger
+from lightning.pytorch import seed_everything
+from lightning.pytorch.callbacks import ModelCheckpoint
 import wandb
-from tqdm import tqdm
 
-def train_one_epoch(train_loader, epoch_idx: int):
-    metrics = {}
-    log_steps = 0
+seed_everything(42, workers=True, verbose=False)
 
-    for step, (x, y_syntax, y_consts, y_values) in tqdm(enumerate(train_loader, 1), desc=f'Epoch {epoch_idx}/{cfg.training.epochs}', total=len(train_loader)):
-        # Forward pass
-        mean, ln_var = model.encoder(x)
-        z = model.sample(mean, ln_var)
-        logits = model.decoder(z, max_length=cfg.model.io_format.seq_len)
-        if cfg.training.use_grammar_mask:
-            logits = logits * calc_grammar_mask(y_syntax)
-        values = model.value_decoder(z)
-        
-        # Compute losses
-        kl = model.calc_kl(mean, ln_var)  # Positive definite scalar, aim to minimize
-        alpha = anneal.alpha(epoch_idx)
-        loss, partial_losses = criterion(logits, values, y_syntax, y_consts, y_values, kl, alpha)
 
-        # Backward pass
-        optimizer.zero_grad()
-        loss.backward()
-        torch.nn.utils.clip_grad_norm_(model.parameters(), cfg.training.optimizer.clip)
-        optimizer.step()
-        assert not any(torch.isnan(param).any() for param in model.parameters()), "NaN found in model parameters"
+def main(cfg_path, data_path, dataset_name):
+    # Load config
+    cfg_dict, cfg = load_config(cfg_path)
 
-        # Compute metrics   
-        latent_metrics = compute_latent_metrics(mean, ln_var)
-        syntax_accuracy = calc_syntax_accuracy(logits, y_syntax)
+    # Load data
+    train_loader, valid_loader, info = create_dataloader(data_path, dataset_name, cfg)
+    priors, means = calc_priors_and_means(train_loader)  # TODO: Introduce bias initialization
 
-        # Merge and sum up metrics
-        step_metrics = {**partial_losses, **latent_metrics, 'syntax_accuracy': syntax_accuracy, 'lr': scheduler.get_last_lr()[0]}
-        for key, value in step_metrics.items():
-            if key not in metrics:
-                metrics[key] = 0
-            metrics[key] += value.item() if isinstance(value, torch.Tensor) else value
-        log_steps += 1
+    # Setup model
+    gvae = LitGVAE(cfg, priors)
 
-        if step % cfg.training.log_interval == 0:
-            avg_logs = {f'train/{k}': v / log_steps for k, v in metrics.items()}
-            wandb.log(avg_logs)
-            metrics = {k: 0 for k in metrics}
-            log_steps = 0
+    # Setup logger
+    logger = WandbLogger(project='similar-expressions-01')
+    cfg_dict['dataset_hashes'] = info['hashes']
+    cfg_dict['dataset_name'] = info['dataset_name']
+    logger.log_hyperparams(cfg_dict)
 
-    if log_steps > 0:
-        avg_logs = {f'train/{k}': v / log_steps for k, v in metrics.items()}
-        wandb.log(avg_logs)
+    checkpoint_callback = ModelCheckpoint(
+        dirpath=wandb.run.dir, 
+        filename='{epoch:02d}', 
+        monitor='valid/loss', 
+        mode='min', 
+        save_top_k=1, 
+        save_last=True
+    )
 
-def test(test_loader, epoch_idx: int):
-    metrics = {}
-
-    with torch.no_grad():
-        for step, (x, y_syntax, y_consts, y_values) in tqdm(enumerate(test_loader, 1), desc='Test', total=len(test_loader)):
-            # Forward pass
-            mean, ln_var = model.encoder(x)
-            z = model.sample(mean, ln_var)
-            logits = model.decoder(z, max_length=cfg.model.io_format.seq_len)
-            if cfg.training.use_grammar_mask:
-                logits = logits * calc_grammar_mask(y_syntax)
-            values = model.value_decoder(z)
-
-            # Compute losses
-            kl = model.calc_kl(mean, ln_var)
-            alpha = anneal.alpha(epoch_idx)
-            loss, partial_losses = criterion(logits, values, y_syntax, y_consts, y_values, kl, alpha)
-
-            # Compute metrics
-            syntax_accuracy = calc_syntax_accuracy(logits, y_syntax)
-            latent_metrics = compute_latent_metrics(mean, ln_var)
-
-            # Merge and sum up metrics
-            step_metrics = {**partial_losses, **latent_metrics, 'syntax_accuracy': syntax_accuracy}
-            for key, value in step_metrics.items():
-                if key not in metrics:
-                    metrics[key] = 0
-                metrics[key] += value.item() if isinstance(value, torch.Tensor) else value
-
-    # Calculate average
-    for key in metrics:
-        metrics[key] /= len(test_loader)
-
-    # Update scheduler (once per test cycle.)
-    scheduler.step(metrics['loss'])  # Use mean test loss
-    metrics['lr'] = scheduler.get_last_lr()[0]
-
-    wandb.log({f'test/{key}': value for key, value in metrics.items()})
+    # Train model
+    trainer = L.Trainer(
+        logger=logger, 
+        max_epochs=cfg.training.epochs, 
+        gradient_clip_val=cfg.training.optimizer.clip,
+        callbacks=[checkpoint_callback]
+    )
+    trainer.fit(gvae, train_loader, valid_loader)
 
 
 if __name__ == '__main__':
-    cfg_dict, cfg = load_config('/Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/similar-expressions/src/model/config.json')
+    cfg_path = '/Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/similar-expressions/src/model/config.json'
+    data_path = '/Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/similar-expressions/data'
+    main(cfg_path, data_path, dataset_name='dataset_240817_2')
 
-    # Init model
-    torch.manual_seed(42)
-    model = GrammarVAE(cfg)
 
-    # Init optimizer
-    optimizer = torch.optim.Adam(model.parameters(), lr=cfg.training.optimizer.lr)
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=cfg.training.optimizer.scheduler_factor, patience=cfg.training.optimizer.scheduler_patience)
-    anneal = AnnealKLSigmoid(cfg)
 
-    # Load data
-    datapath = '/Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/similar-expressions/data'
-    train_loader, test_loader, info = create_dataloader(datapath, 'dataset_240822_1', cfg)
 
-    # Init loss function (given priors) and means
-    priors, means = calc_priors_and_means(train_loader)
-    criterion = criterion_factory(cfg, priors)
-    if cfg.training.values_init_bias:
-        with torch.no_grad():
-            model.value_decoder.fc3.bias.data = means['values_mean']
-            # FIXME: Check if LSTM decoder bias can also be initialized?
-
-    # Init WandB
-    cfg_dict['dataset_hashes'] = info['hashes']
-    cfg_dict['dataset_name'] = info['dataset_name']
-    run = wandb.init(project="similar-expressions-01", config=cfg_dict)
-
-    try:
-      for epoch in range(1, cfg.training.epochs+1):
-          train_one_epoch(train_loader, epoch)
-          test(test_loader, epoch)
-    except KeyboardInterrupt:
-        print("KeyboardInterrupt detected. Saving model and finishing run.")
-    finally:
-        torch.save({'model_state_dict': model.state_dict()}, f'{wandb.run.dir}/model.pth')
-        run.finish()

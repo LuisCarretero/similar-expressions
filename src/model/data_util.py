@@ -12,6 +12,7 @@ from config_util import dict_to_config
 from model import LitGVAE
 from matplotlib import pyplot as plt
 from scipy.special import softmax
+from lightning.pytorch.utilities.model_summary import ModelSummary
 
 class CustomTorchDataset(Dataset):
     """
@@ -124,20 +125,20 @@ def create_dataloader(datapath: str, name: str, cfg: Config, random_seed=0, shuf
     full_dataset = CustomTorchDataset(data_syntax, values, value_transform=value_transform, old_x_format=old_x_format)
 
     # Split the dataset
-    test_size = int(cfg.training.test_split * len(full_dataset))
-    train_size = len(full_dataset) - test_size
-    train_dataset, test_dataset = random_split(full_dataset, [train_size, test_size], generator=gen)
+    valid_size = int(cfg.training.valid_split * len(full_dataset))
+    train_size = len(full_dataset) - valid_size
+    train_dataset, valid_dataset = random_split(full_dataset, [train_size, valid_size], generator=gen)
 
     # Create DataLoaders
     train_loader = DataLoader(train_dataset, batch_size=cfg.training.batch_size, shuffle=shuffle_train, num_workers=num_workers, pin_memory=True, persistent_workers=True)
-    test_loader = DataLoader(test_dataset, batch_size=cfg.training.batch_size, shuffle=False, num_workers=num_workers, pin_memory=True, persistent_workers=True)
+    valid_loader = DataLoader(valid_dataset, batch_size=cfg.training.batch_size, shuffle=False, num_workers=num_workers, pin_memory=True, persistent_workers=True)
 
     # Create hashes
-    assert id(full_dataset) == id(train_loader.dataset.dataset) == id(test_loader.dataset.dataset), "Datasets are not the same"
+    assert id(full_dataset) == id(train_loader.dataset.dataset) == id(valid_loader.dataset.dataset), "Datasets are not the same"
     hashes = {
         'dataset': full_dataset.hash,
         'train_idx': hashlib.md5(str(train_loader.dataset.indices).encode()).hexdigest(),
-        'test_idx': hashlib.md5(str(test_loader.dataset.indices).encode()).hexdigest(),
+        'valid_idx': hashlib.md5(str(valid_loader.dataset.indices).encode()).hexdigest(),
         'random_seed': random_seed
     }
     info = {
@@ -150,13 +151,12 @@ def create_dataloader(datapath: str, name: str, cfg: Config, random_seed=0, shuf
         'syntax_cats': syntax_cats,
         'val_x': val_x
     }
-    return train_loader, test_loader, info
+    return train_loader, valid_loader, info
 
-def load_wandb_model(run: str, device='cpu', wandb_cache_path='/Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/similar-expressions/wandb_cache'):
+def load_wandb_model(run: str, name:str = 'model.pth', device='cpu', wandb_cache_path='/Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/similar-expressions/wandb_cache'):
     # Load model
-    with wandb.restore('model.pth', run_path=f"luis-carretero-eth-zurich/similar-expressions-01/runs/{run}", root=wandb_cache_path, replace=True) as io:
+    with wandb.restore(name, run_path=f"luis-carretero-eth-zurich/similar-expressions-01/runs/{run}", root=wandb_cache_path, replace=True) as io:
         name = io.name
-    checkpoint = torch.load(name, map_location=device)
 
     # Read the model parameters from the WandB config.yaml file
     with wandb.restore('config.yaml', run_path=f"luis-carretero-eth-zurich/similar-expressions-01/runs/{run}", root=wandb_cache_path, replace=True) as config_file:
@@ -164,22 +164,31 @@ def load_wandb_model(run: str, device='cpu', wandb_cache_path='/Users/luis/Deskt
         cfg = {k: v['value'] for k, v in list(cfg_dict.items()) if k not in ['wandb_version', '_wandb']}
         cfg = dict_to_config(cfg)
 
-    cfg.training.device = device
-    vae_model = LitGVAE(cfg, get_empty_priors())
-    vae_model.load_state_dict(checkpoint['model_state_dict'])
+    # vae_model = LitGVAE(cfg, get_empty_priors())
+    
+    # Load the Lightning checkpoint
+    vae_model = LitGVAE.load_from_checkpoint(name, cfg=cfg, priors=get_empty_priors(), map_location=device)
+    vae_model.eval()
+
+    summary = ModelSummary(vae_model, max_depth=1)
+    print(f'Imported model from run "{run}".')
+    print(summary)
+
     return vae_model, cfg_dict, cfg
 
 def create_dataloader_from_wandb(cfg_dict, cfg, value_transform=None, datapath='/Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/similar-expressions/data', old_x_format=False):
-    # Quick fix:
+    # FIXME: Was quick fix, can be removed?
     try:
         name = cfg_dict['dataset_name']['value']
     except KeyError:
         name = cfg_dict['dataset']['value']
 
-    train_loader, test_loader, info = create_dataloader(datapath, name=name, cfg=cfg, value_transform=value_transform, old_x_format=old_x_format)
+    train_loader, valid_loader, info = create_dataloader(datapath, name=name, cfg=cfg, value_transform=value_transform, old_x_format=old_x_format)
     assert all([cfg_dict['dataset_hashes']['value'][key] == info['hashes'][key] for key in cfg_dict['dataset_hashes']['value']]), "Error: Using different dataset than used for training."
 
-    return train_loader, test_loader, info
+    summarize_dataloaders(train_loader, valid_loader)
+
+    return train_loader, valid_loader, info
 
 def data_from_loader(data_loader: DataLoader, data: str, idx=None, max_length=None, batch_size=None):
     """
@@ -225,3 +234,19 @@ def plot_onehot(onehot_matrix, xticks, apply_softmax=False, figsize=(10, 5)):
     plt.colorbar(im2, ax=ax2)
     plt.tight_layout()
     plt.show()
+
+def summarize_dataloaders(train_loader, valid_loader, val_loader=None):
+    def loader_info(loader, name):
+        dataset_size = len(loader.dataset)
+        batch_size = loader.batch_size
+        num_batches = len(loader)
+        
+        print(f"  | {name:<12} | Size: {dataset_size:<7} | Batch: {batch_size:<5} | Batches: {num_batches:<5}")
+
+    print("DataLoader Summary")
+    print("--------------------------------------------------")
+    loader_info(train_loader, "Train")
+    loader_info(valid_loader, "valid")
+    if val_loader:
+        loader_info(val_loader, "Validation")
+    print("--------------------------------------------------")

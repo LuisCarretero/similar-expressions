@@ -57,7 +57,6 @@ class AnnealConfig:
 @dataclass
 class TrainingConfig:
     batch_size: int
-    log_interval: int  # FIXME: REMOVE
     epochs: int
     test_split: float
     dataset_len_limit: Optional[int]
@@ -65,7 +64,6 @@ class TrainingConfig:
     sampling: SamplingConfig
     optimizer: OptimizerConfig
     kl_anneal: AnnealConfig
-    device: Literal["cpu"]
     values_init_bias: bool
     use_grammar_mask: bool
 
@@ -105,7 +103,6 @@ def dict_to_config(cfg_dict: dict, fallback_dict: dict = None) -> Config:
             },
             'training': {
                 'batch_size': 128,
-                'log_interval': 200,
                 'epochs': 4,
                 'test_split': 0.1,
                 'dataset_len_limit': None,
@@ -129,7 +126,6 @@ def dict_to_config(cfg_dict: dict, fallback_dict: dict = None) -> Config:
                     'midpoint': 0.3,
                     'steepness': 10
                 },
-                'device': 'cpu',
                 'values_init_bias': False,
                 'use_grammar_mask': False
             }
@@ -165,7 +161,6 @@ def dict_to_config(cfg_dict: dict, fallback_dict: dict = None) -> Config:
         ),
         training=TrainingConfig(
             batch_size=merged_cfg['training']['batch_size'],
-            log_interval=merged_cfg['training']['log_interval'],
             epochs=merged_cfg['training']['epochs'],
             test_split=merged_cfg['training']['test_split'],
             dataset_len_limit=merged_cfg['training']['dataset_len_limit'],
@@ -173,7 +168,6 @@ def dict_to_config(cfg_dict: dict, fallback_dict: dict = None) -> Config:
             sampling=create_config_with_error_check(SamplingConfig, merged_cfg['training']['sampling']),
             optimizer=create_config_with_error_check(OptimizerConfig, merged_cfg['training']['optimizer']),
             kl_anneal=create_config_with_error_check(AnnealConfig, merged_cfg['training']['kl_anneal']),
-            device=merged_cfg['training']['device'],
             values_init_bias=merged_cfg['training']['values_init_bias'],
             use_grammar_mask=merged_cfg['training']['use_grammar_mask']
         )

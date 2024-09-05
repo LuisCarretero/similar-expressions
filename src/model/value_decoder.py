@@ -12,7 +12,6 @@ class ValueDecoder(nn.Module):
         self.fc2_5 = nn.Linear(256, 512)
         self.fc2_6 = nn.Linear(512, 512)
         self.fc3 = nn.Linear(512, cfg.io_format.val_points)
-        print("Using updated value decoder 2.0!")
     
     def forward(self, x):
         # Forward pass through the layers with ReLU activations

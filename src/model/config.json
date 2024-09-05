@@ -43,7 +43,6 @@
       "midpoint": 0.4,
       "steepness": 15
     },
-    "device": "cpu",
     "values_init_bias": false,
     "use_grammar_mask": false
   }
