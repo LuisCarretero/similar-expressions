@@ -1,5 +1,4 @@
 import torch
-import torch.nn as nn
 from torch.distributions import Normal
 from encoder import Encoder
 from decoder import Decoder
@@ -10,7 +9,7 @@ from config_util import Config
 import math
 import lightning as L
 from util import criterion_factory, AnnealKLSigmoid, compute_latent_metrics, calc_syntax_accuracy
-from typing import Dict
+from typing import Dict, List
 
 
 class LitGVAE(L.LightningModule):
@@ -35,8 +34,10 @@ class LitGVAE(L.LightningModule):
         self.criterion = criterion_factory(cfg, self.priors)
         self.kl_anneal = AnnealKLSigmoid(cfg)
 
-        self.save_hyperparameters()  # FIXME: Check if this is necessary
-
+        self.train_step_metrics_buffer = []
+        self.valid_step_metrics_buffer = []
+        self.log_every_n_steps = 100  # FIXME: Make this dynamic
+    
     def sample(self, mean, ln_var):
         """Reparametrized sample from a N(mu, sigma) distribution"""
         normal = Normal(torch.zeros(mean.shape).to(self.device), torch.ones(ln_var.shape).to(self.device))
@@ -92,9 +93,8 @@ class LitGVAE(L.LightningModule):
 
         # Merge and sum up metrics
         step_metrics = {f'train/{k}': v for k, v in {**partial_losses, **latent_metrics, 'syntax_accuracy': syntax_accuracy, 'lr': self.lr_schedulers().get_last_lr()[0]}.items()}
-        self.log_dict(step_metrics) # FIXME: Check if metric should stay torchmetrics.Metric
 
-        return loss
+        return {'loss': loss, 'step_metrics': step_metrics}
     
     def validation_step(self, batch, batch_idx):
         x, y_syntax, y_consts, y_values = batch
@@ -118,9 +118,8 @@ class LitGVAE(L.LightningModule):
 
         # Merge and sum up metrics
         step_metrics = {f'valid/{k}': v for k, v in {**partial_losses, **latent_metrics, 'syntax_accuracy': syntax_accuracy, 'lr': self.lr_schedulers().get_last_lr()[0]}.items()}
-        self.log_dict(step_metrics) # FIXME: Check if metric should stay torchmetrics.Metric
 
-        return loss
+        return {'loss': loss, 'step_metrics': step_metrics}
     
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(
@@ -143,7 +142,38 @@ class LitGVAE(L.LightningModule):
             },
         }
     
+
     def on_train_batch_end(self, outputs, batch, batch_idx):
         if torch.isnan(outputs['loss']):
             print(f"NaN detected in training loss at batch {batch_idx}")
             raise ValueError("NaN detected in training loss")
+
+        # Store and log metrics every N steps
+        self.train_step_metrics_buffer.append(outputs['step_metrics'])
+        
+        if batch_idx % self.log_every_n_steps == 0:
+            self._log_from_buffer(self.train_step_metrics_buffer)
+
+    def on_validation_batch_end(self, outputs, batch, batch_idx):
+        # Store and log metrics every N steps
+        self.valid_step_metrics_buffer.append(outputs['step_metrics'])
+        
+        if batch_idx % self.log_every_n_steps == 0:
+            self._log_from_buffer(self.valid_step_metrics_buffer)
+
+    def on_validation_epoch_end(self):
+        self._log_from_buffer(self.valid_step_metrics_buffer)
+
+    def on_train_epoch_end(self) -> None:
+        self._log_from_buffer(self.train_step_metrics_buffer)
+        
+    def _log_from_buffer(self, buffer: List):
+        # Average the metrics over the last N steps
+        # avg_metrics = {k: sum(d[k] for d in buffer) / len(buffer) for k in buffer[0]}
+        avg_metrics = {k: sum(step_dict[k] for step_dict in buffer) / len(buffer) for k in buffer[0]}
+
+        # Log the averaged metrics
+        self.log_dict(avg_metrics)
+        
+        # Clear the buffer
+        buffer.clear()

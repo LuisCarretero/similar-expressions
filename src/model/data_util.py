@@ -183,7 +183,7 @@ def create_dataloader_from_wandb(cfg_dict, cfg, value_transform=None, datapath='
     except KeyError:
         name = cfg_dict['dataset']['value']
 
-    train_loader, valid_loader, info = create_dataloader(datapath, name=name, cfg=cfg, value_transform=value_transform, old_x_format=old_x_format)
+    train_loader, valid_loader, info = create_dataloader(datapath, name=name, cfg=cfg, value_transform=value_transform, old_x_format=old_x_format, shuffle_train=False)
     assert all([cfg_dict['dataset_hashes']['value'][key] == info['hashes'][key] for key in cfg_dict['dataset_hashes']['value']]), "Error: Using different dataset than used for training."
 
     summarize_dataloaders(train_loader, valid_loader)

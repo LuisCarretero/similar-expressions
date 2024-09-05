@@ -7,7 +7,6 @@ from lightning.pytorch import seed_everything
 from lightning.pytorch.callbacks import ModelCheckpoint
 import wandb
 from lightning.pytorch.profilers import AdvancedProfiler
-from lightning.pytorch.callbacks import DeviceStatsMonitor
 
 seed_everything(42, workers=True, verbose=False)
 
@@ -25,7 +24,7 @@ def main(cfg_path, data_path, dataset_name):
     gvae = LitGVAE(cfg, priors)
 
     # Setup logger
-    logger = WandbLogger(project='similar-expressions-01')
+    logger = WandbLogger(project='similar-expressions-01')  # Disable automatic syncing)
     cfg_dict['dataset_hashes'] = info['hashes']
     cfg_dict['dataset_name'] = info['dataset_name']
     logger.log_hyperparams(cfg_dict)
@@ -44,9 +43,8 @@ def main(cfg_path, data_path, dataset_name):
         logger=logger, 
         max_epochs=cfg.training.epochs, 
         gradient_clip_val=cfg.training.optimizer.clip,
-        callbacks=[checkpoint_callback, DeviceStatsMonitor()],
-        log_every_n_steps=200,
-        profiler=AdvancedProfiler(dirpath=".", filename="perf_logs_n200")
+        callbacks=[checkpoint_callback],
+        profiler=AdvancedProfiler(dirpath='.', filename='profile.txt')
     )
     trainer.fit(gvae, train_loader, valid_loader)
     wandb.finish()

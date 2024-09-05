@@ -20,7 +20,7 @@
   },
   "training": {
     "batch_size": 128,
-    "epochs": 2,
+    "epochs": 1,
     "valid_split": 0.1,
     "dataset_len_limit": null,
     "criterion": {
