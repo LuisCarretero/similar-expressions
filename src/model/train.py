@@ -7,6 +7,7 @@ from lightning.pytorch import seed_everything
 from lightning.pytorch.callbacks import ModelCheckpoint
 import wandb
 from lightning.pytorch.profilers import AdvancedProfiler
+from lightning.pytorch.callbacks.early_stopping import EarlyStopping
 
 seed_everything(42, workers=True, verbose=False)
 
@@ -34,8 +35,16 @@ def main(cfg_path, data_path, dataset_name):
         filename='{epoch:02d}', 
         monitor='valid/loss', 
         mode='min', 
-        save_top_k=1, 
+        save_top_k=0, 
         save_last=True
+    )
+
+    early_stopping_callback = EarlyStopping(
+        monitor="valid/loss", 
+        min_delta=0.00, 
+        patience=4, 
+        verbose=False, 
+        mode="min"
     )
 
     # Train model
@@ -43,8 +52,9 @@ def main(cfg_path, data_path, dataset_name):
         logger=logger, 
         max_epochs=cfg.training.epochs, 
         gradient_clip_val=cfg.training.optimizer.clip,
-        callbacks=[checkpoint_callback],
-        profiler=AdvancedProfiler(dirpath='.', filename='profile.txt')
+        callbacks=[checkpoint_callback, early_stopping_callback],
+        profiler=AdvancedProfiler(dirpath='.', filename='profile.txt'),
+        log_every_n_steps=100
     )
     trainer.fit(gvae, train_loader, valid_loader)
     wandb.finish()

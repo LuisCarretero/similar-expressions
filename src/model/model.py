@@ -36,7 +36,6 @@ class LitGVAE(L.LightningModule):
 
         self.train_step_metrics_buffer = []
         self.valid_step_metrics_buffer = []
-        self.log_every_n_steps = 100  # FIXME: Make this dynamic
     
     def sample(self, mean, ln_var):
         """Reparametrized sample from a N(mu, sigma) distribution"""
@@ -151,14 +150,14 @@ class LitGVAE(L.LightningModule):
         # Store and log metrics every N steps
         self.train_step_metrics_buffer.append(outputs['step_metrics'])
         
-        if batch_idx % self.log_every_n_steps == 0:
+        if batch_idx % self.trainer.log_every_n_steps == 0:
             self._log_from_buffer(self.train_step_metrics_buffer)
 
     def on_validation_batch_end(self, outputs, batch, batch_idx):
         # Store and log metrics every N steps
         self.valid_step_metrics_buffer.append(outputs['step_metrics'])
         
-        if batch_idx % self.log_every_n_steps == 0:
+        if batch_idx % self.trainer.log_every_n_steps == 0:
             self._log_from_buffer(self.valid_step_metrics_buffer)
 
     def on_validation_epoch_end(self):
@@ -169,6 +168,9 @@ class LitGVAE(L.LightningModule):
         
     def _log_from_buffer(self, buffer: List):
         # Average the metrics over the last N steps
+        if len(buffer) == 0:
+            return
+
         # avg_metrics = {k: sum(d[k] for d in buffer) / len(buffer) for k in buffer[0]}
         avg_metrics = {k: sum(step_dict[k] for step_dict in buffer) / len(buffer) for k in buffer[0]}
 

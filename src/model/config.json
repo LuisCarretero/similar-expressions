@@ -24,20 +24,21 @@
     "valid_split": 0.1,
     "dataset_len_limit": null,
     "criterion": {
-      "ae_weight": 1,
-      "kl_weight": 0.5,
-      "syntax_weight": 0.5
+      "ae_weight": 0.4,
+      "kl_weight": 1,
+      "syntax_weight": 0.3
     },
     "sampling": {
       "prior_std": 1,
-      "eps": 0.01
+      "eps": 1e-6
     },
     "optimizer": {
       "lr": 4e-3,
       "clip": 5.0,
-      "scheduler_factor": 0.1,
-      "scheduler_patience": 5,
-      "scheduler_threshold": 1e-4
+      "scheduler_factor": 0.2,
+      "scheduler_patience": 2,
+      "scheduler_threshold": 1e-3,
+      "scheduler_min_lr": 1e-5
     },
     "kl_anneal": {
       "schedule": "sigmoid",

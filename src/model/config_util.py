@@ -48,6 +48,7 @@ class OptimizerConfig:
     scheduler_factor: float
     scheduler_patience: int
     scheduler_threshold: float
+    scheduler_min_lr: float
     
 @dataclass
 class AnnealConfig:
@@ -121,7 +122,8 @@ def dict_to_config(cfg_dict: dict, fallback_dict: dict = None) -> Config:
                     'clip': 5.0,
                     'scheduler_factor': 0.1,
                     'scheduler_patience': 10,
-                    'scheduler_threshold': 1e-4
+                    'scheduler_threshold': 1e-4,
+                    'scheduler_min_lr': 1e-6
                 },
                 'kl_anneal': {
                     'schedule': 'sigmoid',
