@@ -1,11 +1,13 @@
 from model import LitGVAE
 from config_util import load_config
 import lightning as L
-from data_util import create_dataloader, calc_priors_and_means
+from data_util import create_dataloader, calc_priors_and_means, summarize_dataloaders
 from lightning.pytorch.loggers import WandbLogger
 from lightning.pytorch import seed_everything
 from lightning.pytorch.callbacks import ModelCheckpoint
 import wandb
+from lightning.pytorch.profilers import AdvancedProfiler
+from lightning.pytorch.callbacks import DeviceStatsMonitor
 
 seed_everything(42, workers=True, verbose=False)
 
@@ -15,8 +17,9 @@ def main(cfg_path, data_path, dataset_name):
     cfg_dict, cfg = load_config(cfg_path)
 
     # Load data
-    train_loader, valid_loader, info = create_dataloader(data_path, dataset_name, cfg)
+    train_loader, valid_loader, info = create_dataloader(data_path, dataset_name, cfg, num_workers=2)
     priors, means = calc_priors_and_means(train_loader)  # TODO: Introduce bias initialization
+    summarize_dataloaders(train_loader, valid_loader)
 
     # Setup model
     gvae = LitGVAE(cfg, priors)
@@ -41,9 +44,12 @@ def main(cfg_path, data_path, dataset_name):
         logger=logger, 
         max_epochs=cfg.training.epochs, 
         gradient_clip_val=cfg.training.optimizer.clip,
-        callbacks=[checkpoint_callback]
+        callbacks=[checkpoint_callback, DeviceStatsMonitor()],
+        log_every_n_steps=200,
+        profiler=AdvancedProfiler(dirpath=".", filename="perf_logs_n200")
     )
     trainer.fit(gvae, train_loader, valid_loader)
+    wandb.finish()
 
 
 if __name__ == '__main__':

@@ -28,15 +28,12 @@ class LitGVAE(L.LightningModule):
         self.ln_prior_var = math.log(self.prior_var)
         self.sampling_eps = cfg.training.sampling.eps
 
-
         self.use_grammar_mask = cfg.training.use_grammar_mask
         self.max_length = cfg.model.io_format.seq_len
 
         self.priors = priors
         self.criterion = criterion_factory(cfg, self.priors)
         self.kl_anneal = AnnealKLSigmoid(cfg)
-
-        self.batch_metrics = {}
 
         self.save_hyperparameters()  # FIXME: Check if this is necessary
 
@@ -133,7 +130,8 @@ class LitGVAE(L.LightningModule):
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             optimizer,
             factor=self.cfg.training.optimizer.scheduler_factor,
-            patience=self.cfg.training.optimizer.scheduler_patience
+            patience=self.cfg.training.optimizer.scheduler_patience,
+            threshold=self.cfg.training.optimizer.scheduler_threshold
         )
         return {
             "optimizer": optimizer,

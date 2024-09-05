@@ -21,7 +21,7 @@
   "training": {
     "batch_size": 128,
     "epochs": 2,
-    "test_split": 0.1,
+    "valid_split": 0.1,
     "dataset_len_limit": null,
     "criterion": {
       "ae_weight": 1,
@@ -36,7 +36,8 @@
       "lr": 4e-3,
       "clip": 5.0,
       "scheduler_factor": 0.1,
-      "scheduler_patience": 5
+      "scheduler_patience": 5,
+      "scheduler_threshold": 1e-4
     },
     "kl_anneal": {
       "schedule": "sigmoid",

@@ -47,7 +47,8 @@ class OptimizerConfig:
     clip: float
     scheduler_factor: float
     scheduler_patience: int
-
+    scheduler_threshold: float
+    
 @dataclass
 class AnnealConfig:
     schedule: Literal["sigmoid"]
@@ -58,7 +59,7 @@ class AnnealConfig:
 class TrainingConfig:
     batch_size: int
     epochs: int
-    test_split: float
+    valid_split: float
     dataset_len_limit: Optional[int]
     criterion: CriterionConfig
     sampling: SamplingConfig
@@ -104,7 +105,7 @@ def dict_to_config(cfg_dict: dict, fallback_dict: dict = None) -> Config:
             'training': {
                 'batch_size': 128,
                 'epochs': 4,
-                'test_split': 0.1,
+                'valid_split': 0.1,
                 'dataset_len_limit': None,
                 'criterion': {
                     'ae_weight': 1,
@@ -119,7 +120,8 @@ def dict_to_config(cfg_dict: dict, fallback_dict: dict = None) -> Config:
                     'lr': 2e-3,
                     'clip': 5.0,
                     'scheduler_factor': 0.1,
-                    'scheduler_patience': 10
+                    'scheduler_patience': 10,
+                    'scheduler_threshold': 1e-4
                 },
                 'kl_anneal': {
                     'schedule': 'sigmoid',
@@ -162,7 +164,7 @@ def dict_to_config(cfg_dict: dict, fallback_dict: dict = None) -> Config:
         training=TrainingConfig(
             batch_size=merged_cfg['training']['batch_size'],
             epochs=merged_cfg['training']['epochs'],
-            test_split=merged_cfg['training']['test_split'],
+            valid_split=merged_cfg['training']['valid_split'],
             dataset_len_limit=merged_cfg['training']['dataset_len_limit'],
             criterion=create_config_with_error_check(CriterionConfig, merged_cfg['training']['criterion']),
             sampling=create_config_with_error_check(SamplingConfig, merged_cfg['training']['sampling']),
