@@ -32,7 +32,7 @@ class Encoder(nn.Module):
             self.conv2 = nn.Conv1d(input_dim*4, input_dim*2, kernel_size=3)
             self.conv3 = nn.Conv1d(input_dim*2, input_dim*2, kernel_size=4)
             self.conv4 = nn.Conv1d(input_dim*2, input_dim, kernel_size=5)
-            self.linear = nn.Linear(input_dim*8, cfg.encoder.size_hidden)  # 15+(-2+1)+(-3+1)+(-4+1)+(-5+1)=8 from sequence length + conv sizes
+            self.linear = nn.Linear(input_dim*5, cfg.encoder.size_hidden)  # 15+(-2+1)+(-3+1)+(-4+1)+(-5+1)=5 from sequence length + conv sizes
         else:
             raise ValueError(f'Invalid value for `conv_size`: {cfg.encoder.conv_size}.'
                              ' Must be in [small, large, extra_large]')

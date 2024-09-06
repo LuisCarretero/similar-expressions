@@ -2,11 +2,11 @@
   "model": {
     "encoder": {
       "size_hidden": 256,
-      "conv_size": "large"
+      "conv_size": "extra_large"
     },
     "z_size": 128,
     "decoder": {
-      "size_hidden": 64,
+      "size_hidden": 128,
       "rnn_type": "lstm"
     },
     "value_decoder": {

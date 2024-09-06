@@ -8,6 +8,7 @@ from lightning.pytorch.callbacks import ModelCheckpoint
 import wandb
 from lightning.pytorch.profilers import AdvancedProfiler
 from lightning.pytorch.callbacks.early_stopping import EarlyStopping
+import pickle
 
 seed_everything(42, workers=True, verbose=False)
 
@@ -29,6 +30,11 @@ def main(cfg_path, data_path, dataset_name):
     cfg_dict['dataset_hashes'] = info['hashes']
     cfg_dict['dataset_name'] = info['dataset_name']
     logger.log_hyperparams(cfg_dict)
+
+    # Save cfg object to wandb files
+    with open(wandb.run.dir + '/config.pkl', 'wb') as f:
+        pickle.dump(cfg, f)
+    wandb.save('config.pkl')
 
     checkpoint_callback = ModelCheckpoint(
         dirpath=wandb.run.dir, 

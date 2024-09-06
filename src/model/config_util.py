@@ -95,7 +95,8 @@ def dict_to_config(cfg_dict: dict, fallback_dict: dict = None) -> Config:
                     'rnn_type': 'lstm'
                 },
                 'value_decoder': {
-                    'size_lin1': 64
+                    'size_lin1': 64,
+                    'conv_size': 'medium'  # FIXME: Rename
                 },
                 'io_format': {
                     'seq_len': 15,
@@ -144,7 +145,16 @@ def dict_to_config(cfg_dict: dict, fallback_dict: dict = None) -> Config:
                 print(f"Using fallback value for {section}.{key}: {default_value}")
                 merged_cfg[section][key] = default_value
             else:
-                merged_cfg[section][key] = cfg_dict[section][key]
+                if isinstance(default_value, dict):
+                    merged_cfg[section][key] = {}
+                    for subkey, subdefault in default_value.items():
+                        if subkey not in cfg_dict[section][key]:
+                            print(f"Using fallback value for {section}.{key}.{subkey}: {subdefault}")
+                            merged_cfg[section][key][subkey] = subdefault
+                        else:
+                            merged_cfg[section][key][subkey] = cfg_dict[section][key][subkey]
+                else:
+                    merged_cfg[section][key] = cfg_dict[section][key]
 
     def create_config_with_error_check(config_class, config_dict):
         expected_keys = set(config_class.__annotations__.keys())
@@ -154,7 +164,9 @@ def dict_to_config(cfg_dict: dict, fallback_dict: dict = None) -> Config:
             for key in unexpected_keys:
                 print(f"Unexpected key in {config_class.__name__}: {key}")
         return config_class(**{k: v for k, v in config_dict.items() if k in expected_keys})
+    
 
+    print(merged_cfg['model']['value_decoder'])
     return Config(
         model=ModelConfig(
             encoder=create_config_with_error_check(EncoderConfig, merged_cfg['model']['encoder']),

@@ -190,50 +190,29 @@ def create_dataloader_from_wandb(cfg_dict, cfg, value_transform=None, datapath='
 
     return train_loader, valid_loader, info
 
-def data_from_loader(data_loader: DataLoader, data: str, idx=None, max_length=None, batch_size=None):
+def data_from_loader(data_loader: DataLoader, data_type: str, idx=None, max_length=None, batch_size=None):
     """
     Used for debugging and latent space analysis.
     """
-    data_idx = {'x': 0, 'syntax': 1, 'consts': 2, 'values': 3}[data]
-    dataset = data_loader.dataset.dataset[data_loader.dataset.indices][data_idx]
-    
-    if idx is not None:
-        res = dataset[idx, ...]
-    elif max_length is not None:
-        dataset = dataset[:max_length, ...]
-        if batch_size is not None:
-            res = [dataset[i:i+batch_size, ...] for i in range(0, len(dataset), batch_size)]
-        else:
-            res = dataset
-    elif batch_size is not None:
-        res = [dataset[i:i+batch_size, ...] for i in range(0, len(dataset), batch_size)]
-    else:
-        res = dataset
+    data_idx = {'x': 0, 'syntax': 1, 'consts': 2, 'values': 3}[data_type]
+    subset_idx = data_loader.dataset.indices
+
+    if idx is not None:  # rows indexed by idx
+        overall_idx = subset_idx[idx]
+        res = data_loader.dataset.dataset[overall_idx][data_idx]
+    elif batch_size is not None:  # Generator
+        if max_length is not None:
+            subset_idx = subset_idx[:max_length]
+        res = (data_loader.dataset.dataset[subset_idx[i:i+batch_size]][data_idx] for i in range(0, len(subset_idx), batch_size))
+    elif max_length is not None:  # rows until max_length
+        subset_idx = subset_idx[:max_length]
+        res = data_loader.dataset.dataset[subset_idx][data_idx]
 
     # Add batch dimension if not present
-    if not isinstance(res, list):
-        if len(res.shape) == 2 and data in ['x', 'syntax'] or len(res.shape) == 1 and data in ['values', 'consts']:
-            res = res.unsqueeze(0)
+    if isinstance(idx, int) or (batch_size is None and (max_length == 1)):
+        res = res.unsqueeze(0)
+
     return res
-
-
-def plot_onehot(onehot_matrix, xticks, apply_softmax=False, figsize=(10, 5)):
-    onehot_matrix = onehot_matrix.copy()
-    fig, [ax1, ax2] = plt.subplots(nrows=1, ncols=2, figsize=figsize)
-    if apply_softmax:
-        onehot_matrix[:, :-1] = softmax(onehot_matrix[:, :-1], axis=-1)
-    im1 = ax1.imshow(onehot_matrix[:, :-1])
-    im2 = ax2.imshow(np.expand_dims(onehot_matrix[:, -1], axis=1))
-
-    ax1.set_ylabel('Sequence')
-    ax1.set_xlabel('Rule')
-
-    ax1.set_xticks(range(len(xticks)), xticks, rotation='vertical')
-    ax2.set_xticks([0], ['[CON]'], rotation='vertical')
-    plt.colorbar(im1, ax=ax1)
-    plt.colorbar(im2, ax=ax2)
-    plt.tight_layout()
-    plt.show()
 
 def summarize_dataloaders(train_loader, valid_loader, val_loader=None):
     def loader_info(loader, name):
@@ -244,9 +223,9 @@ def summarize_dataloaders(train_loader, valid_loader, val_loader=None):
         print(f"  | {name:<12} | Size: {dataset_size:<7} | Batch: {batch_size:<5} | Batches: {num_batches:<5}")
 
     print("DataLoader Summary")
-    print("--------------------------------------------------")
+    print("-"*69)
     loader_info(train_loader, "Train")
     loader_info(valid_loader, "valid")
     if val_loader:
         loader_info(val_loader, "Validation")
-    print("--------------------------------------------------")
+    print("-"*69)
