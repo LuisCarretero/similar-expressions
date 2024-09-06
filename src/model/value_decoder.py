@@ -7,25 +7,39 @@ class ValueDecoder(nn.Module):
         super().__init__()
         
         # Define the layers
-        self.fc1 = nn.Linear(cfg.z_size, 256)
-        self.fc2 = nn.Linear(256, 256)
-        self.fc2_5 = nn.Linear(256, 512)
-        self.fc2_6 = nn.Linear(512, 512)
-        self.fc3 = nn.Linear(512, cfg.io_format.val_points)
+        if cfg.value_decoder.conv_size == 'small':
+            self.fc1 = nn.Linear(cfg.z_size, 256)
+            self.fc2 = nn.Linear(256, 256)
+            self.final_linear = nn.Linear(256, cfg.io_format.val_points)
+            self.fc4 = None
+            self.fc5 = None
+        elif cfg.value_decoder.conv_size == 'medium':
+            self.fc1 = nn.Linear(cfg.z_size, 256)
+            self.fc2 = nn.Linear(256, 256)
+            self.fc3 = nn.Linear(256, 512)
+            self.fc4 = nn.Linear(512, 512)
+            self.final_linear = nn.Linear(512, cfg.io_format.val_points)
+        elif cfg.value_decoder.conv_size == 'large':
+            self.fc1 = nn.Linear(cfg.z_size, 256)
+            self.fc2 = nn.Linear(256, 512)
+            self.fc3 = nn.Linear(512, 512)
+            self.fc4 = nn.Linear(512, 1024)
+            self.fc5 = nn.Linear(1024, 1024)
+            self.final_linear = nn.Linear(1024, cfg.io_format.val_points)
+        else:
+            raise ValueError(f'Invalid value for `conv_size`: {cfg.value_decoder.conv_size}.'
+                             ' Must be in [small, medium, large]')
     
     def forward(self, x):
         # Forward pass through the layers with ReLU activations
-        x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x))
-        x = F.relu(self.fc2_5(x))
-        x = F.relu(self.fc2_6(x))
+        h = F.relu(self.fc1(x))
+        h = F.relu(self.fc2(h))
+        if self.fc3 is not None:
+            h = F.relu(self.fc3(h))
+        if self.fc4 is not None:
+            h = F.relu(self.fc4(h))
         
         # Output layer with linear activation
-        x = self.fc3(x)
+        val_y = self.final_linear(h)
         
-        return x
-
-
-if __name__ == '__main__':
-    # Run tests? See other decoder for reference
-    pass
+        return val_y

@@ -53,7 +53,7 @@ def main(cfg_path, data_path, dataset_name):
         max_epochs=cfg.training.epochs, 
         gradient_clip_val=cfg.training.optimizer.clip,
         callbacks=[checkpoint_callback, early_stopping_callback],
-        profiler=AdvancedProfiler(dirpath='.', filename='profile.txt'),
+        # profiler=AdvancedProfiler(dirpath='.', filename='profile.txt'),
         log_every_n_steps=100
     )
     trainer.fit(gvae, train_loader, valid_loader)

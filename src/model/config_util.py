@@ -5,7 +5,7 @@ from typing import Literal, Tuple, Optional
 @dataclass
 class EncoderConfig:
     size_hidden: int
-    conv_size: Literal["large"]
+    conv_size: Literal["small", "large", "extra_large"]
 
 @dataclass
 class DecoderConfig:
@@ -14,8 +14,8 @@ class DecoderConfig:
 
 @dataclass
 class ValueDecoderConfig:
-    size_lin1: int
-
+    conv_size: Literal["small", "medium", "large"]
+    
 @dataclass
 class IoFormatConfig:
     seq_len: int
@@ -49,7 +49,7 @@ class OptimizerConfig:
     scheduler_patience: int
     scheduler_threshold: float
     scheduler_min_lr: float
-    
+
 @dataclass
 class AnnealConfig:
     schedule: Literal["sigmoid"]

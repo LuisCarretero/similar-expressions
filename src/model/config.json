@@ -1,7 +1,7 @@
 {
   "model": {
     "encoder": {
-      "size_hidden": 128,
+      "size_hidden": 256,
       "conv_size": "large"
     },
     "z_size": 128,
@@ -10,7 +10,7 @@
       "rnn_type": "lstm"
     },
     "value_decoder": {
-      "size_lin1": 64
+      "conv_size": "large"
     },
     "io_format": {
       "seq_len": 15,
@@ -22,15 +22,15 @@
     "batch_size": 128,
     "epochs": 1,
     "valid_split": 0.1,
-    "dataset_len_limit": null,
+    "dataset_len_limit": 2048,
     "criterion": {
       "ae_weight": 0.4,
-      "kl_weight": 1,
-      "syntax_weight": 0.3
+      "kl_weight": 0.1,
+      "syntax_weight": 0.5
     },
     "sampling": {
       "prior_std": 1,
-      "eps": 1e-6
+      "eps": 1e-2
     },
     "optimizer": {
       "lr": 4e-3,
