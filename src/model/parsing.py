@@ -98,6 +98,7 @@ def logits_to_prods(logits, grammar, start_symbol: Nonterminal = S, sample=False
     return prods
 
 def logits_to_prefix(logits, syntax_cats: list[str], sample=False, max_length=15):
+    print('Warning: Not using constants in syntax probs.')
 
     consts = logits[:, -1]  # FIXME: Replace const placeholders
     syntax = logits[:, :-1]

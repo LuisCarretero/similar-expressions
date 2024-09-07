@@ -197,6 +197,10 @@ def data_from_loader(data_loader: DataLoader, data_type: str, idx=None, max_leng
     data_idx = {'x': 0, 'syntax': 1, 'consts': 2, 'values': 3}[data_type]
     subset_idx = data_loader.dataset.indices
 
+    # Param cleansing
+    if isinstance(idx, range):
+        idx = slice(idx.start, idx.stop, idx.step)
+
     if idx is not None:  # rows indexed by idx
         overall_idx = subset_idx[idx]
         res = data_loader.dataset.dataset[overall_idx][data_idx]

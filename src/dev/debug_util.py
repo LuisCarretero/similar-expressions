@@ -2,6 +2,10 @@ import numpy as np
 import torch
 from matplotlib import pyplot as plt
 import torch.nn.functional as F
+from scipy.stats import norm
+
+import config_util
+
 
 
 def calc_properties_and_partials(y_values: torch.Tensor):
@@ -202,3 +206,142 @@ def plot_original_vs_predicted_properties(properties, properties_pred):
 
     plt.tight_layout()
     plt.show()
+
+
+def plot_var_distributions(mean_of_var_train, mean_of_var_test, std_of_var_train, std_of_var_test):
+    def calculate_histogram(data_train, data_test, num_bins=101):
+        bins = np.linspace(min(data_train.min(), data_test.min()),
+                           max(data_train.max(), data_test.max()),
+                           num_bins)
+        train_hist, _ = np.histogram(data_train, bins=bins, density=True)
+        test_hist, _ = np.histogram(data_test, bins=bins, density=True)
+        return bins, train_hist, test_hist
+
+    bins_mean, train_mean_hist, test_mean_hist = calculate_histogram(mean_of_var_train, mean_of_var_test)
+    bins_std, train_std_hist, test_std_hist = calculate_histogram(std_of_var_train, std_of_var_test)
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 5))
+
+    def plot_distribution(ax, bins, train_hist, test_hist, xlabel, title):
+        ax.step(bins[:-1], train_hist, where='post', color='blue', alpha=0.7, label='Train')
+        ax.step(bins[:-1], test_hist, where='post', color='red', alpha=0.7, label='Test')
+        ax.set_xlabel(xlabel)
+        ax.set_ylabel('Density')
+        ax.set_title(title)
+        ax.legend()
+
+    plot_distribution(ax1, bins_mean, train_mean_hist, test_mean_hist, 'Mean of Var', 'Distribution of Mean of Var (Train vs Test)')
+    plot_distribution(ax2, bins_std, train_std_hist, test_std_hist, 'Std of Var', 'Distribution of Std of Var (Train vs Test)')
+
+    plt.tight_layout()
+    plt.show()
+
+
+def plot_latent_distribution(z_train: np.ndarray, cfg: config_util.ModelConfig):
+    num_dims = cfg.model.z_size
+    num_bins = 100
+    
+    def calculate_histogram_data(z_train):
+        hist_data = []
+        bin_edges = []
+        for dim in range(num_dims):
+            hist, bins = np.histogram(z_train[:, dim], bins=num_bins, density=True)
+            hist_data.append(hist)
+            bin_edges.append(bins)
+        bin_centers = [(bins[:-1] + bins[1:]) / 2 for bins in bin_edges]
+        normalized_hist_data = [hist / np.max(hist) for hist in hist_data]
+        return bin_centers, normalized_hist_data
+
+    def plot_distributions(ax, bin_centers, normalized_hist_data, x_range, title):
+        ax.set_title(title, fontsize=16)
+        for dim in range(num_dims):
+            ax.plot(bin_centers[dim], normalized_hist_data[dim], linewidth=2, alpha=0.5)
+        
+        x = np.concatenate([np.linspace(x_range[0], -cfg.training.sampling.prior_std, 1000),
+                            np.linspace(-cfg.training.sampling.prior_std, cfg.training.sampling.prior_std, 8000),
+                            np.linspace(cfg.training.sampling.prior_std, x_range[1], 1000)])
+        
+        for label, std in [('Sampling Gaussian', cfg.training.sampling.eps), 
+                           (f'Prior ($\\sigma$={cfg.training.sampling.prior_std:.2f})', cfg.training.sampling.prior_std)]:
+            gaussian = norm.pdf(x, 0, std)
+            normalized_gaussian = gaussian / np.max(gaussian)
+            ax.plot(x, normalized_gaussian, 'k', 
+                    linestyle='-' if 'Sampling' in label else '--', 
+                    linewidth=2, label=label)
+        
+        ax.set_xlim(x_range)
+        ax.set_xlabel('Latent Dimension Value')
+        ax.set_ylabel('Normalized Density')
+        ax.legend()
+
+    bin_centers, normalized_hist_data = calculate_histogram_data(z_train)
+    
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 5))
+    
+    plot_distributions(ax1, bin_centers, normalized_hist_data, 
+                       (-7*cfg.training.sampling.prior_std, 7*cfg.training.sampling.prior_std),
+                       'Distribution of Latent Dimensions')
+    
+    plot_distributions(ax2, bin_centers, normalized_hist_data, 
+                       np.array([-1, 1])*cfg.training.sampling.eps*40,
+                       'Zoomed Distribution')
+
+    plt.tight_layout()
+    plt.show()
+
+
+def plot_latent_distances(z_train: np.ndarray, z_test: np.ndarray, title: str, sample_size: int = 1000):
+
+    # Calculate norms and pairwise distances for train data
+    train_norms = np.linalg.norm(z_train, axis=1)
+    sampled_train = z_train[np.random.choice(z_train.shape[0], sample_size, replace=False)]
+    pairwise_distances_train = np.linalg.norm(sampled_train[:, np.newaxis] - sampled_train, axis=2)
+    l2_distances_train = pairwise_distances_train[np.triu_indices(sample_size, k=1)]
+
+    # Calculate norms and pairwise distances for test data
+    test_norms = np.linalg.norm(z_test, axis=1)
+    sampled_test = z_test[np.random.choice(z_test.shape[0], sample_size, replace=False)]
+    pairwise_distances_test = np.linalg.norm(sampled_test[:, np.newaxis] - sampled_test, axis=2)
+    l2_distances_test = pairwise_distances_test[np.triu_indices(sample_size, k=1)]
+
+    # Plot histograms
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(20, 6))
+
+    # Plot histogram of norms
+    norm_bins = np.linspace(min(train_norms.min(), test_norms.min()),
+                            max(train_norms.max(), test_norms.max()),
+                            50)
+    ax1.hist(train_norms, bins=norm_bins, alpha=0.5, label='Train', edgecolor='black', density=True)
+    ax1.hist(test_norms, bins=norm_bins, alpha=0.5, label='Test', edgecolor='black', density=True)
+    ax1.set_title('Histogram of Latent Space Vector Norms')
+    ax1.set_xlabel('Norm')
+    ax1.set_ylabel('Frequency')
+    ax1.grid(True, linestyle='--', alpha=0.7)
+    ax1.legend()
+
+    # Plot histogram of L2 distances
+    l2_bins = np.linspace(min(l2_distances_train.min(), l2_distances_test.min()),
+                          max(l2_distances_train.max(), l2_distances_test.max()),
+                          50)
+    ax2.hist(l2_distances_train, bins=l2_bins, alpha=0.5, label='Train', edgecolor='black', density=True)
+    ax2.hist(l2_distances_test, bins=l2_bins, alpha=0.5, label='Test', edgecolor='black', density=True)
+    ax2.set_title('Histogram of Pairwise L2 Distances')
+    ax2.set_xlabel('L2 Distance')
+    ax2.set_ylabel('Frequency')
+    ax2.grid(True, linestyle='--', alpha=0.7)
+    ax2.legend()
+    
+    plt.suptitle(title)
+    plt.tight_layout()
+    plt.show()
+
+
+def slerp(v0: np.ndarray, v1: np.ndarray, t: np.ndarray) -> np.ndarray:
+    """Spherical linear interpolation. FIXME: Vectorize."""
+    # Compute the cosine of the angle between the two vectors
+    omega = np.arccos(np.dot(v0, v1))
+    sin_omega = np.sin(omega)
+
+    s0 = np.sin((1 - t) * omega) / sin_omega
+    s1 = np.sin(t * omega) / sin_omega
+    return s0[:, np.newaxis] * v0 + s1[:, np.newaxis] * v1
