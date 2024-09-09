@@ -3,7 +3,7 @@ include("utils.jl")
 include("Dataset.jl")
 
 using .ExpressionGenerator
-using .Utils: eval_trees, encode_trees, get_onehot_legend
+using .Utils: eval_trees, encode_trees, get_onehot_legend, FilterSettings, filter_evaluated_trees, filter_encoded_trees
 using .DatasetModule: Dataset
 using DynamicExpressions: OperatorEnum, string_tree
 using Serialization
@@ -17,28 +17,28 @@ ops = OperatorEnum((+, -, *, /), (sin, exp))
 op_probs = ExpressionGenerator.OperatorProbEnum(ops, [1.0, 1.0, 1.0, 1.0], [1.0, 1.0])
 seq_len = 15  # Max number of nodes in the tree
 N = 1_200_000  # You can adjust this number as needed
-name = "dataset_240903_1"
+name = "dataset_240909_1"
+
+eval_x = reshape(collect(range(-10, 10, length=100)), (1, 100))
+filter_settings = FilterSettings(1e5, 1e5, true)
 
 # Generate trees
 println("Generating trees...")
 generator_config = ExpressionGenerator.ExpressionGeneratorConfig(op_cnt_min, op_cnt_max, Float64, ops, op_probs, nfeatures, seq_len, 0)
 trees = [ExpressionGenerator.generate_expr_tree(generator_config) for _ in 1:N]
-dataset = Dataset(generator_config, trees)
+# dataset = Dataset(generator_config, trees)
 
-# Evaluate trees
+# Evaluate trees (and filter out)
 println("Evaluating trees...")
-eval_x = reshape(collect(range(-10, 10, length=100)), (1, 100))
 eval_y, success = eval_trees(trees, generator_config.ops, eval_x)
-trees = trees[success]
-eval_y = eval_y[success, :]
+trees, eval_y = filter_evaluated_trees(trees, eval_y, success, eval_x, filter_settings)
 dataset = Dataset(generator_config, trees, eval_x, eval_y)
 
 # Encode trees
 println("Encoding trees...")
 onehot, consts, success = encode_trees(trees, generator_config)
-onehot = onehot[success, :, :]
-consts = consts[success, :]
-dataset = Dataset(generator_config, trees[success], eval_x, eval_y[success, :], onehot, consts)
+onehot, consts, valid = filter_encoded_trees(onehot, consts, success, filter_settings)
+dataset = Dataset(generator_config, trees[valid], eval_x, eval_y[valid, :], onehot, consts)
 
 # Save dataset
 println("Saving dataset...")

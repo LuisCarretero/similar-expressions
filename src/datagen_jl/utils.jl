@@ -6,6 +6,42 @@ using DynamicExpressions: eval_tree_array, OperatorEnum, Node
 
 export eval_trees, encode_trees, node_to_token_idx
 
+
+
+struct FilterSettings
+    max_abs_value::Float64  # -1 if not used
+    max_1st_deriv::Float64  # -1 if not used
+    filter_unique_skeletons::Bool
+end
+
+function filter_evaluated_trees(trees::Vector{Node{T}}, eval_y::AbstractMatrix{T}, success::Vector{Bool}, eval_x::AbstractMatrix{T}, settings::FilterSettings) where T <: Number
+    # TODO: Use dataset?
+    valid = success
+    
+    # Checks
+    if settings.max_abs_value != -1
+        valid = valid .& all((abs.(eval_y) .< settings.max_abs_value), dims=2)
+    end
+    if settings.max_1st_deriv != -1
+        valid = valid .& all((abs.(first_deriv(eval_x, eval_y)) .< settings.max_1st_deriv), dims=2)
+    end
+
+    # Filter
+    valid = vec(valid)
+    trees = trees[valid]
+    eval_y = eval_y[valid, :]
+
+    @assert !any(isnan, eval_y)
+    @assert !any(isinf, eval_y)
+    @assert all(isfinite, eval_y)
+
+    return trees, eval_y
+end
+
+function first_deriv(x::AbstractMatrix{T}, y::AbstractMatrix{T}) where T <: Number
+    return diff(y, dims=2) ./ diff(x, dims=2)
+end
+
 function eval_trees(trees::Vector{Node{T}}, ops::OperatorEnum, x::AbstractMatrix{T}) where T <: Number
     # Initialize a matrix to store results for all trees
     res_mat = Matrix{Float64}(undef, length(trees), size(x, 2))
@@ -14,17 +50,12 @@ function eval_trees(trees::Vector{Node{T}}, ops::OperatorEnum, x::AbstractMatrix
     # Evaluate each tree and store the results
     for (i, tree) in enumerate(trees)
         (res, complete) = eval_tree_array(tree, x, ops)
-        good = complete && all(abs.(res) .< 1e5)  # FIXME: Make this customizable.
+        good = complete && all((res .< prevfloat(typemax(Float64))) .& (res .> nextfloat(typemin(Float64)))) && !any(isnan, res) && !any(isinf, res)
         success[i] = good
         if good
             res_mat[i, :] = res
         end
     end
-
-    @assert !any(isnan, res_mat)
-    @assert !any(isinf, res_mat)
-    @assert all(isfinite, res_mat)
-
     return res_mat, success
 end
 
@@ -87,6 +118,30 @@ function encode_trees(trees::Vector{Node{T}}, generator_config::ExpressionGenera
     # TODO: Add some validation
 
     return onehot, consts, success
+end
+
+function filter_encoded_trees(onehot::BitArray{3}, consts::AbstractMatrix{Float64}, success::AbstractVector{Bool}, settings::FilterSettings)
+    # TODO: Use dataset?
+    valid = success
+    # Checks
+    if settings.filter_unique_skeletons
+        # Check if there are duplicates in the onehot matrix
+        already_seen = Set{Vector{Bool}}()
+        for i in axes(onehot, 1)
+            row = vec(onehot[i, :, :])
+            if row ∈ already_seen
+                valid[i] = false
+            else
+                push!(already_seen, row)
+            end
+        end
+    end
+
+    # Filter
+    onehot = onehot[valid, :, :]
+    consts = consts[valid, :]
+
+    return onehot, consts, valid
 end
 
 function get_onehot_legend(dataset)::Vector{String}  # ::DatasetModule.Dataset

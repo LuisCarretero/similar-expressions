@@ -3,7 +3,7 @@ from nltk import Nonterminal
 from torch.distributions import Categorical
 from nltk.grammar import Production
 from grammar import get_mask, S, GCFG
-from typing import List, Tuple
+from typing import List, Tuple, Literal
 from util import Stack
 import sympy as sp
 import numpy as np
@@ -59,7 +59,7 @@ def prods_to_prefix(prods, to_string=False):
     else:
         return seq
 
-def logits_to_prods(logits, grammar, start_symbol: Nonterminal = S, sample=False, max_length=15, insert_const=True, const_token='CON'):
+def logits_to_prods(logits, grammar, start_symbol: Nonterminal = S, sample=False, max_length=15, insert_const=True, const_token='CON', replace_const: Literal['numerical', 'placeholder', 'nothing'] = 'numerical'):
     stack = Stack(grammar=grammar, start_symbol=start_symbol)
 
     logits_prods = logits[:, :-1]
@@ -67,6 +67,7 @@ def logits_to_prods(logits, grammar, start_symbol: Nonterminal = S, sample=False
 
     prods = []
     t = 0  # "Time step" in sequence
+    j = 0  # Index of constant
     while stack.nonempty:
         alpha = stack.pop()  # Alpha is notation in paper: current LHS token
         mask = get_mask(alpha, grammar, as_variable=True)
@@ -85,7 +86,16 @@ def logits_to_prods(logits, grammar, start_symbol: Nonterminal = S, sample=False
 
         # If rule has -> [CONST] add const
         if insert_const and (rule.rhs()[0] == const_token):
-            rule = Production(lhs=rule.lhs(), rhs=(str(constants[t].item()),))
+            if replace_const == 'numerical':
+                rule = Production(lhs=rule.lhs(), rhs=(str(constants[t].item()),))
+            elif replace_const == 'placeholder':
+                placeholder_name = f'CON_{j}'
+                rule = Production(lhs=rule.lhs(), rhs=(placeholder_name,))
+                j += 1
+            elif replace_const == 'nothing':
+                pass
+            else:
+                raise ValueError(f'Unknown replace_const mode: {replace_const}')
 
         prods.append(rule)
         # add rhs nonterminals to stack in reversed order
@@ -187,11 +197,11 @@ def prefix_to_infix(expr: List[str], variables=['x1']) -> List[str]:
         raise Exception(f'Incorrect prefix expression "{expr}". "{r}" was not parsed.')
     return p
 
-def logits_to_infix(logits, sample=False):
+def logits_to_infix(logits, sample=False, replace_const='numerical'):
     # FIXME: Add variables, GCFG pass-through
 
     assert len(logits.shape) == 2, "Logits should be 2D, no batch dimension"
-    prods = logits_to_prods(logits, GCFG, sample=sample)
+    prods = logits_to_prods(logits, GCFG, sample=sample, replace_const=replace_const)
     prefix = prods_to_prefix(prods)
     infix = prefix_to_infix(prefix, variables=['x1'])
     return infix
