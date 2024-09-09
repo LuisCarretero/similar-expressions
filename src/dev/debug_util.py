@@ -3,10 +3,12 @@ import torch
 from matplotlib import pyplot as plt
 import torch.nn.functional as F
 from scipy.stats import norm
+from typing import Union
+from tqdm import tqdm
 
-import config_util
 
-
+from parsing import logits_to_infix, eval_from_logits
+from config_util import ModelConfig
 
 def calc_properties_and_partials(y_values: torch.Tensor):
     # Mean
@@ -237,7 +239,7 @@ def plot_var_distributions(mean_of_var_train, mean_of_var_test, std_of_var_train
     plt.show()
 
 
-def plot_latent_distribution(z_train: np.ndarray, cfg: config_util.ModelConfig):
+def plot_latent_distribution(z_train: np.ndarray, cfg: ModelConfig):
     num_dims = cfg.model.z_size
     num_bins = 100
     
@@ -345,3 +347,163 @@ def slerp(v0: np.ndarray, v1: np.ndarray, t: np.ndarray) -> np.ndarray:
     s0 = np.sin((1 - t) * omega) / sin_omega
     s1 = np.sin(t * omega) / sin_omega
     return s0[:, np.newaxis] * v0 + s1[:, np.newaxis] * v1
+
+def plot_sample_distribution(val_x: Union[torch.Tensor, np.ndarray], values_true: torch.Tensor = None, values_pred: torch.Tensor = None, values_neigh: torch.Tensor = None, plot_extrema: bool = True, ax = None):
+    
+    assert any([x is not None for x in [values_true, values_pred, values_neigh]]), 'At least one of values_true, values_pred, values_neigh must be provided'
+
+    val_x = val_x.squeeze()
+    if isinstance(val_x, torch.Tensor):
+        val_x = val_x.detach().numpy()
+
+    if values_neigh is not None:
+        values_neigh = values_neigh.detach().numpy()
+        mean_samples = np.mean(values_neigh, axis=0)
+        std_samples = np.std(values_neigh, axis=0)
+        if plot_extrema:    
+            min_samples = np.min(values_neigh, axis=0)
+            max_samples = np.max(values_neigh, axis=0)
+
+    if ax is None:
+        _, ax = plt.subplots()
+
+    if values_true is not None:
+        ax.plot(val_x, values_true.squeeze().detach().numpy(), label='original', color='blue')
+    if values_pred is not None:
+        ax.plot(val_x, values_pred.squeeze().detach().numpy(), label='pred', color='green')
+    if values_neigh is not None:
+        ax.plot(val_x, mean_samples, label='sample mean', color='red')
+        ax.fill_between(val_x, 
+                        mean_samples - std_samples, 
+                        mean_samples + std_samples, 
+                        alpha=0.3, color='red', label='sample std')
+
+        if plot_extrema:
+            ax.plot(val_x, min_samples, label='sample min', color='orange', linestyle='--')
+            ax.plot(val_x, max_samples, label='sample max', color='purple', linestyle='--')
+
+
+def calc_and_plot_samples(model, x: torch.Tensor, values_true: torch.Tensor, n_samples: int, ax = None, mode='value', val_x=None, value_transform=None, var_multiplier=1, use_const_var=False):
+    mean, ln_var = model.encoder(x)
+    ln_var = ln_var + torch.log(torch.ones_like(ln_var) * var_multiplier)
+    if use_const_var:
+        assert isinstance(use_const_var, Union[float, int]), 'use_const_var must be a float/int or tensor if use_const_var is not False'
+        ln_var = torch.log(torch.ones_like(ln_var) * use_const_var)
+
+    if mode == 'value':
+        values_pred = model.value_decoder(mean)
+        z = model.sample(mean.repeat(n_samples, 1), ln_var.repeat(n_samples, 1))
+        values_neigh = model.value_decoder(z)
+
+    elif mode == 'syntax':
+        assert val_x is not None, 'val_x must be provided for syntax mode'
+        assert value_transform is not None, 'value_transform must be provided for syntax mode'
+
+        logits_pred = model.decoder(mean, max_length=model.max_length)
+        res_raw = eval_from_logits(logits_pred.squeeze(), val_x.squeeze())
+        try:
+            res = res_raw.astype(np.float32)
+        except TypeError:
+            res = np.zeros_like(res_raw, dtype=np.float32)
+        values_pred = value_transform(torch.tensor(res))
+
+        # Sample and decode from neighbourhood
+        z = model.sample(mean.repeat(n_samples, 1), ln_var.repeat(n_samples, 1))
+        logits_neigh = model.decoder(z, max_length=model.max_length)
+        
+        values_neigh = torch.empty([n_samples, len(val_x)])
+        
+        for i in tqdm(range(n_samples), desc='Evaluating neighbourhood, might take a while.'):
+            res_raw = eval_from_logits(logits_neigh[i, ...], val_x.squeeze())
+            try:
+                res = res_raw.astype(np.float32)
+            except TypeError:
+                res = np.zeros_like(res_raw, dtype=np.float32)
+                print(f'Warning: Failed to decode logits {i}')
+
+            values_neigh[i, ...] = value_transform(torch.tensor(res))
+        
+    plot_sample_distribution(val_x, values_true, values_pred, values_neigh, ax=ax)
+
+
+def calc_and_plot_samples_grid(model, x: torch.Tensor, values_true: torch.Tensor, n_samples: int = 100, idx = None, mode='value', val_x=None, value_transform=None, var_multiplier=1, use_const_var=False):
+    fig, axes = plt.subplots(4, 4, figsize=(10, 8))
+
+    for i in range(16):
+        ax = axes[i//4, i%4]
+        calc_and_plot_samples(model, x[i].unsqueeze(0), values_true[i], n_samples, ax, mode=mode, val_x=val_x, value_transform=value_transform, var_multiplier=var_multiplier, use_const_var=use_const_var)
+        
+        if idx is not None:
+            ax.set_title(f'Example {idx[i]}', fontsize=10)
+
+        if i == 0:
+            ax.legend(fontsize=8)
+        # Remove x ticks for all but the bottom row
+        if i // 4 < 3:  # If not in the bottom row
+            ax.set_xticks([])
+
+    plt.tight_layout()
+    plt.show()
+
+def plot_interpolation(model, val_x: torch.Tensor, z_start: np.ndarray, z_end: np.ndarray, start_true: np.ndarray, end_true: np.ndarray, value_transform, num_steps: int = 20, interp_mode='slerp'):
+    assert num_steps > 3, 'num_steps must be greater than 3.'
+    print(f'Distance: {np.linalg.norm(z_end - z_start)}')
+
+    # Interpolate in latent space
+    alpha = np.linspace(0, 1, num_steps)
+    if interp_mode == 'slerp':
+        z_interp = slerp(z_start, z_end, alpha)
+    elif interp_mode == 'linear':
+        z_interp = z_start[np.newaxis, ...] * (1 - alpha[:, np.newaxis]) + z_end[np.newaxis, ...] * alpha[:, np.newaxis]
+    else:
+        raise ValueError(f'Interpolation mode {interp_mode} not supported')
+    
+    # Decode into values and logits
+    values_interp = model.value_decoder(torch.tensor(z_interp.astype(np.float32)))
+    logits_interp = model.decoder(torch.tensor(z_interp.astype(np.float32)), max_length=15)
+
+    # Decode logits into values
+    values_interp_syntax = torch.empty_like(values_interp)
+    for idx in range(0, logits_interp.shape[0]):
+        res = eval_from_logits(logits_interp[idx, ...], val_x.squeeze())
+        try:
+            res = res.astype(np.float32)
+            values_interp_syntax[idx, ...] = value_transform(torch.tensor(res))
+        except TypeError:
+            print(f'Warning: Failed to decode logits {idx}')
+            values_interp_syntax[idx, ...] = torch.zeros_like(res, dtype=torch.float32)
+    
+    # Plot
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 5))
+    plot_value_interpolation(ax1, val_x, values_interp, start_true, end_true)
+    plot_value_interpolation(ax2, val_x, values_interp_syntax, start_true, end_true)
+    add_colorbar(fig, ax2)
+    plt.tight_layout()
+    plt.show()
+
+def plot_value_interpolation(ax: plt.Axes, val_x: torch.Tensor, values_interp: torch.Tensor, start_true: np.ndarray, end_true: np.ndarray):
+    # Pred values (interpolated)
+    cmap = plt.get_cmap('rainbow')
+    for idx, value in enumerate(values_interp[1:-1]):
+        color = cmap(idx / (len(values_interp) - 3))
+        ax.plot(val_x.squeeze(), value.detach().numpy(), color=color, alpha=0.5)
+
+    # Pred values (ends)
+    ax.plot(val_x.squeeze(), values_interp[0].squeeze(), label='start (pred)', color='blue', linewidth=2)
+    ax.plot(val_x.squeeze(), values_interp[-1].squeeze(), label='end (pred)', color='red', linewidth=2)
+
+    # True values (ends)
+    ax.plot(val_x.squeeze(), start_true, label='start (true)', color='lightblue', linewidth=2, linestyle='--')
+    ax.plot(val_x.squeeze(), end_true, label='end (true)', color='pink', linewidth=2, linestyle='--')
+
+    ax.legend()
+    ax.set_title('Value Decoding')
+    ax.set_xlabel('X')
+    ax.set_ylabel('Y')
+
+def add_colorbar(fig, ax):
+    cmap = plt.get_cmap('rainbow')
+    sm = plt.cm.ScalarMappable(cmap=cmap, norm=plt.Normalize(vmin=0, vmax=1))
+    sm.set_array([])
+    cbar = fig.colorbar(sm, ax=ax)
+    cbar.set_label('Interpolation Progress')
