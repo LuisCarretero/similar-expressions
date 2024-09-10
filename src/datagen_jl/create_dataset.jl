@@ -16,11 +16,17 @@ nfeatures = 1
 ops = OperatorEnum((+, -, *, /), (sin, exp))
 op_probs = ExpressionGenerator.OperatorProbEnum(ops, [1.0, 1.0, 1.0, 1.0], [1.0, 1.0])
 seq_len = 15  # Max number of nodes in the tree
-N = 1_200_000  # You can adjust this number as needed
-name = "dataset_240909_1"
+N = 1_800_000  # You can adjust this number as needed
+name = "dataset_240910_2"
 
 eval_x = reshape(collect(range(-10, 10, length=100)), (1, 100))
-filter_settings = FilterSettings(1e5, 1e5, true)
+filter_settings = FilterSettings(
+    max_abs_value=1e5,
+    max_1st_deriv=1e5,
+    filter_unique_skeletons=false,
+    filter_unique_expressions=true,
+    unique_expression_const_tol=3,  # digits of precision for considering two expressions as the same
+)
 
 # Generate trees
 println("Generating trees...")

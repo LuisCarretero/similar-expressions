@@ -12,6 +12,17 @@ struct FilterSettings
     max_abs_value::Float64  # -1 if not used
     max_1st_deriv::Float64  # -1 if not used
     filter_unique_skeletons::Bool
+    filter_unique_expressions::Bool
+    unique_expression_const_tol::Int  # digits of precision for considering two expressions as the same
+
+    # Constructor with keyword arguments
+    FilterSettings(;
+        max_abs_value::Float64 = 1e5,
+        max_1st_deriv::Float64 = 1e5,
+        filter_unique_skeletons::Bool = true,
+        filter_unique_expressions::Bool = true,
+        unique_expression_const_tol::Int = 3
+    ) = new(max_abs_value, max_1st_deriv, filter_unique_skeletons, filter_unique_expressions, unique_expression_const_tol)
 end
 
 function filter_evaluated_trees(trees::Vector{Node{T}}, eval_y::AbstractMatrix{T}, success::Vector{Bool}, eval_x::AbstractMatrix{T}, settings::FilterSettings) where T <: Number
@@ -125,16 +136,10 @@ function filter_encoded_trees(onehot::BitArray{3}, consts::AbstractMatrix{Float6
     valid = success
     # Checks
     if settings.filter_unique_skeletons
-        # Check if there are duplicates in the onehot matrix
-        already_seen = Set{Vector{Bool}}()
-        for i in axes(onehot, 1)
-            row = vec(onehot[i, :, :])
-            if row ∈ already_seen
-                valid[i] = false
-            else
-                push!(already_seen, row)
-            end
-        end
+        check_unique_skeletons!(onehot, valid)
+    end
+    if settings.filter_unique_expressions
+        check_unique_expressions!(onehot, consts, valid, settings)
     end
 
     # Filter
@@ -142,6 +147,33 @@ function filter_encoded_trees(onehot::BitArray{3}, consts::AbstractMatrix{Float6
     consts = consts[valid, :]
 
     return onehot, consts, valid
+end
+
+function check_unique_skeletons!(onehot::BitArray{3}, valid::AbstractVector{Bool})
+    # Check if there are duplicates in the onehot matrix
+    already_seen = Set{Vector{Bool}}()
+    for i in axes(onehot, 1)
+        row = vec(onehot[i, :, :])
+        if row ∈ already_seen
+            valid[i] = false
+        else
+            push!(already_seen, row)
+        end
+    end
+end
+
+function check_unique_expressions!(onehot::BitArray{3}, consts::AbstractMatrix{Float64}, valid::AbstractVector{Bool}, settings::FilterSettings)
+    
+    consts = round.(consts, digits=settings.unique_expression_const_tol)
+    already_seen = Set{Tuple{Vector{Bool}, Vector{Float64}}}()
+    for i in axes(onehot, 1)
+        row = (vec(onehot[i, :, :]), consts[i, :])
+        if row ∈ already_seen
+            valid[i] = false
+        else
+            push!(already_seen, row)
+        end
+    end
 end
 
 function get_onehot_legend(dataset)::Vector{String}  # ::DatasetModule.Dataset
