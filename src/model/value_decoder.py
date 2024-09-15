@@ -27,7 +27,7 @@ class ValueDecoder(nn.Module):
             self.fc5 = nn.Linear(1024, 1024)
             self.final_linear = nn.Linear(1024, cfg.io_format.val_points)
         else:
-            raise ValueError(f'Invalid value for `conv_size`: {cfg.value_decoder.conv_size}.'
+            raise ValueError(f'Invalid value for `conv_size`: {cfg.value_decoder.conv_>>size}.'
                              ' Must be in [small, medium, large]')
     
     def forward(self, x):
