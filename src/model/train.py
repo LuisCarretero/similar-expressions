@@ -12,7 +12,6 @@ import pickle
 
 seed_everything(42, workers=True, verbose=False)
 
-
 def main(cfg_path, data_path, dataset_name):
     # Load config
     cfg_dict, cfg = load_config(cfg_path)
