@@ -4,6 +4,7 @@ from typing import Dict
 import torch
 
 class Stack:
+    # TODO: Use built-in
     """A simple first in last out stack.
 
     Args:
@@ -109,7 +110,7 @@ def criterion_factory(cfg: Config, priors: Dict):
 
 def compute_latent_metrics(mean: torch.Tensor, ln_var: torch.Tensor) -> Dict[str, float]:
     """
-    Compute the metrics for the latent space.
+    Compute metrics for the latent space.
     """
     mean_norm = torch.norm(mean, dim=1).mean().item()
     std_mean = ln_var.exp().sqrt().mean().item()

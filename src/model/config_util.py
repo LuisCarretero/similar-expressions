@@ -1,16 +1,18 @@
 import json
 from dataclasses import dataclass
-from typing import Literal, Tuple, Optional
+from typing import Literal, Tuple, Optional, List
 
 @dataclass
 class EncoderConfig:
+    z_slice: List[int]
     size_hidden: int
     conv_size: Literal["small", "large", "extra_large"]
 
 @dataclass
 class DecoderConfig:
+    z_slice: List[int]
     size_hidden: int
-    rnn_type: Literal["lstm"]
+    rnn_type: Literal["lstm", "gru"]
 
 @dataclass
 class ValueDecoderConfig:
@@ -91,10 +93,12 @@ def dict_to_config(cfg_dict: dict, fallback_dict: dict = None) -> Config:
                 },
                 'z_size': 128,
                 'decoder': {
+                    'z_slice': [0, -1],
                     'size_hidden': 64,
                     'rnn_type': 'lstm'
                 },
                 'value_decoder': {
+                    'z_slice': [0, -1],
                     'size_lin1': 64,
                     'conv_size': 'medium'  # FIXME: Rename
                 },

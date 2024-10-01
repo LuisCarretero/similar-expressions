@@ -6,10 +6,12 @@
     },
     "z_size": 128,
     "decoder": {
+      "z_slice": [0, -1],
       "size_hidden": 128,
       "rnn_type": "lstm"
     },
     "value_decoder": {
+      "z_slice": [0, -1],
       "conv_size": "large"
     },
     "io_format": {

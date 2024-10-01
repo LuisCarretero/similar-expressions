@@ -31,18 +31,18 @@ def main(cfg_path, data_path, dataset_name):
     logger.log_hyperparams(cfg_dict)
 
     # Save cfg object to wandb files
-    with open(wandb.run.dir + '/config.pkl', 'wb') as f:
-        pickle.dump(cfg, f)
-    wandb.save('config.pkl')
+    # with open(wandb.run.dir + '/config.pkl', 'wb') as f:
+    #     pickle.dump(cfg, f)
+    # wandb.save('config.pkl')
 
-    checkpoint_callback = ModelCheckpoint(
-        dirpath=wandb.run.dir, 
-        filename='{epoch:02d}', 
-        monitor='valid/loss', 
-        mode='min', 
-        save_top_k=0, 
-        save_last=True
-    )
+    # checkpoint_callback = ModelCheckpoint(
+    #     dirpath=wandb.run.dir, 
+    #     filename='{epoch:02d}', 
+    #     monitor='valid/loss', 
+    #     mode='min', 
+    #     save_top_k=0, 
+    #     save_last=True
+    # )
 
     early_stopping_callback = EarlyStopping(
         monitor="valid/loss", 
