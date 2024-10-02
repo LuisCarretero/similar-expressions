@@ -63,6 +63,7 @@ def criterion_factory(cfg: Config, priors: Dict):
     assert 0 <= SYNTAX_WEIGHT <= 1, "SYNTAX_WEIGHT must be between 0 and 1"
     assert KL_WEIGHT > 0, "KL_WEIGHT must be greater than 0"
     assert CONTRASTIVE_WEIGHT > 0, "CONTRASTIVE_WEIGHT must be greater than 0"
+
     SYNTAX_PRIOR = priors['syntax_prior']
     CONSTS_PRIOR = priors['consts_prior']
     VALUES_PRIOR = priors['values_prior']
@@ -110,7 +111,7 @@ def criterion_factory(cfg: Config, priors: Dict):
         loss_contrastive = torch.sum(gamma * z_dissim_loss)
 
         # Total loss
-        loss = AE_WEIGHT*loss_vae + (1-AE_WEIGHT)*loss_values
+        loss = AE_WEIGHT*loss_vae + (1-AE_WEIGHT)*loss_values + CONTRASTIVE_WEIGHT*loss_contrastive
 
         partial_losses = {
             'loss_syntax': loss_syntax.item(),
