@@ -2,6 +2,7 @@ import math
 from config_util import Config
 from typing import Dict
 import torch
+import torch.nn.functional as F
 
 class Stack:
     # TODO: Use built-in
@@ -54,13 +55,14 @@ def criterion_factory(cfg: Config, priors: Dict):
     Factory function to create the criterion for the VAE.
     """
     AE_WEIGHT = cfg.training.criterion.ae_weight
+    CONTRASTIVE_WEIGHT = cfg.training.criterion.contrastive_weight
     KL_WEIGHT = cfg.training.criterion.kl_weight
     SYNTAX_WEIGHT = cfg.training.criterion.syntax_weight
 
     assert 0 <= AE_WEIGHT <= 1, "AE_WEIGHT must be between 0 and 1"
     assert 0 <= SYNTAX_WEIGHT <= 1, "SYNTAX_WEIGHT must be between 0 and 1"
     assert KL_WEIGHT > 0, "KL_WEIGHT must be greater than 0"
-
+    assert CONTRASTIVE_WEIGHT > 0, "CONTRASTIVE_WEIGHT must be greater than 0"
     SYNTAX_PRIOR = priors['syntax_prior']
     CONSTS_PRIOR = priors['consts_prior']
     VALUES_PRIOR = priors['values_prior']
@@ -68,14 +70,21 @@ def criterion_factory(cfg: Config, priors: Dict):
     cross_entropy = torch.nn.CrossEntropyLoss()  # default reduction is mean over batch and time steps
     mse = torch.nn.MSELoss()
 
-    def criterion(expr_pred: torch.Tensor, values_pred: torch.Tensor, y_rule_idx: torch.Tensor, y_consts: torch.Tensor, y_val: torch.Tensor, kl: float, alpha: float):
+    # Contrastive loss setup
+    l2_dist = torch.nn.PairwiseDistance(p=2)
+    a = 40  # Sharpness
+    b = 5  # Shift
+    gamma_func = lambda x: 1/(1+ torch.exp(a * x - b))
+
+    def criterion(expr_pred: torch.Tensor, values_pred: torch.Tensor, y_rule_idx: torch.Tensor, y_consts: torch.Tensor, y_val: torch.Tensor, kl: float, alpha: float, z: torch.Tensor):
         """
         expr_pred: expression prediction of the model
         values_pred: value prediction of the model
         y_rule_idx: true one-hot encoded syntax indices
         y_consts: true real-valued consts
         y_val: true values
-        
+        z: latent samples
+
         kl: kl divergence of samples (single scalar summed over all dimensions of latent space and mean over batch)
 
         """
@@ -86,13 +95,22 @@ def criterion_factory(cfg: Config, priors: Dict):
         loss_recon_ae = SYNTAX_WEIGHT*loss_syntax + (1-SYNTAX_WEIGHT)*loss_consts
 
         # VAE total loss (loss_ae = -ELBO = -log p(x|z) + KL_WEIGHT*KL(q(z|x)||p(z)) where KL_WEIGHT is usually denoted as beta)
-        loss_ae = loss_recon_ae + KL_WEIGHT*alpha*kl
+        loss_vae = loss_recon_ae + KL_WEIGHT*alpha*kl
 
         # Value prediction loss
         loss_values = mse(values_pred, y_val)/VALUES_PRIOR
 
+        # Contrastive loss (batch-wise)
+        y_val = y_val / y_val.norm(dim=1, keepdim=True)
+        values_dist = l2_dist(y_val.unsqueeze(1), y_val.unsqueeze(0))  # Make this indep of z_size, add some scaling factor
+        gamma = gamma_func(values_dist.square())  # Scaling factor: Only if graphs are similar should large z_dissim be penalized
+
+        z_sim = F.cosine_similarity(z.unsqueeze(1), z.unsqueeze(0), dim=2)  # -> 1 if similar, 0 if unrelated, -> -1 if different
+        z_dissim_loss = -torch.log((1+z_sim)/2)  # -> 1 if different, 0 if similar, -> 2 if unrelated
+        loss_contrastive = torch.sum(gamma * z_dissim_loss)
+
         # Total loss
-        loss = AE_WEIGHT*loss_ae + (1-AE_WEIGHT)*loss_values
+        loss = AE_WEIGHT*loss_vae + (1-AE_WEIGHT)*loss_values
 
         partial_losses = {
             'loss_syntax': loss_syntax.item(),
@@ -100,8 +118,9 @@ def criterion_factory(cfg: Config, priors: Dict):
             'loss_recon_ae': loss_recon_ae.item(),
             'kl': kl.item(),
             'alpha': alpha,
-            'loss_vae': loss_ae.item(),   # -ELBO but with KL_WEIGHT*alpha so really only some distant cousing of ELBO
+            'loss_vae': loss_vae.item(),   # -ELBO but with KL_WEIGHT*alpha so really only some distant cousing of ELBO
             'loss_values': loss_values.item(),
+            'loss_contrastive': loss_contrastive.item(),
             'loss': loss.item()
         }
 

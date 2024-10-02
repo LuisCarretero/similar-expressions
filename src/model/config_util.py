@@ -4,7 +4,6 @@ from typing import Literal, Tuple, Optional, List
 
 @dataclass
 class EncoderConfig:
-    z_slice: List[int]
     size_hidden: int
     conv_size: Literal["small", "large", "extra_large"]
 
@@ -16,6 +15,7 @@ class DecoderConfig:
 
 @dataclass
 class ValueDecoderConfig:
+    z_slice: List[int]
     conv_size: Literal["small", "medium", "large"]
     
 @dataclass
@@ -37,7 +37,8 @@ class CriterionConfig:
     ae_weight: float
     kl_weight: float
     syntax_weight: float
-
+    contrastive_weight: float
+    
 @dataclass
 class SamplingConfig:
     prior_std: float
@@ -116,7 +117,8 @@ def dict_to_config(cfg_dict: dict, fallback_dict: dict = None) -> Config:
                 'criterion': {
                     'ae_weight': 1,
                     'kl_weight': 1,
-                    'syntax_weight': 0.5
+                    'syntax_weight': 0.5,
+                    'contrastive_weight': 0.1
                 },
                 'sampling': {
                     'prior_std': 0.1,

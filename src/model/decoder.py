@@ -7,11 +7,12 @@ class Decoder(nn.Module):
     def __init__(self, cfg: ModelConfig):
         super().__init__()  # Decoder, self
 
-        # Calculate inout size
-        self.z_slice = cfg.decoder.z_slice
-        self.input_size = (self.z_slice[1] if self.z_slice[1] != -1 else cfg.z_size) - self.z_slice[0]
-       
-
+        # Calculate input size
+        self.z_slice = cfg.value_decoder.z_slice.copy()
+        if self.z_slice[1] == -1:
+            self.z_slice[1] = cfg.z_size
+        self.input_size = self.z_slice[1] - self.z_slice[0]
+        
         self.hidden_size = cfg.decoder.size_hidden
         self.rnn_type = cfg.decoder.rnn_type
 

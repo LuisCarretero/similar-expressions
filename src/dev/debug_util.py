@@ -475,13 +475,13 @@ def plot_interpolation(model, val_x: torch.Tensor, z_start: np.ndarray, z_end: n
     
     # Plot
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 5))
-    plot_value_interpolation(ax1, val_x, values_interp, start_true, end_true)
-    plot_value_interpolation(ax2, val_x, values_interp_syntax, start_true, end_true)
+    plot_value_interpolation(ax1, val_x, values_interp, start_true, end_true, 'Value Decoding')
+    plot_value_interpolation(ax2, val_x, values_interp_syntax, start_true, end_true, 'Syntax Decoding')
     add_colorbar(fig, ax2)
     plt.tight_layout()
     plt.show()
 
-def plot_value_interpolation(ax: plt.Axes, val_x: torch.Tensor, values_interp: torch.Tensor, start_true: np.ndarray, end_true: np.ndarray):
+def plot_value_interpolation(ax: plt.Axes, val_x: torch.Tensor, values_interp: torch.Tensor, start_true: np.ndarray, end_true: np.ndarray, title: str):
     # Pred values (interpolated)
     cmap = plt.get_cmap('rainbow')
     for idx, value in enumerate(values_interp[1:-1]):
@@ -497,7 +497,7 @@ def plot_value_interpolation(ax: plt.Axes, val_x: torch.Tensor, values_interp: t
     ax.plot(val_x.squeeze(), end_true, label='end (true)', color='pink', linewidth=2, linestyle='--')
 
     ax.legend()
-    ax.set_title('Value Decoding')
+    ax.set_title(title)
     ax.set_xlabel('X')
     ax.set_ylabel('Y')
 
