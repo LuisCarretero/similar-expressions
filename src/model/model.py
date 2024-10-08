@@ -84,7 +84,7 @@ class LitGVAE(L.LightningModule):
         # Compute losses
         kl = self.calc_kl(mean, ln_var)  # Positive definite scalar, aim to minimize
         alpha = self.kl_anneal.alpha(self.current_epoch)
-        loss, partial_losses = self.criterion(logits, values, y_syntax, y_consts, y_values, kl, alpha)
+        loss, partial_losses = self.criterion(logits, values, y_syntax, y_consts, y_values, kl, alpha, z)
 
         # Compute metrics   
         latent_metrics = compute_latent_metrics(mean, ln_var)
@@ -109,7 +109,7 @@ class LitGVAE(L.LightningModule):
         # Compute losses
         kl = self.calc_kl(mean, ln_var)  # Positive definite scalar, aim to minimize
         alpha = self.kl_anneal.alpha(self.current_epoch)
-        loss, partial_losses = self.criterion(logits, values, y_syntax, y_consts, y_values, kl, alpha)
+        loss, partial_losses = self.criterion(logits, values, y_syntax, y_consts, y_values, kl, alpha, z)
 
         # Compute metrics   
         latent_metrics = compute_latent_metrics(mean, ln_var)

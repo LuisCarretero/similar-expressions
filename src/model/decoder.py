@@ -6,10 +6,17 @@ class Decoder(nn.Module):
     """RNN decoder that reconstructs the sequence of rules from laten z"""
     def __init__(self, cfg: ModelConfig):
         super().__init__()  # Decoder, self
+
+        # Calculate input size
+        self.z_slice = cfg.value_decoder.z_slice.copy()
+        if self.z_slice[1] == -1:
+            self.z_slice[1] = cfg.z_size
+        self.input_size = self.z_slice[1] - self.z_slice[0]
+        
         self.hidden_size = cfg.decoder.size_hidden
         self.rnn_type = cfg.decoder.rnn_type
 
-        self.linear_in = nn.Linear(cfg.z_size, self.hidden_size)
+        self.linear_in = nn.Linear(self.input_size, self.hidden_size)
         self.linear_out = nn.Linear(self.hidden_size, cfg.io_format.token_cnt)
 
         if self.rnn_type == 'lstm':
@@ -33,6 +40,9 @@ class Decoder(nn.Module):
 
         Output size is [batch, max_length, token_cnt]  where token_cnt includes const category
         """
+        # Get relevant part of latent space
+        z = z[:, self.z_slice[0]:self.z_slice[1]]
+
         x = self.linear_in(z)
         x = self.relu(x)
 

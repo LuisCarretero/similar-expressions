@@ -6,10 +6,12 @@
     },
     "z_size": 192,
     "decoder": {
+      "z_slice": [0, -1],
       "size_hidden": 128,
       "rnn_type": "lstm"
     },
     "value_decoder": {
+      "z_slice": [0, -1],
       "conv_size": "large"
     },
     "io_format": {
@@ -26,7 +28,8 @@
     "criterion": {
       "ae_weight": 0.4,
       "kl_weight": 0.1,
-      "syntax_weight": 0.5
+      "syntax_weight": 0.5,
+      "contrastive_weight": 0.01
     },
     "sampling": {
       "prior_std": 1,

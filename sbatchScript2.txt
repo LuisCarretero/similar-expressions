@@ -1,0 +1,26 @@
+#!/bin/bash
+
+#SBATCH -J test1
+#SBATCH --nodes=1
+#SBATCH --time=00:10:00
+
+#! Load environment (activate conda environment)
+source ~/miniconda3/bin/activate
+conda activate your_env_name
+
+#! Define the application and options
+application="python"
+options="train.py"
+
+#! Working directory
+workdir="$SLURM_SUBMIT_DIR"
+
+#! Move to the working directory
+cd $workdir
+echo "Running in directory: `pwd`"
+
+#! Run the Python script using the options
+CMD="$application $options"
+
+echo "Executing command: $CMD"
+eval $CMD
