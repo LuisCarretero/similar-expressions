@@ -170,8 +170,6 @@ def dict_to_config(cfg_dict: dict, fallback_dict: dict = None) -> Config:
                 print(f"Unexpected key in {config_class.__name__}: {key}")
         return config_class(**{k: v for k, v in config_dict.items() if k in expected_keys})
     
-
-    print(merged_cfg['model']['value_decoder'])
     return Config(
         model=ModelConfig(
             encoder=create_config_with_error_check(EncoderConfig, merged_cfg['model']['encoder']),

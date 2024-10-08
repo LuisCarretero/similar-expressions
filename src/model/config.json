@@ -2,17 +2,17 @@
   "model": {
     "encoder": {
       "size_hidden": 256,
-      "conv_size": "extra_large"
+      "conv_size": "large_mlp"
     },
-    "z_size": 256,
+    "z_size": 512,
     "decoder": {
       "z_slice": [0, -1],
       "size_hidden": 128,
       "rnn_type": "lstm"
     },
     "value_decoder": {
-      "z_slice": [0, 192],
-      "conv_size": "large"
+      "z_slice": [0, 384],
+      "conv_size": "extra_large"
     },
     "io_format": {
       "seq_len": 15,
@@ -27,7 +27,7 @@
     "dataset_len_limit": null,
     "criterion": {
       "ae_weight": 0.4,
-      "kl_weight": 0.04,
+      "kl_weight": 0,
       "syntax_weight": 0.5,
       "contrastive_weight": 0
     },
