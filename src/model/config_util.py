@@ -100,7 +100,6 @@ def dict_to_config(cfg_dict: dict, fallback_dict: dict = None) -> Config:
                 },
                 'value_decoder': {
                     'z_slice': [0, -1],
-                    'size_lin1': 64,
                     'conv_size': 'medium'  # FIXME: Rename
                 },
                 'io_format': {
