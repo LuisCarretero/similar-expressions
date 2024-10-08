@@ -39,8 +39,13 @@ def main(cfg_path, data_path, dataset_name):
     # Load config
     cfg_dict, cfg = load_config(cfg_path)
 
+    # Determine the number of workers for data loading
+    if 'SLURM_CPUS_PER_TASK' in os.environ:
+        n = int(os.environ['SLURM_CPUS_PER_TASK'])
+    else:
+        n = min(os.cpu_count(), 8)
+
     # Load data
-    n = min(os.cpu_count(), 8)
     print(f"Using {n} workers for data loading.")
     train_loader, valid_loader, data_info = create_dataloader(data_path, dataset_name, cfg, num_workers=n)
     priors, _ = calc_priors_and_means(train_loader)  # TODO: Introduce bias initialization
@@ -72,10 +77,11 @@ def main(cfg_path, data_path, dataset_name):
     )
 
     # Determine appropriate strategy
-    if dist.is_available() and dist.is_initialized():
-        strategy = DDPStrategy(find_unused_parameters=True)
+    if 'SLURM_JOB_ID' in os.environ:  # Running distributed via SLURM
+        strategy = DDPStrategy(find_unused_parameters=False)
     else:
         strategy = "auto"
+    print(f"Using strategy: {strategy}")
 
     # Setup trainer and train model
     trainer = L.Trainer(
@@ -95,8 +101,8 @@ def main(cfg_path, data_path, dataset_name):
 
 if __name__ == '__main__':
     cfg_path = 'src/model/config.json'  # /home/lc865/workspace/similar-expressions/src/model
-    data_path = '/Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/similar-expressions/data'  #  /store/DAMTP/lc865/workspace/data
-    main(cfg_path, data_path, dataset_name='dataset_240910_2')  # dataset_240910_1, dataset_240822_1, dataset_240817_2
+    data_path = '/store/DAMTP/lc865/workspace/data'  # /Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/similar-expressions/data'  #  
+    main(cfg_path, data_path, dataset_name='dataset_241008_1')  # dataset_240910_1, dataset_240822_1, dataset_240817_2
 
 
 

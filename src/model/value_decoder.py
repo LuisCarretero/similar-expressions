@@ -17,6 +17,7 @@ class ValueDecoder(nn.Module):
             self.fc1 = nn.Linear(self.input_size, 256)
             self.fc2 = nn.Linear(256, 256)
             self.final_linear = nn.Linear(256, cfg.io_format.val_points)
+            self.fc3 = None
             self.fc4 = None
             self.fc5 = None
         elif cfg.value_decoder.conv_size == 'medium':
@@ -24,6 +25,7 @@ class ValueDecoder(nn.Module):
             self.fc2 = nn.Linear(256, 256)
             self.fc3 = nn.Linear(256, 512)
             self.fc4 = nn.Linear(512, 512)
+            self.fc5 = None
             self.final_linear = nn.Linear(512, cfg.io_format.val_points)
         elif cfg.value_decoder.conv_size == 'large':
             self.fc1 = nn.Linear(self.input_size, 256)
@@ -47,6 +49,8 @@ class ValueDecoder(nn.Module):
             h = F.relu(self.fc3(h))
         if self.fc4 is not None:
             h = F.relu(self.fc4(h))
+        if self.fc5 is not None:
+            h = F.relu(self.fc5(h))
         
         # Output layer with linear activation
         val_y = self.final_linear(h)
