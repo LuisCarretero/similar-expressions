@@ -18,7 +18,6 @@ import os
 seed_everything(42, workers=True, verbose=False)
 
 
-# Create a custom callback to access the WandB run name before training starts
 class SetupModelCheckpointCallback(Callback):
     """
     Custom callback to access the WandB run data. Cannot be called during setup as Logger is initialised only during trainer.fit().
@@ -49,16 +48,10 @@ def main(cfg_path, data_path, dataset_name):
     gvae = LitGVAE(cfg, priors)
 
     # Setup logger
-    # wandb.login(key='cd5c73053597ae69531c4fd3cb555fe2c0aadb86')
     logger = WandbLogger(project='similar-expressions-01')  # Disable automatic syncing
     cfg_dict['dataset_hashes'] = info['hashes']
     cfg_dict['dataset_name'] = info['dataset_name']
     logger.log_hyperparams(cfg_dict)
-
-    # Save cfg object to wandb files
-    # with open(logger.experiment.dir + '/config.pkl', 'wb') as f:
-    #     pickle.dump(cfg, f)
-    # wandb.save('config.pkl')
 
     checkpoint_callback = ModelCheckpoint(
         # dirpath='/store/DAMTP/lc865/workspace/checkpoints/similar-expressions-01/', 
