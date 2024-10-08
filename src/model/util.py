@@ -102,16 +102,16 @@ def criterion_factory(cfg: Config, priors: Dict):
         loss_values = mse(values_pred, y_val)/VALUES_PRIOR
 
         # Contrastive loss (batch-wise)
-        # y_val = y_val / y_val.norm(dim=1, keepdim=True)
-        # values_dist = l2_dist(y_val.unsqueeze(1), y_val.unsqueeze(0))  # Make this indep of z_size, add some scaling factor
-        # gamma = gamma_func(values_dist.square())  # Scaling factor: Only if graphs are similar should large z_dissim be penalized
+        y_val = y_val / y_val.norm(dim=1, keepdim=True)
+        values_dist = l2_dist(y_val.unsqueeze(1), y_val.unsqueeze(0))  # Make this indep of z_size, add some scaling factor
+        gamma = gamma_func(values_dist.square())  # Scaling factor: Only if graphs are similar should large z_dissim be penalized
 
-        # z_sim = F.cosine_similarity(z.unsqueeze(1), z.unsqueeze(0), dim=2)  # -> 1 if similar, 0 if unrelated, -> -1 if different
-        # z_dissim_loss = -torch.log((1+z_sim)/2)  # -> 1 if different, 0 if similar, -> 2 if unrelated
-        # loss_contrastive = torch.sum(gamma * z_dissim_loss)
+        z_sim = F.cosine_similarity(z.unsqueeze(1), z.unsqueeze(0), dim=2)  # -> 1 if similar, 0 if unrelated, -> -1 if different
+        z_dissim_loss = -torch.log((1+z_sim)/2)  # -> 1 if different, 0 if similar, -> 2 if unrelated
+        loss_contrastive = torch.sum(gamma * z_dissim_loss)
 
         # Total loss
-        loss = AE_WEIGHT*loss_vae + (1-AE_WEIGHT)*loss_values # + CONTRASTIVE_WEIGHT*loss_contrastive
+        loss = AE_WEIGHT*loss_vae + (1-AE_WEIGHT)*loss_values + CONTRASTIVE_WEIGHT*loss_contrastive
 
         partial_losses = {
             'loss_syntax': loss_syntax.item(),
@@ -121,7 +121,7 @@ def criterion_factory(cfg: Config, priors: Dict):
             'alpha': alpha,
             'loss_vae': loss_vae.item(),   # -ELBO but with KL_WEIGHT*alpha so really only some distant cousing of ELBO
             'loss_values': loss_values.item(),
-            # 'loss_contrastive': loss_contrastive.item(),
+            'loss_contrastive': loss_contrastive.item(),
             'loss': loss.item()
         }
 

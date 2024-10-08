@@ -11,7 +11,7 @@
       "rnn_type": "lstm"
     },
     "value_decoder": {
-      "z_slice": [0, -1],
+      "z_slice": [0, 192],
       "conv_size": "large"
     },
     "io_format": {
