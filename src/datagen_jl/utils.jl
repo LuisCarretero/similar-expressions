@@ -1,7 +1,6 @@
 module Utils
 
-import ..ExpressionGenerator: ExpressionGeneratorConfig
-# import ..DatasetModule: Dataset
+using ..ExpressionGenerator: ExpressionGeneratorConfig
 using DynamicExpressions: eval_tree_array, OperatorEnum, Node
 
 export eval_trees, encode_trees, node_to_token_idx
@@ -9,33 +8,56 @@ export eval_trees, encode_trees, node_to_token_idx
 
 
 struct FilterSettings
-    max_abs_value::Float64  # -1 if not used
-    max_1st_deriv::Float64  # -1 if not used
+    max_abs_value::Float64
+    max_1st_deriv::Float64
+    max_2nd_deriv::Float64
+    max_3rd_deriv::Float64
+    max_4th_deriv::Float64
     filter_unique_skeletons::Bool
     filter_unique_expressions::Bool
     unique_expression_const_tol::Int  # digits of precision for considering two expressions as the same
 
     # Constructor with keyword arguments
     FilterSettings(;
-        max_abs_value::Float64 = 1e5,
-        max_1st_deriv::Float64 = 1e5,
+        max_abs_value::Float64 = 1e2,
+        max_1st_deriv::Float64 = 1e2,
+        max_2nd_deriv::Float64 = 1e2,
+        max_3rd_deriv::Float64 = 1e2,
+        max_4th_deriv::Float64 = 1e2,
         filter_unique_skeletons::Bool = true,
         filter_unique_expressions::Bool = true,
         unique_expression_const_tol::Int = 3
-    ) = new(max_abs_value, max_1st_deriv, filter_unique_skeletons, filter_unique_expressions, unique_expression_const_tol)
+    ) = new(max_abs_value, max_1st_deriv, max_2nd_deriv, max_3rd_deriv, max_4th_deriv, filter_unique_skeletons, filter_unique_expressions, unique_expression_const_tol)
 end
 
 function filter_evaluated_trees(trees::Vector{Node{T}}, eval_y::AbstractMatrix{T}, success::Vector{Bool}, eval_x::AbstractMatrix{T}, settings::FilterSettings) where T <: Number
     # TODO: Use dataset?
+    println("Checking ", length(success), " expressions.")
+    println("Number of valid expressions after evaluation: ", sum(success) / length(success))
     valid = success
-    
-    # Checks
-    if settings.max_abs_value != -1
-        valid = valid .& all((abs.(eval_y) .< settings.max_abs_value), dims=2)
-    end
-    if settings.max_1st_deriv != -1
-        valid = valid .& all((abs.(first_deriv(eval_x, eval_y)) .< settings.max_1st_deriv), dims=2)
-    end
+
+    # Absolute value check (original values)
+    valid = valid .& all((abs.(eval_y) .< settings.max_abs_value), dims=2)
+    println("Number of valid expressions after abs value check: ", sum(valid) / length(valid))
+
+    # Checks (using transformed values)  # FIXME: Allow to provide transformation to be applied?
+    min_, max_ = asinh(-settings.max_abs_value), asinh(settings.max_abs_value)
+    value_transform = x -> 2 * (asinh(x) - min_) / (max_ - min_) - 1  # Center in range [-1, 1]
+    eval_y_transformed = value_transform.(eval_y)
+
+    deriv_1 = first_deriv(eval_x, eval_y_transformed)
+    deriv_2 = first_deriv(eval_x[:, 2:end], deriv_1)
+    deriv_3 = first_deriv(eval_x[:, 3:end], deriv_2)
+    deriv_4 = first_deriv(eval_x[:, 4:end], deriv_3)
+
+    valid = valid .& all((abs.(deriv_1) .< settings.max_1st_deriv), dims=2)
+    println("Number of valid expressions after 1st deriv check: ", sum(valid) / length(valid))
+    valid = valid .& all((abs.(deriv_2) .< settings.max_2nd_deriv), dims=2)
+    println("Number of valid expressions after 2nd deriv check: ", sum(valid) / length(valid))
+    valid = valid .& all((abs.(deriv_3) .< settings.max_3rd_deriv), dims=2)
+    println("Number of valid expressions after 3rd deriv check: ", sum(valid) / length(valid))
+    valid = valid .& all((abs.(deriv_4) .< settings.max_4th_deriv), dims=2)
+    println("Number of valid expressions after 4th deriv check: ", sum(valid) / length(valid))
 
     # Filter
     valid = vec(valid)
@@ -134,12 +156,15 @@ end
 function filter_encoded_trees(onehot::BitArray{3}, consts::AbstractMatrix{Float64}, success::AbstractVector{Bool}, settings::FilterSettings)
     # TODO: Use dataset?
     valid = success
+    println("Checking ", length(valid), " expressions.")
     # Checks
     if settings.filter_unique_skeletons
         check_unique_skeletons!(onehot, valid)
+        println("Number of valid expressions after skeleton check: ", sum(valid) / length(valid))
     end
     if settings.filter_unique_expressions
         check_unique_expressions!(onehot, consts, valid, settings)
+        println("Number of valid expressions after expression check: ", sum(valid) / length(valid))
     end
 
     # Filter
