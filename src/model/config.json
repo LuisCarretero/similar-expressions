@@ -21,10 +21,10 @@
     }
   },
   "training": {
-    "batch_size": 512,
-    "epochs": 50,
+    "batch_size": 128,
+    "epochs": 2,
     "valid_split": 0.1,
-    "dataset_len_limit": null,
+    "dataset_len_limit": 100000,
     "criterion": {
       "ae_weight": 0.4,
       "kl_weight": 0.04,
