@@ -175,7 +175,7 @@ class LitGVAE(L.LightningModule):
         avg_metrics = {k: sum(step_dict[k] for step_dict in buffer) / len(buffer) for k in buffer[0]}
 
         # Log the averaged metrics
-        self.log_dict(avg_metrics)
+        self.log_dict(avg_metrics, sync_dist=True)
         
         # Clear the buffer
         buffer.clear()
