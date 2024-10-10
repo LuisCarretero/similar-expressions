@@ -34,16 +34,24 @@ class ValueDecoder(nn.Module):
             self.fc4 = nn.Linear(512, 1024)
             self.fc5 = nn.Linear(1024, 1024)
             self.final_linear = nn.Linear(1024, cfg.io_format.val_points)
+        elif cfg.value_decoder.conv_size == 'extra_large':
+            self.fc1 = nn.Linear(self.input_size, 512)
+            self.fc2 = nn.Linear(512, 1024)
+            self.fc3 = nn.Linear(1024, 2048)
+            self.fc4 = nn.Linear(2048, 2048)
+            self.fc5 = nn.Linear(2048, 2048)
+            self.fc7 = nn.Linear(2048, 2048)
+            self.final_linear = nn.Linear(2048, cfg.io_format.val_points)
         else:
             raise ValueError(f'Invalid value for `conv_size`: {cfg.value_decoder.conv_size}.'
                              ' Must be in [small, medium, large]')
     
     def forward(self, z):
         # Get relevant part of latent space
-        z = z[:, self.z_slice[0]:self.z_slice[1]]
+        u = z[:, self.z_slice[0]:self.z_slice[1]]
 
         # Forward pass through the layers with ReLU activations
-        h = F.relu(self.fc1(z))
+        h = F.relu(self.fc1(u))
         h = F.relu(self.fc2(h))
         if self.fc3 is not None:
             h = F.relu(self.fc3(h))
