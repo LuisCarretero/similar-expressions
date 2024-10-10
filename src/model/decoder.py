@@ -21,8 +21,23 @@ class Decoder(nn.Module):
 
         if self.rnn_type == 'lstm':
             self.rnn = nn.LSTM(self.hidden_size, self.hidden_size, batch_first=True)
+        elif self.rnn_type == 'lstm-large':
+            self.rnn = nn.LSTM(self.hidden_size, self.hidden_size, num_layers=5, batch_first=True)
         elif self.rnn_type == 'gru':
             self.rnn = nn.GRU(self.hidden_size, self.hidden_size, batch_first=True)
+        elif self.rnn_type == 'mlp':
+            self.lin = nn.Sequential(
+                nn.Linear(self.input_size, 512),
+                nn.ReLU(),
+                nn.Linear(512, 1024),
+                nn.ReLU(),
+                nn.Linear(1024, 1024),
+                nn.ReLU(),
+                nn.Linear(1024, 1024),
+                nn.ReLU(),
+                nn.Linear(1024, self.hidden_size*cfg.io_format.seq_len),
+                nn.ReLU()
+            )
         else:
             raise ValueError('Select rnn_type from [lstm, gru]')
 
@@ -42,23 +57,28 @@ class Decoder(nn.Module):
         """
         # Get relevant part of latent space
         z = z[:, self.z_slice[0]:self.z_slice[1]]
-
-        x = self.linear_in(z)
-        x = self.relu(x)
-
-        # The input to the rnn is the same for each timestep: it is z.
-        x = x.unsqueeze(1).expand(-1, max_length, -1)
-
         batch_size = z.size(0)
-        if self.rnn_type == 'lstm':
-            # Init hidden and cell states
-            h0 = torch.zeros(1, batch_size, self.hidden_size).to(z.device)
-            c0 = torch.zeros(1, batch_size, self.hidden_size).to(z.device)
-            hx = (h0, c0)
-        else:  # for GRU
-            hx = torch.zeros(1, batch_size, self.hidden_size).to(z.device)
 
-        x, _ = self.rnn(x, hx)
+        if self.rnn_type != 'mlp':
+            x = self.linear_in(z)
+            x = self.relu(x)
+
+            # The input to the rnn is the same for each timestep: it is z.
+            x = x.unsqueeze(1).expand(-1, max_length, -1)
+
+            if self.rnn_type == 'lstm' or self.rnn_type == 'lstm-large':
+                # Init hidden and cell states
+                h0 = torch.zeros(1, batch_size, self.hidden_size).to(z.device)
+                c0 = torch.zeros(1, batch_size, self.hidden_size).to(z.device)
+                hx = (h0, c0)
+            else:  # for GRU
+                hx = torch.zeros(1, batch_size, self.hidden_size).to(z.device)
+
+            x, _ = self.rnn(x, hx)
+        else:
+            x = self.lin(z)
+            x = x.view(batch_size, max_length, self.hidden_size)
+
         x = self.relu(x)
         x = self.linear_out(x)
         return x

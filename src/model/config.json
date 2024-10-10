@@ -8,7 +8,7 @@
     "decoder": {
       "z_slice": [0, -1],
       "size_hidden": 128,
-      "rnn_type": "lstm"
+      "rnn_type": "mlp"
     },
     "value_decoder": {
       "z_slice": [0, 384],
