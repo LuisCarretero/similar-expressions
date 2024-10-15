@@ -49,7 +49,7 @@ class CustomTorchDataset(Dataset):
         if self.old_x_format:
             x = self.data_syntax[idx].transpose(-2, -1)  # Shape: (1, n_tokens+1, seq_len)
         else:
-            x = self.data_syntax[idx]  # Shape: (1, n_tokens+1, seq_len), 
+            x = self.data_syntax[idx]  # Shape: (1, seq_len, n_tokens+1)
         
         y_rule_idx = self.data_syntax[idx, :, :-1].argmax(axis=-1) # The rule index (argmax over onehot part, excluding consts) 
         y_consts = self.data_syntax[idx, :, -1]
@@ -89,9 +89,9 @@ def calc_priors_and_means(dataloader: torch.utils.data.DataLoader):
 
 def get_empty_priors():
     return {
-        'syntax_prior': 0,
-        'consts_prior': 0,
-        'values_prior': 0
+        'syntax_prior': 1,
+        'consts_prior': 1,
+        'values_prior': 1
     }
 
 def load_dataset(datapath, name):
