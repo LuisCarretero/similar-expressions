@@ -27,15 +27,15 @@ class Decoder(nn.Module):
             self.rnn = nn.GRU(self.hidden_size, self.hidden_size, batch_first=True)
         elif self.rnn_type == 'mlp':
             self.lin = nn.Sequential(
-                nn.Linear(self.input_size, 512),
+                nn.Linear(self.hidden_size, 512),
                 nn.ReLU(),
                 nn.Linear(512, 1024),
                 nn.ReLU(),
                 nn.Linear(1024, 1024),
                 nn.ReLU(),
-                nn.Linear(1024, 1024),
+                nn.Linear(1024, 2048),
                 nn.ReLU(),
-                nn.Linear(1024, self.hidden_size*cfg.io_format.seq_len),
+                nn.Linear(2048, self.hidden_size*cfg.io_format.seq_len),
                 nn.ReLU()
             )
         else:
@@ -76,7 +76,8 @@ class Decoder(nn.Module):
 
             x, _ = self.rnn(x, hx)
         else:
-            x = self.lin(z)
+            x = self.linear_in(z)
+            x = self.lin(x)
             x = x.view(batch_size, max_length, self.hidden_size)
 
         x = self.relu(x)

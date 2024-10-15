@@ -17,16 +17,16 @@ class Encoder(nn.Module):
         # input_dim, hidden_dim=20, z_dim=2, conv_size='large'
         if cfg.encoder.conv_size == 'small':
             # 12 rules, so 12 input channels
-            self.l1 = nn.Conv1d(input_dim, 2)
-            self.l2 = nn.Conv1d(2, 3)
-            self.l3 = nn.Conv1d(3, 4)
+            self.l1 = nn.Conv1d(input_dim, 2, kernel_size=2)
+            self.l2 = nn.Conv1d(2, 3, kernel_size=3)
+            self.l3 = nn.Conv1d(3, 4, kernel_size=4)
             self.l_out = nn.Linear(36, cfg.encoder.size_hidden)
             self.l4 = None
             self.mode = 'conv'
         elif cfg.encoder.conv_size == 'large':
-            self.l1 = nn.Conv1d(input_dim, input_dim*2)
-            self.l2 = nn.Conv1d(input_dim*2, input_dim)
-            self.l3 = nn.Conv1d(input_dim, input_dim)
+            self.l1 = nn.Conv1d(input_dim, input_dim*2, kernel_size=2)
+            self.l2 = nn.Conv1d(input_dim*2, input_dim, kernel_size=3)
+            self.l3 = nn.Conv1d(input_dim, input_dim, kernel_size=4)
             self.l_out = nn.Linear(input_dim*9, cfg.encoder.size_hidden)  # 15+(-2+1)+(-3+1)+(-4+1)=9 from sequence length + conv sizes
             self.l4 = None
             self.mode = 'conv'
@@ -42,7 +42,9 @@ class Encoder(nn.Module):
             self.l2 = nn.Linear(256, 512)
             self.l3 = nn.Linear(512, 1024)
             self.l4 = nn.Linear(1024, 2048)
-            self.l_out = nn.Linear(2048, cfg.encoder.size_hidden)
+            self.l5 = nn.Linear(2048, 1024)
+            self.l6 = nn.Linear(1024, 512)
+            self.l_out = nn.Linear(512, cfg.encoder.size_hidden)
             self.mode = 'mlp'
         else:
             raise ValueError(f'Invalid value for `conv_size`: {cfg.encoder.conv_size}.'
@@ -77,6 +79,8 @@ class Encoder(nn.Module):
             h = self.relu(self.l2(h))
             h = self.relu(self.l3(h))
             h = self.relu(self.l4(h))
+            h = self.relu(self.l5(h))
+            h = self.relu(self.l6(h))
             h = self.relu(self.l_out(h))
 
         mu = self.mu(h)

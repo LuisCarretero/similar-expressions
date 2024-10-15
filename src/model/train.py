@@ -6,14 +6,12 @@ import lightning as L
 from data_util import create_dataloader, calc_priors_and_means, summarize_dataloaders
 from lightning.pytorch.loggers import WandbLogger
 from lightning.pytorch import seed_everything
-from lightning.pytorch.callbacks import ModelCheckpoint
-from lightning.pytorch.profilers import AdvancedProfiler
+from lightning.pytorch.callbacks import ModelCheckpoint, Callback
 from lightning.pytorch.callbacks.early_stopping import EarlyStopping
 from lightning.pytorch.strategies import DDPStrategy
-from lightning.pytorch.callbacks import Callback
-import torch.distributed as dist
 import wandb
 import os
+import torch
 
 seed_everything(42, workers=True, verbose=False)
 
@@ -64,26 +62,27 @@ def main(cfg_path, data_path, dataset_name):
         filename='{epoch:02d}', 
         monitor='valid/loss', 
         mode='min', 
-        save_top_k=0, 
+        save_top_k=1, 
         save_last=True
     )
 
     early_stopping_callback = EarlyStopping(
         monitor="valid/loss", 
-        min_delta=0.00, 
-        patience=4, 
+        min_delta=0.001, 
+        patience=5, 
         verbose=False, 
         mode="min"
     )
 
     # Determine appropriate strategy
     if 'SLURM_JOB_ID' in os.environ:  # Running distributed via SLURM
-        strategy = DDPStrategy(find_unused_parameters=False)
+        strategy = DDPStrategy(find_unused_parameters=False, process_group_backend="nccl")
     else:
         strategy = "auto"
     print(f"Using strategy: {strategy}")
 
     # Setup trainer and train model
+    torch.set_float32_matmul_precision('medium')
     trainer = L.Trainer(
         logger=logger, 
         max_epochs=cfg.training.epochs, 
@@ -91,6 +90,7 @@ def main(cfg_path, data_path, dataset_name):
         callbacks=[checkpoint_callback, early_stopping_callback, SetupModelCheckpointCallback()],
         # profiler=AdvancedProfiler(dirpath='.', filename='profile.txt'),
         log_every_n_steps=100,
+        devices=4,
         strategy=strategy
     )
     trainer.fit(gvae, train_loader, valid_loader)
@@ -100,8 +100,8 @@ def main(cfg_path, data_path, dataset_name):
 
 
 if __name__ == '__main__':
-    cfg_path = 'src/model/config.json'  # /home/lc865/workspace/similar-expressions/src/model
-    data_path = '/Users/luis/Desktop/Cranmer2024/Workplace/smallMutations/similar-expressions/data'  # /Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/similar-expressions/data'  #  
+    cfg_path = 'src/model/config.json'
+    data_path = ['/store/DAMTP/lc865/workspace/data', '/Users/luis/Desktop/Cranmer2024/Workplace/smallMutations/similar-expressions/data'][0]
     main(cfg_path, data_path, dataset_name='dataset_241008_1')  # dataset_240910_1, dataset_240822_1, dataset_240817_2
 
 

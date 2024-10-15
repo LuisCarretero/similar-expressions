@@ -20,12 +20,16 @@ class ValueDecoder(nn.Module):
             self.fc3 = None
             self.fc4 = None
             self.fc5 = None
+            self.fc6 = None
+            self.fc7 = None
         elif cfg.value_decoder.conv_size == 'medium':
             self.fc1 = nn.Linear(self.input_size, 256)
             self.fc2 = nn.Linear(256, 256)
             self.fc3 = nn.Linear(256, 512)
             self.fc4 = nn.Linear(512, 512)
             self.fc5 = None
+            self.fc6 = None
+            self.fc7 = None
             self.final_linear = nn.Linear(512, cfg.io_format.val_points)
         elif cfg.value_decoder.conv_size == 'large':
             self.fc1 = nn.Linear(self.input_size, 256)
@@ -33,6 +37,8 @@ class ValueDecoder(nn.Module):
             self.fc3 = nn.Linear(512, 512)
             self.fc4 = nn.Linear(512, 1024)
             self.fc5 = nn.Linear(1024, 1024)
+            self.fc6 = nn.Linear(1024, 1024)
+            self.fc7 = None
             self.final_linear = nn.Linear(1024, cfg.io_format.val_points)
         elif cfg.value_decoder.conv_size == 'extra_large':
             self.fc1 = nn.Linear(self.input_size, 512)
@@ -40,6 +46,7 @@ class ValueDecoder(nn.Module):
             self.fc3 = nn.Linear(1024, 2048)
             self.fc4 = nn.Linear(2048, 2048)
             self.fc5 = nn.Linear(2048, 2048)
+            self.fc6 = nn.Linear(2048, 2048)
             self.fc7 = nn.Linear(2048, 2048)
             self.final_linear = nn.Linear(2048, cfg.io_format.val_points)
         else:
@@ -59,6 +66,10 @@ class ValueDecoder(nn.Module):
             h = F.relu(self.fc4(h))
         if self.fc5 is not None:
             h = F.relu(self.fc5(h))
+        if self.fc6 is not None:
+            h = F.relu(self.fc6(h))
+        if self.fc7 is not None:
+            h = F.relu(self.fc7(h))
         
         # Output layer with linear activation
         val_y = self.final_linear(h)
