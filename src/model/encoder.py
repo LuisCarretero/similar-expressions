@@ -59,6 +59,13 @@ class Encoder(nn.Module):
                 nn.Linear(512, 512), nn.ReLU(),
                 nn.Linear(512, cfg.encoder.size_hidden), nn.ReLU()
             )
+        elif cfg.encoder.conv_size == 'mlp-wide':
+            self.mlp = nn.Sequential(
+                nn.Flatten(),
+                nn.Linear(seq_length*input_dim, 1024), nn.ReLU(),
+                nn.Linear(1024, 1024), nn.ReLU(),
+                nn.Linear(1024, cfg.encoder.size_hidden), nn.ReLU()
+            )
         else:
             raise ValueError(f'Invalid value for `conv_size`: {cfg.encoder.conv_size}.'
                              ' Must be in [small, large, extra_large]')

@@ -71,6 +71,7 @@ class TrainingConfig:
     kl_anneal: AnnealConfig
     values_init_bias: bool
     use_grammar_mask: bool
+    performance_metric: str
 
 @dataclass
 class Config:
@@ -131,6 +132,7 @@ def dict_to_config(cfg_dict: dict, fallback_dict: dict = None) -> Config:
                     'scheduler_threshold': 1e-4,
                     'scheduler_min_lr': 1e-6
                 },
+                'performance_metric': 'valid/loss',
                 'kl_anneal': {
                     'schedule': 'sigmoid',
                     'midpoint': 0.3,
@@ -188,6 +190,7 @@ def dict_to_config(cfg_dict: dict, fallback_dict: dict = None) -> Config:
             optimizer=create_config_with_error_check(OptimizerConfig, merged_cfg['training']['optimizer']),
             kl_anneal=create_config_with_error_check(AnnealConfig, merged_cfg['training']['kl_anneal']),
             values_init_bias=merged_cfg['training']['values_init_bias'],
-            use_grammar_mask=merged_cfg['training']['use_grammar_mask']
+            use_grammar_mask=merged_cfg['training']['use_grammar_mask'],
+            performance_metric=merged_cfg['training']['performance_metric']
         )
     )

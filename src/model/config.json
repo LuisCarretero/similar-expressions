@@ -2,7 +2,7 @@
   "model": {
     "encoder": {
       "size_hidden": 256,
-      "conv_size": "mlp"
+      "conv_size": "mlp-wide"
     },
     "z_size": 512,
     "decoder": {
@@ -12,7 +12,7 @@
     },
     "value_decoder": {
       "z_slice": [0, 384],
-      "conv_size": "medium-new"
+      "conv_size": "medium-wide"
     },
     "io_format": {
       "seq_len": 15,
@@ -26,7 +26,7 @@
     "valid_split": 0.1,
     "dataset_len_limit": null,
     "criterion": {
-      "ae_weight": 0.4,
+      "ae_weight": 0.0,
       "kl_weight": 0,
       "syntax_weight": 0.5,
       "contrastive_weight": 0
@@ -43,6 +43,7 @@
       "scheduler_threshold": 1e-3,
       "scheduler_min_lr": 1e-5
     },
+    "performance_metric": "train/loss",
     "kl_anneal": {
       "schedule": "sigmoid",
       "midpoint": 0.4,

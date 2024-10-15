@@ -60,14 +60,14 @@ def main(cfg_path, data_path, dataset_name):
 
     checkpoint_callback = ModelCheckpoint(
         filename='{epoch:02d}', 
-        monitor='valid/loss', 
+        monitor=cfg.training.performance_metric, 
         mode='min', 
-        save_top_k=1, 
+        save_top_k=0, # If this is used, need to specify correct dirpath
         save_last=True
     )
 
     early_stopping_callback = EarlyStopping(
-        monitor="valid/loss", 
+        monitor=cfg.training.performance_metric, 
         min_delta=0.001, 
         patience=5, 
         verbose=False, 
@@ -88,7 +88,6 @@ def main(cfg_path, data_path, dataset_name):
         max_epochs=cfg.training.epochs, 
         gradient_clip_val=cfg.training.optimizer.clip,
         callbacks=[checkpoint_callback, early_stopping_callback, SetupModelCheckpointCallback()],
-        # profiler=AdvancedProfiler(dirpath='.', filename='profile.txt'),
         log_every_n_steps=100,
         devices=4,
         strategy=strategy

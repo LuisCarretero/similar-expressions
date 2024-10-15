@@ -34,6 +34,12 @@ class ValueDecoder(nn.Module):
                 nn.Linear(1024, 1024), nn.ReLU(),
                 nn.Linear(1024, cfg.io_format.val_points)
             )
+        elif cfg.value_decoder.conv_size == 'medium-wide':
+            self.lin = nn.Sequential(
+                nn.Linear(self.input_size, 2048), nn.ReLU(),
+                nn.Linear(2048, 2048), nn.ReLU(),
+                nn.Linear(2048, cfg.io_format.val_points)
+            )
         elif cfg.value_decoder.conv_size == 'large':
             self.lin = nn.Sequential(
                 nn.Linear(self.input_size, 256), nn.ReLU(),
