@@ -14,41 +14,45 @@ class ValueDecoder(nn.Module):
         
         # Define the layers
         if cfg.value_decoder.conv_size == 'small':
-            self.fc1 = nn.Linear(self.input_size, 256)
-            self.fc2 = nn.Linear(256, 256)
-            self.final_linear = nn.Linear(256, cfg.io_format.val_points)
-            self.fc3 = None
-            self.fc4 = None
-            self.fc5 = None
-            self.fc6 = None
-            self.fc7 = None
+            self.lin = nn.Sequential(
+                nn.Linear(self.input_size, 256), nn.ReLU(),
+                nn.Linear(256, 256), nn.ReLU(),
+                nn.Linear(256, cfg.io_format.val_points)
+            )
         elif cfg.value_decoder.conv_size == 'medium':
-            self.fc1 = nn.Linear(self.input_size, 256)
-            self.fc2 = nn.Linear(256, 256)
-            self.fc3 = nn.Linear(256, 512)
-            self.fc4 = nn.Linear(512, 512)
-            self.fc5 = None
-            self.fc6 = None
-            self.fc7 = None
-            self.final_linear = nn.Linear(512, cfg.io_format.val_points)
+            self.lin = nn.Sequential(
+                nn.Linear(self.input_size, 256), nn.ReLU(),
+                nn.Linear(256, 256), nn.ReLU(),
+                nn.Linear(256, 512), nn.ReLU(),
+                nn.Linear(512, 512), nn.ReLU(),
+                nn.Linear(512, cfg.io_format.val_points)
+            )
+        elif cfg.value_decoder.conv_size == 'medium-new':
+            self.lin = nn.Sequential(
+                nn.Linear(self.input_size, 1024), nn.ReLU(),
+                nn.Linear(1024, 1024), nn.ReLU(),
+                nn.Linear(1024, 1024), nn.ReLU(),
+                nn.Linear(1024, cfg.io_format.val_points)
+            )
         elif cfg.value_decoder.conv_size == 'large':
-            self.fc1 = nn.Linear(self.input_size, 256)
-            self.fc2 = nn.Linear(256, 512)
-            self.fc3 = nn.Linear(512, 512)
-            self.fc4 = nn.Linear(512, 1024)
-            self.fc5 = nn.Linear(1024, 1024)
-            self.fc6 = nn.Linear(1024, 1024)
-            self.fc7 = None
-            self.final_linear = nn.Linear(1024, cfg.io_format.val_points)
+            self.lin = nn.Sequential(
+                nn.Linear(self.input_size, 256), nn.ReLU(),
+                nn.Linear(256, 512), nn.ReLU(),
+                nn.Linear(512, 512), nn.ReLU(),
+                nn.Linear(512, 1024), nn.ReLU(),
+                nn.Linear(1024, 1024), nn.ReLU(),
+                nn.Linear(1024, cfg.io_format.val_points)
+            )
         elif cfg.value_decoder.conv_size == 'extra_large':
-            self.fc1 = nn.Linear(self.input_size, 512)
-            self.fc2 = nn.Linear(512, 1024)
-            self.fc3 = nn.Linear(1024, 2048)
-            self.fc4 = nn.Linear(2048, 2048)
-            self.fc5 = nn.Linear(2048, 2048)
-            self.fc6 = nn.Linear(2048, 2048)
-            self.fc7 = nn.Linear(2048, 2048)
-            self.final_linear = nn.Linear(2048, cfg.io_format.val_points)
+            self.lin = nn.Sequential(
+                nn.Linear(self.input_size, 512), nn.ReLU(),
+                nn.Linear(512, 1024), nn.ReLU(),
+                nn.Linear(1024, 2048), nn.ReLU(),
+                nn.Linear(2048, 2048), nn.ReLU(),
+                nn.Linear(2048, 2048), nn.ReLU(),
+                nn.Linear(2048, 2048), nn.ReLU(),
+                nn.Linear(2048, cfg.io_format.val_points)
+            )
         else:
             raise ValueError(f'Invalid value for `conv_size`: {cfg.value_decoder.conv_size}.'
                              ' Must be in [small, medium, large]')
@@ -57,21 +61,5 @@ class ValueDecoder(nn.Module):
         # Get relevant part of latent space
         u = z[:, self.z_slice[0]:self.z_slice[1]]
 
-        # Forward pass through the layers with ReLU activations
-        h = F.relu(self.fc1(u))
-        h = F.relu(self.fc2(h))
-        if self.fc3 is not None:
-            h = F.relu(self.fc3(h))
-        if self.fc4 is not None:
-            h = F.relu(self.fc4(h))
-        if self.fc5 is not None:
-            h = F.relu(self.fc5(h))
-        if self.fc6 is not None:
-            h = F.relu(self.fc6(h))
-        if self.fc7 is not None:
-            h = F.relu(self.fc7(h))
-        
-        # Output layer with linear activation
-        val_y = self.final_linear(h)
-        
-        return val_y
+        out = self.lin(u)
+        return out

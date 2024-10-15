@@ -2,7 +2,7 @@
   "model": {
     "encoder": {
       "size_hidden": 256,
-      "conv_size": "large_mlp"
+      "conv_size": "mlp"
     },
     "z_size": 512,
     "decoder": {
@@ -12,7 +12,7 @@
     },
     "value_decoder": {
       "z_slice": [0, 384],
-      "conv_size": "extra_large"
+      "conv_size": "medium-new"
     },
     "io_format": {
       "seq_len": 15,

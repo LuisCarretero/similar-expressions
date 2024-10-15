@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from config_util import ModelConfig
 
 class Decoder(nn.Module):
@@ -16,9 +17,6 @@ class Decoder(nn.Module):
         self.hidden_size = cfg.decoder.size_hidden
         self.rnn_type = cfg.decoder.rnn_type
 
-        self.linear_in = nn.Linear(self.input_size, self.hidden_size)
-        self.linear_out = nn.Linear(self.hidden_size, cfg.io_format.token_cnt)
-
         if self.rnn_type == 'lstm':
             self.rnn = nn.LSTM(self.hidden_size, self.hidden_size, batch_first=True)
         elif self.rnn_type == 'lstm-large':
@@ -27,23 +25,19 @@ class Decoder(nn.Module):
             self.rnn = nn.GRU(self.hidden_size, self.hidden_size, batch_first=True)
         elif self.rnn_type == 'mlp':
             self.lin = nn.Sequential(
-                nn.Linear(self.hidden_size, 512),
-                nn.ReLU(),
-                nn.Linear(512, 1024),
-                nn.ReLU(),
-                nn.Linear(1024, 1024),
-                nn.ReLU(),
-                nn.Linear(1024, 2048),
-                nn.ReLU(),
-                nn.Linear(2048, self.hidden_size*cfg.io_format.seq_len),
-                nn.ReLU()
+                nn.Linear(self.input_size, 512), nn.ReLU(),
+                nn.Linear(512, 1024), nn.ReLU(),
+                nn.Linear(1024, 1024), nn.ReLU(),
+                nn.Linear(1024, self.hidden_size*cfg.io_format.seq_len)
             )
         else:
-            raise ValueError('Select rnn_type from [lstm, gru]')
+            raise ValueError('Select rnn_type from [lstm, lstm-large, gru, mlp]')
 
-        self.relu = nn.ReLU()
+        if self.rnn is not None:
+            self.linear_in = nn.Linear(self.input_size, self.hidden_size)
+            self.linear_out = nn.Linear(self.hidden_size, cfg.io_format.token_cnt)
     
-    def forward(self, z, max_length):
+    def forward(self, z, max_length=15):
         """The forward pass used for training the Grammar VAE.
         TODO: Does it make sense to have max_length as parameter?
 
@@ -59,9 +53,8 @@ class Decoder(nn.Module):
         z = z[:, self.z_slice[0]:self.z_slice[1]]
         batch_size = z.size(0)
 
-        if self.rnn_type != 'mlp':
-            x = self.linear_in(z)
-            x = self.relu(x)
+        if self.rnn is not None:
+            x = F.relu(self.linear_in(z))
 
             # The input to the rnn is the same for each timestep: it is z.
             x = x.unsqueeze(1).expand(-1, max_length, -1)
@@ -75,11 +68,11 @@ class Decoder(nn.Module):
                 hx = torch.zeros(1, batch_size, self.hidden_size).to(z.device)
 
             x, _ = self.rnn(x, hx)
-        else:
-            x = self.linear_in(z)
-            x = self.lin(x)
+            x = self.linear_out(F.relu(x))
+        elif self.lin is not None:
+            x = self.lin(z)
             x = x.view(batch_size, max_length, self.hidden_size)
+        else:
+            raise ValueError('Invalid rnn_type')
 
-        x = self.relu(x)
-        x = self.linear_out(x)
         return x
