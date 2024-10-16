@@ -12,11 +12,12 @@ from lightning.pytorch.strategies import DDPStrategy
 import wandb
 import os
 import torch
+import time
 
 seed_everything(42, workers=True, verbose=False)
 
 
-class SetupModelCheckpointCallback(Callback):
+class MiscCallback(Callback):
     """
     Custom callback to access the WandB run data. Cannot be called during setup as Logger is initialised only during trainer.fit().
 
@@ -32,6 +33,12 @@ class SetupModelCheckpointCallback(Callback):
             print(f"Checkpoints will be saved in: {trainer.logger.experiment.dir}")
             trainer.checkpoint_callback.dirpath = trainer.logger.experiment.dir
 
+    def on_train_end(self, trainer, pl_module):
+        if isinstance(trainer.logger, WandbLogger) and trainer.is_global_zero:
+            # print(f'Files in wandb dir: {os.listdir(trainer.logger.experiment.dir)}')
+            # FIXME: Quickfix to make sure last checkpoint is saved.
+            trainer.logger.experiment.save(os.path.join(trainer.logger.experiment.dir, 'last.ckpt'),
+                                           base_path=trainer.logger.experiment.dir)
 
 def main(cfg_path, data_path, dataset_name):
     # Load config
@@ -53,7 +60,7 @@ def main(cfg_path, data_path, dataset_name):
     gvae = LitGVAE(cfg, priors)
 
     # Setup logger
-    logger = WandbLogger(project='similar-expressions-01')  # Disable automatic syncing
+    logger = WandbLogger(project='similar-expressions-01')  # , log_model=True, Disable automatic syncing
     cfg_dict['dataset_hashes'] = data_info['hashes']
     cfg_dict['dataset_name'] = data_info['dataset_name']
     logger.log_hyperparams(cfg_dict)
@@ -74,7 +81,6 @@ def main(cfg_path, data_path, dataset_name):
         mode="min"
     )
 
-    # Determine appropriate strategy
     if 'SLURM_JOB_ID' in os.environ:  # Running distributed via SLURM
         strategy = DDPStrategy(find_unused_parameters=False, process_group_backend="nccl")
     else:
@@ -87,15 +93,15 @@ def main(cfg_path, data_path, dataset_name):
         logger=logger, 
         max_epochs=cfg.training.epochs, 
         gradient_clip_val=cfg.training.optimizer.clip,
-        callbacks=[checkpoint_callback, early_stopping_callback, SetupModelCheckpointCallback()],
+        callbacks=[checkpoint_callback, early_stopping_callback, MiscCallback()],
         log_every_n_steps=100,
         devices=4,
         strategy=strategy
     )
     trainer.fit(gvae, train_loader, valid_loader)
 
-    # Finish logging
-    wandb.finish()
+    if trainer.is_global_zero:
+        wandb.finish()
 
 
 if __name__ == '__main__':
