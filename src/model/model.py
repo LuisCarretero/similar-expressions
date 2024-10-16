@@ -136,7 +136,7 @@ class LitGVAE(L.LightningModule):
             "optimizer": optimizer,
             "lr_scheduler": {
                 "scheduler": scheduler,
-                "monitor": "valid/loss",
+                "monitor": self.cfg.training.performance_metric,
                 "interval": "epoch",
                 "frequency": 1,
             },

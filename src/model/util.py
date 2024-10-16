@@ -106,15 +106,18 @@ def criterion_factory(cfg: Config, priors: Dict):
         # Value prediction loss
         loss_values = mse(values_pred, y_val)/VALUES_PRIOR
 
-        # Contrastive loss (batch-wise)
-        y_val = F.normalize(y_val, p=2, dim=1, eps=1e-12)
-        values_dist = l2_dist(y_val.unsqueeze(1), y_val.unsqueeze(0))  # Make this indep of z_size, add some scaling factor
-        gamma = gamma_func(values_dist.square())  # Scaling factor: Only if graphs are similar should large z_dissim be penalized
+        if CONTRASTIVE_WEIGHT > 0:  # Expensive, so only do if necessary
+            # Contrastive loss (batch-wise)
+            y_val = F.normalize(y_val, p=2, dim=1, eps=1e-12)
+            values_dist = l2_dist(y_val.unsqueeze(1), y_val.unsqueeze(0))  # Make this indep of z_size, add some scaling factor
+            gamma = gamma_func(values_dist.square())  # Scaling factor: Only if graphs are similar should large z_dissim be penalized
         
-        u = z[:, z_slice[0]:z_slice[1]]
-        u_sim = F.cosine_similarity(u.unsqueeze(1), u.unsqueeze(0), dim=2)  # -> 1 if similar, 0 if unrelated, -> -1 if different
-        u_dissim_loss = -torch.log((1+u_sim)/2)  # -> 1 if different, 0 if similar, -> 2 if unrelated
-        loss_contrastive = torch.sum(gamma * u_dissim_loss)
+            u = z[:, z_slice[0]:z_slice[1]]
+            u_sim = F.cosine_similarity(u.unsqueeze(1), u.unsqueeze(0), dim=2)  # -> 1 if similar, 0 if unrelated, -> -1 if different
+            u_dissim_loss = -torch.log((1+u_sim)/2)  # -> 1 if different, 0 if similar, -> 2 if unrelated
+            loss_contrastive = torch.sum(gamma * u_dissim_loss)
+        else:
+            loss_contrastive = torch.tensor(0.0, device=z.device)
 
         # Total loss
         loss = AE_WEIGHT*loss_vae + (1-AE_WEIGHT)*loss_values + CONTRASTIVE_WEIGHT*loss_contrastive

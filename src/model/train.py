@@ -6,19 +6,18 @@ import lightning as L
 from data_util import create_dataloader, calc_priors_and_means, summarize_dataloaders
 from lightning.pytorch.loggers import WandbLogger
 from lightning.pytorch import seed_everything
-from lightning.pytorch.callbacks import ModelCheckpoint
-from lightning.pytorch.profilers import AdvancedProfiler
+from lightning.pytorch.callbacks import ModelCheckpoint, Callback
 from lightning.pytorch.callbacks.early_stopping import EarlyStopping
 from lightning.pytorch.strategies import DDPStrategy
-from lightning.pytorch.callbacks import Callback
-import torch.distributed as dist
 import wandb
 import os
+import torch
+import time
 
 seed_everything(42, workers=True, verbose=False)
 
 
-class SetupModelCheckpointCallback(Callback):
+class MiscCallback(Callback):
     """
     Custom callback to access the WandB run data. Cannot be called during setup as Logger is initialised only during trainer.fit().
 
@@ -34,6 +33,12 @@ class SetupModelCheckpointCallback(Callback):
             print(f"Checkpoints will be saved in: {trainer.logger.experiment.dir}")
             trainer.checkpoint_callback.dirpath = trainer.logger.experiment.dir
 
+    def on_train_end(self, trainer, pl_module):
+        if isinstance(trainer.logger, WandbLogger) and trainer.is_global_zero:
+            # print(f'Files in wandb dir: {os.listdir(trainer.logger.experiment.dir)}')
+            # FIXME: Quickfix to make sure last checkpoint is saved.
+            trainer.logger.experiment.save(os.path.join(trainer.logger.experiment.dir, 'last.ckpt'),
+                                           base_path=trainer.logger.experiment.dir)
 
 def main(cfg_path, data_path, dataset_name):
     # Load config
@@ -55,51 +60,51 @@ def main(cfg_path, data_path, dataset_name):
     gvae = LitGVAE(cfg, priors)
 
     # Setup logger
-    logger = WandbLogger(project='similar-expressions-01')  # Disable automatic syncing
+    logger = WandbLogger(project='similar-expressions-01')  # , log_model=True, Disable automatic syncing
     cfg_dict['dataset_hashes'] = data_info['hashes']
     cfg_dict['dataset_name'] = data_info['dataset_name']
     logger.log_hyperparams(cfg_dict)
 
     checkpoint_callback = ModelCheckpoint(
         filename='{epoch:02d}', 
-        monitor='valid/loss', 
+        monitor=cfg.training.performance_metric, 
         mode='min', 
-        save_top_k=0, 
+        save_top_k=0, # If this is used, need to specify correct dirpath
         save_last=True
     )
 
     early_stopping_callback = EarlyStopping(
-        monitor="valid/loss", 
-        min_delta=0.00, 
-        patience=4, 
+        monitor=cfg.training.performance_metric, 
+        min_delta=0.001, 
+        patience=5, 
         verbose=False, 
         mode="min"
     )
 
-    # Determine appropriate strategy
     if 'SLURM_JOB_ID' in os.environ:  # Running distributed via SLURM
-        strategy = DDPStrategy(find_unused_parameters=False)
+        strategy = DDPStrategy(find_unused_parameters=False, process_group_backend="nccl")
     else:
         strategy = "auto"
     print(f"Using strategy: {strategy}")
 
     # Setup trainer and train model
+    torch.set_float32_matmul_precision('medium')
     trainer = L.Trainer(
         logger=logger, 
         max_epochs=cfg.training.epochs, 
         gradient_clip_val=cfg.training.optimizer.clip,
-        callbacks=[checkpoint_callback, early_stopping_callback, SetupModelCheckpointCallback()],
-        # profiler=AdvancedProfiler(dirpath='.', filename='profile.txt'),
+        callbacks=[checkpoint_callback, early_stopping_callback, MiscCallback()],
         log_every_n_steps=100,
+        devices=4,
         strategy=strategy
     )
     trainer.fit(gvae, train_loader, valid_loader)
 
-    # Finish logging
-    wandb.finish()
+    if trainer.is_global_zero:
+        wandb.finish()
 
 
 if __name__ == '__main__':
-    cfg_path = 'src/model/config.json'  # /home/lc865/workspace/similar-expressions/src/model
-    data_path = '/Users/luis/Desktop/Cranmer2024/Workplace/smallMutations/similar-expressions/data'  # /Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/similar-expressions/data'  #  
+    cfg_path = 'src/model/config.json'
+    data_path = ['/store/DAMTP/lc865/workspace/data', '/Users/luis/Desktop/Cranmer2024/Workplace/smallMutations/similar-expressions/data'][0]
     main(cfg_path, data_path, dataset_name='dataset_241008_1')  # dataset_240910_1, dataset_240822_1, dataset_240817_2
