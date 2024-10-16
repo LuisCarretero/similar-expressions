@@ -103,7 +103,3 @@ if __name__ == '__main__':
     cfg_path = 'src/model/config.json'  # /home/lc865/workspace/similar-expressions/src/model
     data_path = '/Users/luis/Desktop/Cranmer2024/Workplace/smallMutations/similar-expressions/data'  # /Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/similar-expressions/data'  #  
     main(cfg_path, data_path, dataset_name='dataset_241008_1')  # dataset_240910_1, dataset_240822_1, dataset_240817_2
-
-
-
-

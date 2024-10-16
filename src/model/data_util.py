@@ -153,7 +153,7 @@ def create_dataloader(datapath: str, name: str, cfg: Config, random_seed=0, shuf
     }
     return train_loader, valid_loader, info
 
-def load_wandb_model(run: str, name:str = 'model.pth', device='cpu', wandb_cache_path='/Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/similar-expressions/wandb_cache'):
+def load_wandb_model(run: str, name:str = 'model.pth', device='cpu', wandb_cache_path='/Users/luis/Desktop/Cranmer2024/Workplace/smallMutations/similar-expressions/wandb_cache'):
     # Load model
     with wandb.restore(name, run_path=f"luis-carretero-eth-zurich/similar-expressions-01/runs/{run}", root=wandb_cache_path, replace=True) as io:
         name = io.name
@@ -176,7 +176,7 @@ def load_wandb_model(run: str, name:str = 'model.pth', device='cpu', wandb_cache
 
     return vae_model, cfg_dict, cfg
 
-def create_dataloader_from_wandb(cfg_dict, cfg, value_transform=None, datapath='/Users/luis/Desktop/Cranmer 2024/Workplace/smallMutations/similar-expressions/data', old_x_format=False):
+def create_dataloader_from_wandb(cfg_dict, cfg, value_transform=None, datapath='/Users/luis/Desktop/Cranmer2024/Workplace/smallMutations/similar-expressions/data', old_x_format=False):
     # FIXME: Was quick fix, can be removed?
     try:
         name = cfg_dict['dataset_name']['value']

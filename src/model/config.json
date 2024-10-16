@@ -2,13 +2,13 @@
   "model": {
     "encoder": {
       "size_hidden": 256,
-      "conv_size": "large_mlp"
+      "conv_size": "extra_large"
     },
     "z_size": 512,
     "decoder": {
       "z_slice": [0, -1],
       "size_hidden": 128,
-      "rnn_type": "mlp"
+      "rnn_type": "lstm"
     },
     "value_decoder": {
       "z_slice": [0, 384],
