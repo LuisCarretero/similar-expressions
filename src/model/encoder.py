@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 from config_util import ModelConfig
-
+from util import build_rectengular_mlp
 class Encoder(nn.Module):
     """Convolutional encoder for Grammar VAE.
 
@@ -11,67 +11,62 @@ class Encoder(nn.Module):
     """
     def __init__(self, cfg: ModelConfig):
         super().__init__()
-        input_dim = cfg.io_format.token_cnt
-        seq_length = cfg.io_format.seq_len
+        self.input_dim, self.input_len = cfg.io_format.token_cnt, cfg.io_format.seq_len
+        self.hidden_size = cfg.encoder.size_hidden
         
         self.mlp, self.conv = None, None
 
-        if cfg.encoder.conv_size == 'small':
+        if cfg.encoder.architecture == 'small':
             self.conv = nn.Sequential(
-                nn.Conv1d(input_dim, 2, kernel_size=2), nn.ReLU(),
+                nn.Conv1d(self.input_dim, 2, kernel_size=2), nn.ReLU(),
                 nn.Conv1d(2, 3, kernel_size=3), nn.ReLU(),
                 nn.Conv1d(3, 4, kernel_size=4), nn.ReLU(),
                 nn.Flatten(),
                 nn.Linear(36, cfg.encoder.size_hidden), nn.ReLU()
             )
-        elif cfg.encoder.conv_size == 'large':
+        elif cfg.encoder.architecture == 'large':
             self.conv = nn.Sequential(
-                nn.Conv1d(input_dim, input_dim*2, kernel_size=2), nn.ReLU(),
-                nn.Conv1d(input_dim*2, input_dim, kernel_size=3), nn.ReLU(),
-                nn.Conv1d(input_dim, input_dim, kernel_size=4), nn.ReLU(),
+                nn.Conv1d(self.input_dim, self.input_dim*2, kernel_size=2), nn.ReLU(),
+                nn.Conv1d(self.input_dim*2, self.input_dim, kernel_size=3), nn.ReLU(),
+                nn.Conv1d(self.input_dim, self.input_dim, kernel_size=4), nn.ReLU(),
                 nn.Flatten(),
-                nn.Linear(input_dim*9, cfg.encoder.size_hidden), nn.ReLU()
+                nn.Linear(self.input_dim*9, self.hidden_size), nn.ReLU()
             )
-        elif cfg.encoder.conv_size == 'extra_large':
+        elif cfg.encoder.architecture == 'extra_large':
             self.conv = nn.Sequential(
-                nn.Conv1d(input_dim, input_dim*4, kernel_size=2), nn.ReLU(),
-                nn.Conv1d(input_dim*4, input_dim*2, kernel_size=3), nn.ReLU(),
-                nn.Conv1d(input_dim*2, input_dim*2, kernel_size=4), nn.ReLU(),
-                nn.Conv1d(input_dim*2, input_dim, kernel_size=5), nn.ReLU(),
+                nn.Conv1d(self.input_dim, self.input_dim*4, kernel_size=2), nn.ReLU(),
+                nn.Conv1d(self.input_dim*4, self.input_dim*2, kernel_size=3), nn.ReLU(),
+                nn.Conv1d(self.input_dim*2, self.input_dim*2, kernel_size=4), nn.ReLU(),
+                nn.Conv1d(self.input_dim*2, self.input_dim, kernel_size=5), nn.ReLU(),
                 nn.Flatten(),
-                nn.Linear(input_dim*5, cfg.encoder.size_hidden), nn.ReLU()
+                nn.Linear(self.input_dim*5, self.hidden_size), nn.ReLU()
             )
-        elif cfg.encoder.conv_size == 'mlp-large':
+        elif cfg.encoder.architecture == 'mlp-large':
             self.mlp = nn.Sequential(
                 nn.Flatten(),
-                nn.Linear(seq_length*input_dim, 256), nn.ReLU(),
+                nn.Linear(self.input_len*self.input_dim, 256), nn.ReLU(),
                 nn.Linear(256, 512), nn.ReLU(),
                 nn.Linear(512, 1024), nn.ReLU(),
                 nn.Linear(1024, 2048), nn.ReLU(),
                 nn.Linear(2048, 1024), nn.ReLU(),
                 nn.Linear(1024, 512), nn.ReLU(),
-                nn.Linear(512, cfg.encoder.size_hidden), nn.ReLU()
+                nn.Linear(512, self.hidden_size), nn.ReLU()
             )
-        elif cfg.encoder.conv_size == 'mlp':
+        elif cfg.encoder.architecture == 'mlp':
+            self.mlp = build_rectengular_mlp(cfg.encoder.depth, cfg.encoder.width, self.input_len*self.input_dim, self.hidden_size)
+        elif cfg.encoder.architecture == 'mlp-wide':
             self.mlp = nn.Sequential(
                 nn.Flatten(),
-                nn.Linear(seq_length*input_dim, 512), nn.ReLU(),
-                nn.Linear(512, 512), nn.ReLU(),
-                nn.Linear(512, cfg.encoder.size_hidden), nn.ReLU()
-            )
-        elif cfg.encoder.conv_size == 'mlp-wide':
-            self.mlp = nn.Sequential(
-                nn.Flatten(),
-                nn.Linear(seq_length*input_dim, 1024), nn.ReLU(),
+                nn.Linear(self.input_len*self.input_dim, 1024), nn.ReLU(),
                 nn.Linear(1024, 1024), nn.ReLU(),
-                nn.Linear(1024, cfg.encoder.size_hidden), nn.ReLU()
+                nn.Linear(1024, self.hidden_size), nn.ReLU()
             )
         else:
-            raise ValueError(f'Invalid value for `conv_size`: {cfg.encoder.conv_size}.'
-                             ' Must be in [small, large, extra_large]')
+            raise ValueError(f'Invalid value for `architecture`: {cfg.encoder.architecture}.'
+                             ' Must be in [small, large, extra_large, mlp-large, mlp, mlp-wide]')
 
-        self.mu = nn.Linear(cfg.encoder.size_hidden, cfg.z_size)
-        self.sigma = nn.Linear(cfg.encoder.size_hidden, cfg.z_size)
+        self.mu = nn.Linear(self.hidden_size, cfg.z_size)
+        self.sigma = nn.Linear(self.hidden_size, cfg.z_size)
 
         self.softplus = nn.Softplus()
 

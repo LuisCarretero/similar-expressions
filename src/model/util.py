@@ -1,7 +1,8 @@
 import math
 from config_util import Config
-from typing import Dict
+from typing import Dict, List, Tuple
 import torch
+import torch.nn as nn
 import torch.nn.functional as F
 
 class Stack:
@@ -155,3 +156,26 @@ def calc_syntax_accuracy(logits: torch.Tensor, y_rule_idx: torch.Tensor) -> floa
     y_hat = logits.argmax(-1)
     a = (y_hat == y_rule_idx).float().mean()
     return 100 * a.item()
+
+
+def calc_zslice(z_slice: List[int], z_size: int) -> Tuple[List[int], int]:
+    z_slice = z_slice.copy()
+    if z_slice[1] == -1:
+        z_slice[1] = z_size
+    input_size = z_slice[1] - z_slice[0]
+    return z_slice, input_size
+
+def build_rectengular_mlp(depth: int, width: int, input_size: int, output_size: int) -> nn.Module:
+    """
+    Build a rectangular mlp with the given depth, width, input size and output size. Works for depth >= 1.
+    """
+    layers = []
+    in_features = input_size
+    for _ in range(depth - 1):
+        layers.extend([
+            nn.Linear(in_features, width),
+            nn.ReLU()
+        ])
+        in_features = width
+    layers.append(nn.Linear(in_features, output_size))
+    return nn.Sequential(*layers)

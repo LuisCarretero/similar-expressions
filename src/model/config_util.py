@@ -5,18 +5,24 @@ from typing import Literal, Tuple, Optional, List
 @dataclass
 class EncoderConfig:
     size_hidden: int
-    conv_size: Literal["small", "large", "extra_large"]
+    architecture: Literal["small", "large", "extra_large"]
+    depth: int
+    width: int
 
 @dataclass
 class DecoderConfig:
     z_slice: List[int]
     size_hidden: int
-    rnn_type: Literal["lstm", "gru"]
+    architecture: Literal["lstm", "gru"]
+    depth: int
+    width: int
 
 @dataclass
 class ValueDecoderConfig:
     z_slice: List[int]
-    conv_size: Literal["small", "medium", "large"]
+    architecture: Literal["small", "medium", "large"]
+    depth: int
+    width: int
     
 @dataclass
 class IoFormatConfig:
@@ -91,17 +97,23 @@ def dict_to_config(cfg_dict: dict, fallback_dict: dict = None) -> Config:
             'model': {
                 'encoder': {
                     'size_hidden': 128,
-                    'conv_size': 'large'
+                    'architecture': 'large',
+                    'depth': 3,
+                    'width': 128
                 },
                 'z_size': 128,
                 'decoder': {
                     'z_slice': [0, -1],
                     'size_hidden': 64,
-                    'rnn_type': 'lstm'
+                    'architecture': 'lstm',
+                    'depth': 3,
+                    'width': 128
                 },
                 'value_decoder': {
                     'z_slice': [0, -1],
-                    'conv_size': 'medium'  # FIXME: Rename
+                    'architecture': 'medium',  # FIXME: Rename
+                    'depth': 3,
+                    'width': 128
                 },
                 'io_format': {
                     'seq_len': 15,
