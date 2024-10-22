@@ -1,15 +1,24 @@
 sweep_configuration = {
-    'method': 'grid',
+    'method': 'bayes',
     'metric': {
         'name': 'train/loss',
         'goal': 'minimize'
     },
     'parameters': {
-        'model.decoder.rnn_type': {
-            'values': ['lstm', 'mlp'],
+        'model.encoder.depth': {
+            'values': [2, 3, 4]
         },
-        'model.decoder.hidden_size': {
-            'values': [64, 128, 256, 512]
-        }
+        'model.encoder.width': {
+            'values': [128, 256, 512, 1024, 2048]
+        },
+        'model.value_decoder.depth': {
+            'values': [2, 3, 4]
+        },
+        'model.value_decoder.width': {
+            'values': [128, 256, 512, 1024, 2048]
+        },
+        'model.z_size': {
+            'values': [128, 256, 512]
+        },
     }
 }

@@ -8,7 +8,7 @@ from lightning.pytorch.loggers import WandbLogger
 from lightning.pytorch import seed_everything
 from lightning.pytorch.callbacks import ModelCheckpoint, Callback
 from lightning.pytorch.callbacks.early_stopping import EarlyStopping
-from lightning.pytorch.strategies import DDPStrategy
+from lightning.pytorch.strategies import DDPStrategy, SingleDeviceStrategy
 import wandb
 import os
 import torch
@@ -41,6 +41,9 @@ class MiscCallback(Callback):
 
 
 def train_model(cfg_dict, cfg, data_path, dataset_name):
+    # if trainer.is_global_zero:
+    #     wandb.init()
+
     # Determine the number of workers for data loading
     if 'SLURM_JOB_ID' in os.environ:
         n = int(os.environ['SLURM_CPUS_PER_TASK'])
@@ -79,17 +82,15 @@ def train_model(cfg_dict, cfg, data_path, dataset_name):
     )
 
     if 'SLURM_JOB_ID' in os.environ:  # Running distributed via SLURM
-        strategy = DDPStrategy(find_unused_parameters=False, process_group_backend="nccl")
+        devices = int(os.environ['SLURM_NNODES']) * int(os.environ['SLURM_NTASKS_PER_NODE'])
+        if devices > 1:
+            strategy = DDPStrategy(find_unused_parameters=False, process_group_backend="nccl")
+        else:
+            strategy = "auto"  # SingleDeviceStrategy()
     else:
         strategy = "auto"
-    print(f"Using strategy: {strategy}")
-
-    # Get device count from SLURM environment
-    if 'SLURM_JOB_ID' in os.environ:
-        devices = int(os.environ['SLURM_NNODES']) * int(os.environ['SLURM_NTASKS_PER_NODE'])
-    else:
         devices = 1  # Default to 1 if not running on SLURM or GPU count not specified
-    print(f"Using {devices} device(s)")
+    print(f"Using strategy: {strategy} and {devices} device(s)")
 
     # Setup trainer and train model
     torch.set_float32_matmul_precision('medium')

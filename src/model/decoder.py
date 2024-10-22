@@ -22,17 +22,17 @@ class Decoder(nn.Module):
             self.rnn = nn.LSTM(self.hidden_size, self.hidden_size, num_layers=5, batch_first=True)
         elif self.architecture == 'gru':
             self.rnn = nn.GRU(self.hidden_size, self.hidden_size, batch_first=True)
-        elif self.architecture == 'mlp':
+        elif self.architecture == 'mlp-parameterized':
             out_dim = self.out_len * self.out_width
             self.lin = build_rectengular_mlp(cfg.decoder.depth, cfg.decoder.width, self.input_size, out_dim)
         else:
-            raise ValueError('Select architecture from [lstm, lstm-large, gru, mlp]')
+            raise ValueError('Select architecture from [lstm, lstm-large, gru, mlp-parameterized]')
 
         if self.rnn is not None:
             self.linear_in = nn.Linear(self.input_size, self.hidden_size)
             self.linear_out = nn.Linear(self.hidden_size, self.out_width)
     
-    def forward(self, z):
+    def forward(self, z, max_length=None):  # FIXME: Rm max_length
         """The forward pass used for training the Grammar VAE.
         TODO: Does it make sense to have max_length as parameter?
 
@@ -47,8 +47,10 @@ class Decoder(nn.Module):
         # Get relevant part of latent space
         z = z[:, self.z_slice[0]:self.z_slice[1]]
         batch_size = z.size(0)
+        print(f"z.shape: {z.shape}")
 
         if self.rnn is not None:
+            print("Using RNN decoder")
             x = F.relu(self.linear_in(z))
 
             # The input to the rnn is the same for each timestep: it is z.
@@ -65,6 +67,8 @@ class Decoder(nn.Module):
             x, _ = self.rnn(x, hx)
             x = self.linear_out(F.relu(x))
         elif self.lin is not None:
+            print("Using MLP decoder")
+            print(f"self.lin: {self.lin}")
             x = self.lin(z)
             x = x.view(batch_size, self.out_len, self.out_width)
         else:

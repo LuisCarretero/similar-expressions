@@ -52,10 +52,10 @@ class LitGVAE(L.LightningModule):
         )
         return torch.mean(kl_per_sample)  # Average over samples
 
-    def forward(self, x, max_length=15):
+    def forward(self, x):
         mean, ln_var = self.encoder(x)
         z = self.sample(mean, ln_var)
-        logits = self.decoder(z, max_length=max_length)
+        logits = self.decoder(z)
         values = self.value_decoder(z)
         return logits, values
 
@@ -64,7 +64,7 @@ class LitGVAE(L.LightningModule):
         be parsed into an expression tree. Note that it only works on single equations at a time."""
 
         # Decoder works with general batch size. Only allow batch size 1 for now
-        logits = self.decoder(z, max_length=max_length)
+        logits = self.decoder(z)
         assert logits.shape[0] == 1, "Batch size must be 1"
         logits = logits.squeeze()  # Only considering 1st batch
 
@@ -76,7 +76,7 @@ class LitGVAE(L.LightningModule):
         # Forward pass
         mean, ln_var = self.encoder(x)
         z = self.sample(mean, ln_var)
-        logits = self.decoder(z, max_length=self.max_length)
+        logits = self.decoder(z)
         if self.use_grammar_mask:
             logits = logits * calc_grammar_mask(y_syntax)
         values = self.value_decoder(z)
@@ -101,7 +101,7 @@ class LitGVAE(L.LightningModule):
         # Forward pass
         mean, ln_var = self.encoder(x)
         z = self.sample(mean, ln_var)
-        logits = self.decoder(z, max_length=self.max_length)
+        logits = self.decoder(z)
         if self.use_grammar_mask:
             logits = logits * calc_grammar_mask(y_syntax)
         values = self.value_decoder(z)

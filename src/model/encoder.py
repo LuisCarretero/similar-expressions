@@ -52,11 +52,10 @@ class Encoder(nn.Module):
                 nn.Linear(1024, 512), nn.ReLU(),
                 nn.Linear(512, self.hidden_size), nn.ReLU()
             )
-        elif cfg.encoder.architecture == 'mlp':
+        elif cfg.encoder.architecture == 'mlp-parameterized':
             self.mlp = build_rectengular_mlp(cfg.encoder.depth, cfg.encoder.width, self.input_len*self.input_dim, self.hidden_size)
         elif cfg.encoder.architecture == 'mlp-wide':
             self.mlp = nn.Sequential(
-                nn.Flatten(),
                 nn.Linear(self.input_len*self.input_dim, 1024), nn.ReLU(),
                 nn.Linear(1024, 1024), nn.ReLU(),
                 nn.Linear(1024, self.hidden_size), nn.ReLU()
@@ -80,6 +79,7 @@ class Encoder(nn.Module):
             x = x.permute(0, 2, 1)  # conv1d expects [batch, in_channels, seq_len]
             h = self.conv(x)
         elif self.mlp is not None:
+            x = x.flatten(1)
             h = self.mlp(x)
 
         mu = self.mu(h)

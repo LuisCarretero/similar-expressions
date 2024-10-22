@@ -10,15 +10,16 @@ class ValueDecoder(nn.Module):
         # Calculate input size
         self.z_slice, self.input_size = calc_zslice(cfg.value_decoder.z_slice, cfg.z_size)
         self.out_dim = cfg.io_format.val_points
+        self.architecture = cfg.value_decoder.architecture
         
         # Define the layers
-        if cfg.value_decoder.conv_size == 'mlp-small':
+        if self.architecture == 'mlp-small':
             self.lin = nn.Sequential(
                 nn.Linear(self.input_size, 256), nn.ReLU(),
                 nn.Linear(256, 256), nn.ReLU(),
                 nn.Linear(256, self.out_dim)
             )
-        elif cfg.value_decoder.conv_size == 'mlp-medium':
+        elif self.architecture == 'mlp-medium':
             self.lin = nn.Sequential(
                 nn.Linear(self.input_size, 256), nn.ReLU(),
                 nn.Linear(256, 256), nn.ReLU(),
@@ -26,15 +27,15 @@ class ValueDecoder(nn.Module):
                 nn.Linear(512, 512), nn.ReLU(),
                 nn.Linear(512, self.out_dim)
             )
-        elif cfg.value_decoder.conv_size == 'mlp':
+        elif self.architecture == 'mlp-parameterized':
             self.lin = build_rectengular_mlp(cfg.value_decoder.depth, cfg.value_decoder.width, self.input_size, self.out_dim)
-        elif cfg.value_decoder.conv_size == 'mlp-medium-wide':
+        elif self.architecture == 'mlp-medium-wide':
             self.lin = nn.Sequential(
                 nn.Linear(self.input_size, 2048), nn.ReLU(),
                 nn.Linear(2048, 2048), nn.ReLU(),
                 nn.Linear(2048, self.out_dim)
             )
-        elif cfg.value_decoder.conv_size == 'mlp-large':
+        elif self.architecture == 'mlp-large':
             self.lin = nn.Sequential(
                 nn.Linear(self.input_size, 256), nn.ReLU(),
                 nn.Linear(256, 512), nn.ReLU(),
@@ -43,7 +44,7 @@ class ValueDecoder(nn.Module):
                 nn.Linear(1024, 1024), nn.ReLU(),
                 nn.Linear(1024, self.out_dim)
             )
-        elif cfg.value_decoder.conv_size == 'mlp-extra-large':
+        elif self.architecture == 'mlp-extra-large':
             self.lin = nn.Sequential(
                 nn.Linear(self.input_size, 512), nn.ReLU(),
                 nn.Linear(512, 1024), nn.ReLU(),
@@ -54,7 +55,7 @@ class ValueDecoder(nn.Module):
                 nn.Linear(2048, self.out_dim)
             )
         else:
-            raise ValueError(f'Invalid value for `conv_size`: {cfg.value_decoder.conv_size}.'
+            raise ValueError(f'Invalid value for `architecture`: {self.architecture}.'
                              ' Must be in [small, medium, large]')
     
     def forward(self, z):
