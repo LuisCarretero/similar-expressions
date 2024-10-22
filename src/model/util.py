@@ -159,6 +159,11 @@ def calc_syntax_accuracy(logits: torch.Tensor, y_rule_idx: torch.Tensor) -> floa
 
 
 def calc_zslice(z_slice: List[int], z_size: int) -> Tuple[List[int], int]:
+    assert len(z_slice) == 2, "z_slice has to be a list of two integers"
+    assert z_slice[0] < z_slice[1], "z_slice has to be a valid slice of z"
+    assert z_slice[0] >= 0, "z_slice has to be a valid slice of z"
+    assert z_slice[1] <= z_size, f"z_slice has to be subset of z: z_slice[1]: {z_slice[1]}, z_size: {z_size}"
+
     z_slice = z_slice.copy()
     if z_slice[1] == -1:
         z_slice[1] = z_size
