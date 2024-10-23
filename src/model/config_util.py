@@ -108,7 +108,7 @@ def dict_to_config(cfg_dict: dict, fallback_dict: dict = None) -> Config:
                     'architecture': 'lstm',
                     'depth': 3,
                     'width': 128
-                },
+                },  
                 'value_decoder': {
                     'z_slice': [0, -1],
                     'architecture': 'medium',  # FIXME: Rename
