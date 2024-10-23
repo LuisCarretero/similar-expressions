@@ -16,7 +16,7 @@ from omegaconf import OmegaConf
 
 seed_everything(42, workers=True, verbose=False)
 
-def train_model(cfg, data_path, dataset_name):
+def train_model(cfg, data_path, dataset_name, overwrite_device_count=None, overwrite_strategy=None):
     # if trainer.is_global_zero:
     #     wandb.init()
 
@@ -67,11 +67,15 @@ def train_model(cfg, data_path, dataset_name):
     else:
         strategy = "auto"
         devices = 1  # Default to 1 if not running on SLURM or GPU count not specified
+    if overwrite_device_count is not None:
+        devices = overwrite_device_count
+    if overwrite_strategy is not None:
+        strategy = overwrite_strategy
     print(f"Using strategy: {strategy} and {devices} device(s)")
 
     # Setup trainer and train model
     torch.set_float32_matmul_precision('medium')
-    trainer = L.Trainer(
+    trainer = Trainer(
         logger=logger, 
         max_epochs=cfg.training.epochs, 
         gradient_clip_val=cfg.training.optimizer.clip,
