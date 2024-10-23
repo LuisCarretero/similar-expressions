@@ -5,6 +5,9 @@ import torch
 
 
 def main():
+    batch_size = 2  
+
+
     print('Loading config...')
     cfg_path = 'src/model/config.json'
     _, cfg = load_config(cfg_path)
@@ -13,7 +16,7 @@ def main():
     gvae = LitGVAE(cfg, get_empty_priors())
 
     print('Checking model...')
-    syntax_shape = (1, cfg.model.io_format.seq_len, cfg.model.io_format.token_cnt)
+    syntax_shape = (batch_size, cfg.model.io_format.seq_len, cfg.model.io_format.token_cnt)
     x = torch.randn(syntax_shape)
     mu, sigma = gvae.encoder(x)
     z = mu  # No sampling
@@ -22,13 +25,14 @@ def main():
 
     print('Checking output shapes...')
     assert syntax_out.shape == syntax_shape, f'{syntax_out.shape = }'
-    assert value_out.shape == (1, cfg.model.io_format.val_points), f'{value_out.shape = }'
+    assert value_out.shape == (batch_size, cfg.model.io_format.val_points), f'{value_out.shape = }'
     print('All good!')
 
 def check_dataloader():
     print('Loading config...')
     cfg_path = 'src/model/config.json'
     _, cfg = load_config(cfg_path)
+    cfg.training.dataset_len_limit = 1000
 
     data_path = ['/store/DAMTP/lc865/workspace/data', '/Users/luis/Desktop/Cranmer2024/Workplace/smallMutations/similar-expressions/data'][0]
     dataset_name='dataset_241008_1'

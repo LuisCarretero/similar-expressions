@@ -2,42 +2,37 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from config_util import ModelConfig
+from util import calc_zslice, build_rectengular_mlp
 
 class Decoder(nn.Module):
     """RNN decoder that reconstructs the sequence of rules from laten z"""
     def __init__(self, cfg: ModelConfig):
         super().__init__()  # Decoder, self
 
-        # Calculate input size
-        self.z_slice = cfg.value_decoder.z_slice.copy()
-        if self.z_slice[1] == -1:
-            self.z_slice[1] = cfg.z_size
-        self.input_size = self.z_slice[1] - self.z_slice[0]
-        
+        self.z_slice, self.input_size = calc_zslice(cfg.value_decoder.z_slice, cfg.z_size)
         self.hidden_size = cfg.decoder.size_hidden
-        self.rnn_type = cfg.decoder.rnn_type
+        self.architecture = cfg.decoder.architecture
+        self.out_len, self.out_width = cfg.io_format.seq_len, cfg.io_format.token_cnt
 
-        if self.rnn_type == 'lstm':
+        self.rnn, self.lin = None, None
+
+        if self.architecture == 'lstm':
             self.rnn = nn.LSTM(self.hidden_size, self.hidden_size, batch_first=True)
-        elif self.rnn_type == 'lstm-large':
+        elif self.architecture == 'lstm-large':
             self.rnn = nn.LSTM(self.hidden_size, self.hidden_size, num_layers=5, batch_first=True)
-        elif self.rnn_type == 'gru':
+        elif self.architecture == 'gru':
             self.rnn = nn.GRU(self.hidden_size, self.hidden_size, batch_first=True)
-        elif self.rnn_type == 'mlp':
-            self.lin = nn.Sequential(
-                nn.Linear(self.input_size, 512), nn.ReLU(),
-                nn.Linear(512, 1024), nn.ReLU(),
-                nn.Linear(1024, 1024), nn.ReLU(),
-                nn.Linear(1024, self.hidden_size*cfg.io_format.seq_len)
-            )
+        elif self.architecture == 'mlp-parameterized':
+            out_dim = self.out_len * self.out_width
+            self.lin = build_rectengular_mlp(cfg.decoder.depth, cfg.decoder.width, self.input_size, out_dim)
         else:
-            raise ValueError('Select rnn_type from [lstm, lstm-large, gru, mlp]')
+            raise ValueError('Select architecture from [lstm, lstm-large, gru, mlp-parameterized]')
 
         if self.rnn is not None:
             self.linear_in = nn.Linear(self.input_size, self.hidden_size)
-            self.linear_out = nn.Linear(self.hidden_size, cfg.io_format.token_cnt)
+            self.linear_out = nn.Linear(self.hidden_size, self.out_width)
     
-    def forward(self, z, max_length=15):
+    def forward(self, z, max_length=None):  # FIXME: Rm max_length
         """The forward pass used for training the Grammar VAE.
         TODO: Does it make sense to have max_length as parameter?
 
@@ -52,14 +47,16 @@ class Decoder(nn.Module):
         # Get relevant part of latent space
         z = z[:, self.z_slice[0]:self.z_slice[1]]
         batch_size = z.size(0)
+        print(f"z.shape: {z.shape}")
 
         if self.rnn is not None:
+            print("Using RNN decoder")
             x = F.relu(self.linear_in(z))
 
             # The input to the rnn is the same for each timestep: it is z.
-            x = x.unsqueeze(1).expand(-1, max_length, -1)
+            x = x.unsqueeze(1).expand(-1, self.out_len, -1)
 
-            if self.rnn_type == 'lstm' or self.rnn_type == 'lstm-large':
+            if self.architecture == 'lstm' or self.architecture == 'lstm-large':
                 # Init hidden and cell states
                 h0 = torch.zeros(1, batch_size, self.hidden_size).to(z.device)
                 c0 = torch.zeros(1, batch_size, self.hidden_size).to(z.device)
@@ -70,9 +67,11 @@ class Decoder(nn.Module):
             x, _ = self.rnn(x, hx)
             x = self.linear_out(F.relu(x))
         elif self.lin is not None:
+            print("Using MLP decoder")
+            print(f"self.lin: {self.lin}")
             x = self.lin(z)
-            x = x.view(batch_size, max_length, self.hidden_size)
+            x = x.view(batch_size, self.out_len, self.out_width)
         else:
-            raise ValueError('Invalid rnn_type')
+            raise ValueError('Invalid architecture')
 
         return x

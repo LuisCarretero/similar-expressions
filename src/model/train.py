@@ -8,11 +8,10 @@ from lightning.pytorch.loggers import WandbLogger
 from lightning.pytorch import seed_everything
 from lightning.pytorch.callbacks import ModelCheckpoint, Callback
 from lightning.pytorch.callbacks.early_stopping import EarlyStopping
-from lightning.pytorch.strategies import DDPStrategy
+from lightning.pytorch.strategies import DDPStrategy, SingleDeviceStrategy
 import wandb
 import os
 import torch
-import time
 
 seed_everything(42, workers=True, verbose=False)
 
@@ -40,12 +39,13 @@ class MiscCallback(Callback):
             trainer.logger.experiment.save(os.path.join(trainer.logger.experiment.dir, 'last.ckpt'),
                                            base_path=trainer.logger.experiment.dir)
 
-def main(cfg_path, data_path, dataset_name):
-    # Load config
-    cfg_dict, cfg = load_config(cfg_path)
+
+def train_model(cfg_dict, cfg, data_path, dataset_name):
+    # if trainer.is_global_zero:
+    #     wandb.init()
 
     # Determine the number of workers for data loading
-    if 'SLURM_CPUS_PER_TASK' in os.environ:
+    if 'SLURM_JOB_ID' in os.environ:
         n = int(os.environ['SLURM_CPUS_PER_TASK'])
     else:
         n = min(os.cpu_count(), 8)
@@ -82,10 +82,15 @@ def main(cfg_path, data_path, dataset_name):
     )
 
     if 'SLURM_JOB_ID' in os.environ:  # Running distributed via SLURM
-        strategy = DDPStrategy(find_unused_parameters=False, process_group_backend="nccl")
+        devices = int(os.environ['SLURM_NNODES']) * int(os.environ['SLURM_NTASKS_PER_NODE'])
+        if devices > 1:
+            strategy = DDPStrategy(find_unused_parameters=False, process_group_backend="nccl")
+        else:
+            strategy = "auto"  # SingleDeviceStrategy()
     else:
         strategy = "auto"
-    print(f"Using strategy: {strategy}")
+        devices = 1  # Default to 1 if not running on SLURM or GPU count not specified
+    print(f"Using strategy: {strategy} and {devices} device(s)")
 
     # Setup trainer and train model
     torch.set_float32_matmul_precision('medium')
@@ -95,7 +100,7 @@ def main(cfg_path, data_path, dataset_name):
         gradient_clip_val=cfg.training.optimizer.clip,
         callbacks=[checkpoint_callback, early_stopping_callback, MiscCallback()],
         log_every_n_steps=100,
-        devices=4,
+        devices=devices,
         strategy=strategy
     )
     trainer.fit(gvae, train_loader, valid_loader)
@@ -105,6 +110,11 @@ def main(cfg_path, data_path, dataset_name):
 
 
 if __name__ == '__main__':
-    cfg_path = 'src/model/config.json'
     data_path = ['/store/DAMTP/lc865/workspace/data', '/Users/luis/Desktop/Cranmer2024/Workplace/smallMutations/similar-expressions/data'][0]
-    main(cfg_path, data_path, dataset_name='dataset_241008_1')  # dataset_240910_1, dataset_240822_1, dataset_240817_2
+
+    cfg_dict, cfg = load_config('src/model/config.json')
+    train_model(cfg_dict, cfg, data_path, dataset_name='dataset_241008_1')  # dataset_240910_1, dataset_240822_1, dataset_240817_2
+
+
+
+
