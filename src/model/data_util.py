@@ -10,8 +10,6 @@ import wandb
 import yaml
 from config_util import dict_to_config
 from model import LitGVAE
-from matplotlib import pyplot as plt
-from scipy.special import softmax
 from lightning.pytorch.utilities.model_summary import ModelSummary
 
 class CustomTorchDataset(Dataset):
