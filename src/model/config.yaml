@@ -1,0 +1,50 @@
+model:
+  encoder:
+    size_hidden: 256
+    architecture: mlp-parameterized
+    depth: 3
+    width: 512
+  z_size: 256
+  decoder:
+    z_slice: [0, -1]
+    size_hidden: 128
+    architecture: mlp-parameterized
+    depth: 3
+    width: 128
+  value_decoder:
+    z_slice: [0, -1]
+    architecture: mlp-parameterized
+    depth: 3
+    width: 1024
+  io_format:
+    seq_len: 15
+    token_cnt: 10
+    val_points: 100
+
+training:
+  batch_size: 512
+  epochs: 2
+  valid_split: 0.1
+  dataset_len_limit: 100000
+  criterion:
+    ae_weight: 0.0
+    kl_weight: 0
+    syntax_weight: 0.5
+    contrastive_weight: 0
+  sampling:
+    prior_std: 1
+    eps: 0
+  optimizer:
+    lr: 4e-3
+    clip: 5.0
+    scheduler_factor: 0.2
+    scheduler_patience: 2
+    scheduler_threshold: 1e-3
+    scheduler_min_lr: 1e-5
+  performance_metric: train/loss
+  kl_anneal:
+    schedule: sigmoid
+    midpoint: 0.4
+    steepness: 15
+  values_init_bias: false
+  use_grammar_mask: false

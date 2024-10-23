@@ -1,12 +1,12 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from config_util import ModelConfig
+from omegaconf.dictconfig import DictConfig
 from util import calc_zslice, build_rectengular_mlp
 
 class Decoder(nn.Module):
-    """RNN decoder that reconstructs the sequence of rules from laten z"""
-    def __init__(self, cfg: ModelConfig):
+    """Decoder that reconstructs the sequence of rules from laten z"""
+    def __init__(self, cfg: DictConfig):
         super().__init__()  # Decoder, self
 
         self.z_slice, self.input_size = calc_zslice(cfg.value_decoder.z_slice, cfg.z_size)
@@ -47,10 +47,8 @@ class Decoder(nn.Module):
         # Get relevant part of latent space
         z = z[:, self.z_slice[0]:self.z_slice[1]]
         batch_size = z.size(0)
-        print(f"z.shape: {z.shape}")
 
         if self.rnn is not None:
-            print("Using RNN decoder")
             x = F.relu(self.linear_in(z))
 
             # The input to the rnn is the same for each timestep: it is z.
@@ -67,8 +65,6 @@ class Decoder(nn.Module):
             x, _ = self.rnn(x, hx)
             x = self.linear_out(F.relu(x))
         elif self.lin is not None:
-            print("Using MLP decoder")
-            print(f"self.lin: {self.lin}")
             x = self.lin(z)
             x = x.view(batch_size, self.out_len, self.out_width)
         else:

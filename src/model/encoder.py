@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from config_util import ModelConfig
+from omegaconf.dictconfig import DictConfig
 from util import build_rectengular_mlp
 class Encoder(nn.Module):
     """Convolutional encoder for Grammar VAE.
@@ -9,7 +9,7 @@ class Encoder(nn.Module):
     of one-hot encodings of the sequence of rules that generate
     an artithmetic expression.
     """
-    def __init__(self, cfg: ModelConfig):
+    def __init__(self, cfg: DictConfig):
         super().__init__()
         self.input_dim, self.input_len = cfg.io_format.token_cnt, cfg.io_format.seq_len
         self.hidden_size = cfg.encoder.size_hidden

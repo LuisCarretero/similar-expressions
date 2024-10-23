@@ -1,9 +1,18 @@
 import math
-from config_util import Config
 from typing import Dict, List, Tuple
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from lightning.pytorch.callbacks import Callback
+from lightning.pytorch.loggers import WandbLogger
+import os
+from omegaconf.dictconfig import DictConfig
+from omegaconf import OmegaConf
+
+def load_config(file_path: str) -> DictConfig:
+    # TODO: Add error handling, fallback values, etc.
+    return OmegaConf.load(file_path)
+
 
 class Stack:
     # TODO: Use built-in
@@ -33,7 +42,7 @@ class Stack:
 
 class AnnealKLSigmoid:
     """Anneal the KL for VAE based training using a sigmoid schedule. No overall weighting so this return float between 0 and 1."""
-    def __init__(self, cfg: Config):
+    def __init__(self, cfg: DictConfig):
         self.total_epochs = cfg.training.epochs
         self.midpoint = cfg.training.kl_anneal.midpoint
         self.steepness = cfg.training.kl_anneal.steepness
@@ -51,7 +60,7 @@ class AnnealKLSigmoid:
         x = (epoch / self.total_epochs - self.midpoint) * self.steepness
         return 1 / (1 + math.exp(-x))
 
-def criterion_factory(cfg: Config, priors: Dict):
+def criterion_factory(cfg: DictConfig, priors: Dict):
     """
     Factory function to create the criterion for the VAE.
     """
@@ -159,15 +168,17 @@ def calc_syntax_accuracy(logits: torch.Tensor, y_rule_idx: torch.Tensor) -> floa
 
 
 def calc_zslice(z_slice: List[int], z_size: int) -> Tuple[List[int], int]:
-    assert len(z_slice) == 2, "z_slice has to be a list of two integers"
-    assert z_slice[0] < z_slice[1], "z_slice has to be a valid slice of z"
-    assert z_slice[0] >= 0, "z_slice has to be a valid slice of z"
-    assert z_slice[1] <= z_size, f"z_slice has to be subset of z: z_slice[1]: {z_slice[1]}, z_size: {z_size}"
+    assert len(z_slice) == 2, f"z_slice has to be a list of two integers ({z_slice = })"
+    assert z_slice[0] >= 0, f"z_slice has to be a valid slice of z ({z_slice[0] = })"
 
     z_slice = z_slice.copy()
     if z_slice[1] == -1:
         z_slice[1] = z_size
     input_size = z_slice[1] - z_slice[0]
+
+    assert z_slice[0] < z_slice[1], f'z_slice has to be a valid slice of z ({z_slice[0] = }, {z_slice[1] = })'
+    assert z_slice[1] <= z_size, f"z_slice has to be subset of z: z_slice[1]: {z_slice[1]}, z_size: {z_size}"
+
     return z_slice, input_size
 
 def build_rectengular_mlp(depth: int, width: int, input_size: int, output_size: int) -> nn.Module:
@@ -184,3 +195,26 @@ def build_rectengular_mlp(depth: int, width: int, input_size: int, output_size: 
         in_features = width
     layers.append(nn.Linear(in_features, output_size))
     return nn.Sequential(*layers)
+
+class MiscCallback(Callback):
+    """
+    Custom callback to access the WandB run data. Cannot be called during setup as Logger is initialised only during trainer.fit().
+
+    From Docs:
+    trainer.logger.experiment: Actual wandb object. To use wandb features in your :class:`~lightning.pytorch.core.LightningModule` do the
+    following. self.logger.experiment.some_wandb_function()
+
+    # Only available in rank0 process, others have _DummyExperiment
+    """
+    def on_train_start(self, trainer, pl_module):
+        if isinstance(trainer.logger, WandbLogger) and trainer.is_global_zero:
+            # Dynamically set the checkpoint directory in ModelCheckpoint
+            print(f"Checkpoints will be saved in: {trainer.logger.experiment.dir}")
+            trainer.checkpoint_callback.dirpath = trainer.logger.experiment.dir
+
+    def on_train_end(self, trainer, pl_module):
+        if isinstance(trainer.logger, WandbLogger) and trainer.is_global_zero:
+            # print(f'Files in wandb dir: {os.listdir(trainer.logger.experiment.dir)}')
+            # FIXME: Quickfix to make sure last checkpoint is saved.
+            trainer.logger.experiment.save(os.path.join(trainer.logger.experiment.dir, 'last.ckpt'),
+                                           base_path=trainer.logger.experiment.dir)

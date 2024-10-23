@@ -5,16 +5,15 @@ from decoder import Decoder
 from value_decoder import ValueDecoder
 from parsing import logits_to_prods
 from grammar import GCFG, calc_grammar_mask
-from config_util import Config
 import math
 import lightning as L
 from util import criterion_factory, AnnealKLSigmoid, compute_latent_metrics, calc_syntax_accuracy
 from typing import Dict, List
-
+from omegaconf.dictconfig import DictConfig
 
 class LitGVAE(L.LightningModule):
     """Grammar Variational Autoencoder"""
-    def __init__(self, cfg: Config, priors: Dict[str, float]):
+    def __init__(self, cfg: DictConfig, priors: Dict[str, float]):
         super().__init__()
 
         self.encoder = Encoder(cfg.model)

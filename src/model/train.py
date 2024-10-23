@@ -1,46 +1,22 @@
 #!/usr/bin/env python3
 
 from model import LitGVAE
-from config_util import load_config
+from util import load_config, MiscCallback
 import lightning as L
 from data_util import create_dataloader, calc_priors_and_means, summarize_dataloaders
 from lightning.pytorch.loggers import WandbLogger
 from lightning.pytorch import seed_everything
-from lightning.pytorch.callbacks import ModelCheckpoint, Callback
+from lightning.pytorch.callbacks import ModelCheckpoint
 from lightning.pytorch.callbacks.early_stopping import EarlyStopping
-from lightning.pytorch.strategies import DDPStrategy, SingleDeviceStrategy
+from lightning.pytorch.strategies import DDPStrategy
 import wandb
 import os
 import torch
+from omegaconf import OmegaConf
 
 seed_everything(42, workers=True, verbose=False)
 
-
-class MiscCallback(Callback):
-    """
-    Custom callback to access the WandB run data. Cannot be called during setup as Logger is initialised only during trainer.fit().
-
-    From Docs:
-    trainer.logger.experiment: Actual wandb object. To use wandb features in your :class:`~lightning.pytorch.core.LightningModule` do the
-    following. self.logger.experiment.some_wandb_function()
-
-    # Only available in rank0 process, others have _DummyExperiment
-    """
-    def on_train_start(self, trainer, pl_module):
-        if isinstance(trainer.logger, WandbLogger) and trainer.is_global_zero:
-            # Dynamically set the checkpoint directory in ModelCheckpoint
-            print(f"Checkpoints will be saved in: {trainer.logger.experiment.dir}")
-            trainer.checkpoint_callback.dirpath = trainer.logger.experiment.dir
-
-    def on_train_end(self, trainer, pl_module):
-        if isinstance(trainer.logger, WandbLogger) and trainer.is_global_zero:
-            # print(f'Files in wandb dir: {os.listdir(trainer.logger.experiment.dir)}')
-            # FIXME: Quickfix to make sure last checkpoint is saved.
-            trainer.logger.experiment.save(os.path.join(trainer.logger.experiment.dir, 'last.ckpt'),
-                                           base_path=trainer.logger.experiment.dir)
-
-
-def train_model(cfg_dict, cfg, data_path, dataset_name):
+def train_model(cfg, data_path, dataset_name):
     # if trainer.is_global_zero:
     #     wandb.init()
 
@@ -61,6 +37,7 @@ def train_model(cfg_dict, cfg, data_path, dataset_name):
 
     # Setup logger
     logger = WandbLogger(project='similar-expressions-01')  # , log_model=True, Disable automatic syncing
+    cfg_dict = OmegaConf.to_container(cfg)
     cfg_dict['dataset_hashes'] = data_info['hashes']
     cfg_dict['dataset_name'] = data_info['dataset_name']
     logger.log_hyperparams(cfg_dict)
@@ -110,10 +87,10 @@ def train_model(cfg_dict, cfg, data_path, dataset_name):
 
 
 if __name__ == '__main__':
-    data_path = ['/store/DAMTP/lc865/workspace/data', '/Users/luis/Desktop/Cranmer2024/Workplace/smallMutations/similar-expressions/data'][0]
+    data_path = ['/store/DAMTP/lc865/workspace/data', '/Users/luis/Desktop/Cranmer2024/Workplace/smallMutations/similar-expressions/data'][1]
 
-    cfg_dict, cfg = load_config('src/model/config.json')
-    train_model(cfg_dict, cfg, data_path, dataset_name='dataset_241008_1')  # dataset_240910_1, dataset_240822_1, dataset_240817_2
+    cfg = load_config('src/model/config.yaml')
+    train_model(cfg, data_path, dataset_name='dataset_241008_1')  # dataset_240910_1, dataset_240822_1, dataset_240817_2
 
 
 

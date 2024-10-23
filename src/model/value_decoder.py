@@ -1,10 +1,10 @@
 import torch.nn as nn
 from torch.nn import functional as F
-from config_util import ModelConfig
+from omegaconf.dictconfig import DictConfig
 from util import calc_zslice, build_rectengular_mlp
 
 class ValueDecoder(nn.Module):
-    def __init__(self, cfg: ModelConfig):
+    def __init__(self, cfg: DictConfig):
         super().__init__()
 
         # Calculate input size

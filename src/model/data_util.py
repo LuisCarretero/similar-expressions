@@ -4,14 +4,12 @@ import h5py
 import numpy as np
 from torch.utils.data import DataLoader, random_split, Dataset
 import hashlib
-from config_util import Config
+from omegaconf.dictconfig import DictConfig
 from typing import Tuple
 import wandb
 import yaml
-from config_util import dict_to_config
+from omegaconf import OmegaConf
 from model import LitGVAE
-from matplotlib import pyplot as plt
-from scipy.special import softmax
 from lightning.pytorch.utilities.model_summary import ModelSummary
 
 class CustomTorchDataset(Dataset):
@@ -101,7 +99,7 @@ def load_dataset(datapath, name):
 
     return syntax, consts, values, val_x, syntax_cats
 
-def create_dataloader(datapath: str, name: str, cfg: Config, random_seed=0, shuffle_train=True, value_transform=None, num_workers=4) -> Tuple[DataLoader, DataLoader, dict]:
+def create_dataloader(datapath: str, name: str, cfg: DictConfig, random_seed=0, shuffle_train=True, value_transform=None, num_workers=4) -> Tuple[DataLoader, DataLoader, dict]:
     gen = torch.Generator()
     gen.manual_seed(random_seed)
 
@@ -157,8 +155,7 @@ def load_wandb_model(run: str, name:str = 'model.pth', device='cpu', wandb_cache
     # Read the model parameters from the WandB config.yaml file
     with wandb.restore('config.yaml', run_path=f"luis-carretero-eth-zurich/{project}/runs/{run}", root=wandb_cache_path, replace=True) as config_file:
         cfg_dict = yaml.safe_load(config_file)
-        cfg = {k: v['value'] for k, v in list(cfg_dict.items()) if k not in ['wandb_version', '_wandb']}
-        cfg = dict_to_config(cfg)
+        cfg = OmegaConf.create({k: v['value'] for k, v in list(cfg_dict.items()) if k not in ['wandb_version', '_wandb']})
 
     # vae_model = LitGVAE(cfg, get_empty_priors())
     
