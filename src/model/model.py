@@ -1,15 +1,17 @@
 import torch
-from torch.distributions import Normal
-from encoder import Encoder
-from decoder import Decoder
-from value_decoder import ValueDecoder
-from parsing import logits_to_prods
-from grammar import GCFG, calc_grammar_mask
 import math
 import lightning as L
-from util import criterion_factory, AnnealKLSigmoid, compute_latent_metrics, calc_syntax_accuracy
 from typing import Dict, List
 from omegaconf.dictconfig import DictConfig
+from torch.distributions import Normal
+
+from src.model.encoder import Encoder
+from src.model.decoder import Decoder
+from src.model.value_decoder import ValueDecoder
+from src.model.parsing import logits_to_prods
+from src.model.grammar import GCFG, calc_grammar_mask
+from src.model.util import criterion_factory, AnnealKLSigmoid, compute_latent_metrics, calc_syntax_accuracy
+
 
 class LitGVAE(L.LightningModule):
     """Grammar Variational Autoencoder"""

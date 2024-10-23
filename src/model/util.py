@@ -218,3 +218,14 @@ class MiscCallback(Callback):
             # FIXME: Quickfix to make sure last checkpoint is saved.
             trainer.logger.experiment.save(os.path.join(trainer.logger.experiment.dir, 'last.ckpt'),
                                            base_path=trainer.logger.experiment.dir)
+
+def update_cfg(default_cfg: DictConfig, partial_cfg: Dict):
+    """
+    Update a default config with a partial config.
+    """
+    for k, v in partial_cfg.items():
+        tmp_cfg = default_cfg
+        path = k.split('.')
+        for dir in path[:-1]:
+            tmp_cfg = tmp_cfg[dir]
+        tmp_cfg[path[-1]] = v

@@ -1,7 +1,7 @@
 import torch.nn as nn
-from torch.nn import functional as F
 from omegaconf.dictconfig import DictConfig
-from util import calc_zslice, build_rectengular_mlp
+
+from src.model.util import calc_zslice, build_rectengular_mlp
 
 class ValueDecoder(nn.Module):
     def __init__(self, cfg: DictConfig):

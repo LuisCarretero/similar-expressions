@@ -1,18 +1,19 @@
 #!/usr/bin/env python3
 
-from model import LitGVAE
-from util import load_config, MiscCallback
-import lightning as L
-from data_util import create_dataloader, calc_priors_and_means, summarize_dataloaders
 from lightning.pytorch.loggers import WandbLogger
 from lightning.pytorch import seed_everything
 from lightning.pytorch.callbacks import ModelCheckpoint
 from lightning.pytorch.callbacks.early_stopping import EarlyStopping
 from lightning.pytorch.strategies import DDPStrategy
+from lightning import Trainer
 import wandb
 import os
 import torch
 from omegaconf import OmegaConf
+
+from src.model.model import LitGVAE
+from src.model.util import load_config, MiscCallback
+from src.model.data_util import create_dataloader, calc_priors_and_means, summarize_dataloaders
 
 seed_everything(42, workers=True, verbose=False)
 

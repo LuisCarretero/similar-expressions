@@ -2,11 +2,12 @@ import torch
 from nltk import Nonterminal
 from torch.distributions import Categorical
 from nltk.grammar import Production
-from grammar import get_mask, S, GCFG
 from typing import List, Tuple, Literal
-from util import Stack
 import sympy as sp
 import numpy as np
+
+from src.model.grammar import get_mask, S, GCFG
+from src.model.util import Stack
 
 OPERATOR_ARITY = {
     # Elementary functions

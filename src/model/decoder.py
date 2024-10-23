@@ -2,7 +2,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from omegaconf.dictconfig import DictConfig
-from util import calc_zslice, build_rectengular_mlp
+
+from src.model.util import calc_zslice, build_rectengular_mlp
 
 class Decoder(nn.Module):
     """Decoder that reconstructs the sequence of rules from laten z"""

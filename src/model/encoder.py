@@ -1,7 +1,9 @@
 import torch
 import torch.nn as nn
 from omegaconf.dictconfig import DictConfig
-from util import build_rectengular_mlp
+
+from src.model.util import build_rectengular_mlp
+
 class Encoder(nn.Module):
     """Convolutional encoder for Grammar VAE.
 

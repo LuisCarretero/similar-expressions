@@ -9,8 +9,10 @@ from typing import Tuple
 import wandb
 import yaml
 from omegaconf import OmegaConf
-from model import LitGVAE
 from lightning.pytorch.utilities.model_summary import ModelSummary
+from omegaconf.dictconfig import DictConfig
+
+from src.model.model import LitGVAE
 
 class CustomTorchDataset(Dataset):
     """
@@ -167,19 +169,13 @@ def load_wandb_model(run: str, name:str = 'model.pth', device='cpu', wandb_cache
     print(f'Imported model from run "{run}".')
     print(summary)
 
-    return vae_model, cfg_dict, cfg
+    return vae_model, cfg
 
-def create_dataloader_from_wandb(cfg_dict, cfg, value_transform=None, datapath='/Users/luis/Desktop/Cranmer2024/Workplace/smallMutations/similar-expressions/data', old_x_format=False):
-    # FIXME: Was quick fix, can be removed?
-    try:
-        name = cfg_dict['dataset_name']['value']
-    except KeyError:
-        name = cfg_dict['dataset']['value']
+def create_dataloader_from_wandb(cfg: DictConfig, value_transform=None, datapath='/Users/luis/Desktop/Cranmer2024/Workplace/smallMutations/similar-expressions/data', old_x_format=False):
+    train_loader, valid_loader, info = create_dataloader(datapath, name=cfg.dataset_name, cfg=cfg, value_transform=value_transform, shuffle_train=False)
+    assert all([cfg.dataset_hashes[key] == info['hashes'][key] for key in cfg.dataset_hashes.keys()]), "Error: Using different dataset than used for training."
 
-    train_loader, valid_loader, info = create_dataloader(datapath, name=name, cfg=cfg, value_transform=value_transform, shuffle_train=False)
-    assert all([cfg_dict['dataset_hashes']['value'][key] == info['hashes'][key] for key in cfg_dict['dataset_hashes']['value']]), "Error: Using different dataset than used for training."
-
-    print(f'Using dataset "{name}" of size {len(train_loader.dataset)}')
+    print(f'Using dataset "{cfg.dataset_name}" of size {len(train_loader.dataset)}')
     summarize_dataloaders(train_loader, valid_loader)
 
     return train_loader, valid_loader, info
