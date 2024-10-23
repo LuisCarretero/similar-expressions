@@ -21,7 +21,7 @@ def sweep_agent():
     cfg.model.z_size = wandb.config['model.z_size']
     
 
-    # Run your main training function
+    # Run main training function  # FIXME: Replace cfg data too so that logging works correct (not used for sweep overview itself.)
     data_path = '/store/DAMTP/lc865/workspace/data'
     train_model(cfg_dict, cfg, data_path, dataset_name='dataset_241008_1')
 

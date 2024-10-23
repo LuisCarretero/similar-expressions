@@ -47,11 +47,8 @@ class Decoder(nn.Module):
         # Get relevant part of latent space
         z = z[:, self.z_slice[0]:self.z_slice[1]]
         batch_size = z.size(0)
-        print(f"z.shape: {z.shape}")
 
         if self.rnn is not None:
-            print("Using RNN decoder")
-            x = F.relu(self.linear_in(z))
 
             # The input to the rnn is the same for each timestep: it is z.
             x = x.unsqueeze(1).expand(-1, self.out_len, -1)
@@ -67,8 +64,6 @@ class Decoder(nn.Module):
             x, _ = self.rnn(x, hx)
             x = self.linear_out(F.relu(x))
         elif self.lin is not None:
-            print("Using MLP decoder")
-            print(f"self.lin: {self.lin}")
             x = self.lin(z)
             x = x.view(batch_size, self.out_len, self.out_width)
         else:

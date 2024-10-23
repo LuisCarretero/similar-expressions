@@ -1,46 +1,21 @@
 #!/usr/bin/env python3
-
-from model import LitGVAE
-from config_util import load_config
-import lightning as L
-from data_util import create_dataloader, calc_priors_and_means, summarize_dataloaders
-from lightning.pytorch.loggers import WandbLogger
-from lightning.pytorch import seed_everything
-from lightning.pytorch.callbacks import ModelCheckpoint, Callback
-from lightning.pytorch.callbacks.early_stopping import EarlyStopping
-from lightning.pytorch.strategies import DDPStrategy, SingleDeviceStrategy
 import wandb
 import os
 import torch
+from lightning import Trainer
+from lightning.pytorch.loggers import WandbLogger
+from lightning.pytorch import seed_everything
+from lightning.pytorch.callbacks import ModelCheckpoint
+from lightning.pytorch.callbacks.early_stopping import EarlyStopping
+from lightning.pytorch.strategies import DDPStrategy, SingleDeviceStrategy
+from model import LitGVAE
+from config_util import load_config
+from util import MiscCallback
+from data_util import create_dataloader, calc_priors_and_means, summarize_dataloaders
 
 seed_everything(42, workers=True, verbose=False)
 
-
-class MiscCallback(Callback):
-    """
-    Custom callback to access the WandB run data. Cannot be called during setup as Logger is initialised only during trainer.fit().
-
-    From Docs:
-    trainer.logger.experiment: Actual wandb object. To use wandb features in your :class:`~lightning.pytorch.core.LightningModule` do the
-    following. self.logger.experiment.some_wandb_function()
-
-    # Only available in rank0 process, others have _DummyExperiment
-    """
-    def on_train_start(self, trainer, pl_module):
-        if isinstance(trainer.logger, WandbLogger) and trainer.is_global_zero:
-            # Dynamically set the checkpoint directory in ModelCheckpoint
-            print(f"Checkpoints will be saved in: {trainer.logger.experiment.dir}")
-            trainer.checkpoint_callback.dirpath = trainer.logger.experiment.dir
-
-    def on_train_end(self, trainer, pl_module):
-        if isinstance(trainer.logger, WandbLogger) and trainer.is_global_zero:
-            # print(f'Files in wandb dir: {os.listdir(trainer.logger.experiment.dir)}')
-            # FIXME: Quickfix to make sure last checkpoint is saved.
-            trainer.logger.experiment.save(os.path.join(trainer.logger.experiment.dir, 'last.ckpt'),
-                                           base_path=trainer.logger.experiment.dir)
-
-
-def train_model(cfg_dict, cfg, data_path, dataset_name):
+def train_model(cfg_dict, cfg, data_path, dataset_name, overwrite_device_count=None, overwrite_strategy=None):
     # if trainer.is_global_zero:
     #     wandb.init()
 
@@ -90,11 +65,15 @@ def train_model(cfg_dict, cfg, data_path, dataset_name):
     else:
         strategy = "auto"
         devices = 1  # Default to 1 if not running on SLURM or GPU count not specified
+    if overwrite_device_count is not None:
+        devices = overwrite_device_count
+    if overwrite_strategy is not None:
+        strategy = overwrite_strategy
     print(f"Using strategy: {strategy} and {devices} device(s)")
 
     # Setup trainer and train model
     torch.set_float32_matmul_precision('medium')
-    trainer = L.Trainer(
+    trainer = Trainer(
         logger=logger, 
         max_epochs=cfg.training.epochs, 
         gradient_clip_val=cfg.training.optimizer.clip,
