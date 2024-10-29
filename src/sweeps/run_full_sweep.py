@@ -21,8 +21,10 @@ Scripts/files that need to be configured:
 """
 
 CONFIG_PATH = '/home/lc865/workspace/similar-expressions/src/sweeps/sweep_config.yaml'
-PROJECT_NAME = 'simexp-02'
-JOB_COUNT = 2
+PROJECT_NAME = 'simexp-03'
+N_RUNS = 1
+N_ARRAY_RUNS = 4  # Preferred to multiple runs.
+RUNS_PER_AGENT = 100
 
 
 # Execting wandb in CLI instead of using python API as the latter somehow does not close the localhast connection resulting in an error when starting the agent
@@ -39,8 +41,12 @@ assert len(sweep_path) > 0
 print(result.stderr)
 print(f'Extracted sweep path: {sweep_path}')
 
-command = f'cd /home/lc865/workspace/slurm && sbatch slurm_sweep_agent.sh {sweep_path}'
+command = f'cd /home/lc865/workspace/similar-expressions/src/sweeps && sbatch --array=0-{N_ARRAY_RUNS-1} slurm_sweep_agent.sh {sweep_path} {RUNS_PER_AGENT}'
 
-for i in range(JOB_COUNT):
-    result = subprocess.run(command, shell=True, capture_output=True, text=True, check=True)
-    print(f'Scheduled job {i}: {result.stdout}')
+try:
+    for i in range(N_RUNS):
+        result = subprocess.run(command, shell=True, capture_output=True, text=True, check=True)
+        print(f'Scheduled job {i}: {result.stdout}')
+except CalledProcessError as e:
+    print(f'Error scheduling jobs. Original error message: \n {e.stderr}')
+    raise

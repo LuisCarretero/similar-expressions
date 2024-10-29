@@ -14,7 +14,7 @@ def exec_single_run():
 
     # Run training
     data_path = ['/store/DAMTP/lc865/workspace/data', '/Users/luis/Desktop/Cranmer2024/Workplace/smallMutations/similar-expressions/data'][0]
-    train_model(cfg, data_path, dataset_name='dataset_241008_1')  # , overwrite_device_count=1, overwrite_strategy='auto'
+    train_model(cfg, data_path, dataset_name='dataset_241008_1', overwrite_device_count=1, overwrite_strategy='auto')
 
 if __name__ == '__main__':
     exec_single_run()
