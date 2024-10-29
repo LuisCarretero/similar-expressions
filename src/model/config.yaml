@@ -2,20 +2,20 @@ model:
   encoder:
     size_hidden: 256
     architecture: mlp-parameterized
-    depth: 3
-    width: 512
-  z_size: 256
+    depth: 4
+    width: 2048
+  z_size: 1024
   decoder:
     z_slice: [0, -1]
     size_hidden: 128
     architecture: mlp-parameterized
-    depth: 3
-    width: 128
+    depth: 1
+    width: 16
   value_decoder:
     z_slice: [0, -1]
     architecture: mlp-parameterized
-    depth: 3
-    width: 1024
+    depth: 4
+    width: 2048
   io_format:
     seq_len: 15
     token_cnt: 10
@@ -23,9 +23,9 @@ model:
 
 training:
   batch_size: 512
-  epochs: 2
+  epochs: 50
   valid_split: 0.1
-  dataset_len_limit: 100000
+  dataset_len_limit: null
   criterion:
     ae_weight: 0.0
     kl_weight: 0

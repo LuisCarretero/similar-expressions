@@ -212,6 +212,9 @@ class MiscCallback(Callback):
             print(f"Checkpoints will be saved in: {trainer.logger.experiment.dir}")
             trainer.checkpoint_callback.dirpath = trainer.logger.experiment.dir
 
+        print(f'Node rank: {trainer.node_rank}, Global rank: {trainer.global_rank}, Local rank: {trainer.local_rank}')
+        print(f'Trainer strategy: {trainer.strategy}')
+
     def on_train_end(self, trainer, pl_module):
         if isinstance(trainer.logger, WandbLogger) and trainer.is_global_zero:
             # print(f'Files in wandb dir: {os.listdir(trainer.logger.experiment.dir)}')

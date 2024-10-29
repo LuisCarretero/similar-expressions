@@ -17,7 +17,7 @@ from src.model.data_util import create_dataloader, calc_priors_and_means, summar
 
 seed_everything(42, workers=True, verbose=False)
 
-def train_model(cfg, data_path, dataset_name, project_name=None):
+def train_model(cfg, data_path, dataset_name, project_name=None, overwrite_device_count=None, overwrite_strategy=None):
     # Set wandb logging dir
     fpath = '/store/DAMTP/lc865/workspace/wandb-cache'
     set_wandb_cache_dir(fpath)
@@ -69,6 +69,10 @@ def train_model(cfg, data_path, dataset_name, project_name=None):
     else:
         strategy = "auto"
         devices = 1  # Default to 1 if not running on SLURM or GPU count not specified
+    if overwrite_device_count is not None:
+        devices = overwrite_device_count
+    if overwrite_strategy is not None:
+        strategy = overwrite_strategy
     print(f"Using strategy: {strategy} and {devices} device(s)")
 
     # Setup trainer and train model
