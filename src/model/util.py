@@ -198,7 +198,7 @@ def build_rectengular_mlp(depth: int, width: int, input_size: int, output_size: 
 
 class MiscCallback(Callback):
     """
-    Custom callback to access the WandB run data. Cannot be called during setup as Logger is initialised only during trainer.fit().
+    Custom callback to access the WandB run data. This cannot be accessed during setup as Logger is initialised only when trainer.fit() is called.
 
     From Docs:
     trainer.logger.experiment: Actual wandb object. To use wandb features in your :class:`~lightning.pytorch.core.LightningModule` do the
@@ -229,3 +229,12 @@ def update_cfg(default_cfg: DictConfig, partial_cfg: Dict):
         for dir in path[:-1]:
             tmp_cfg = tmp_cfg[dir]
         tmp_cfg[path[-1]] = v
+
+def set_wandb_cache_dir(dir: str):
+    """
+    Not sure which ones are needed but better safe than sorry.
+    """
+    os.environ['WANDB_CACHE_DIR'] = dir
+    os.environ['WANDB_DATA_DIR'] = dir
+    os.environ['WANDB_CONFIG_DIR'] = dir
+    os.environ['WANDB_ARTIFACT_DIR'] = dir

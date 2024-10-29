@@ -12,12 +12,15 @@ import torch
 from omegaconf import OmegaConf
 
 from src.model.model import LitGVAE
-from src.model.util import load_config, MiscCallback
+from src.model.util import load_config, MiscCallback, set_wandb_cache_dir
 from src.model.data_util import create_dataloader, calc_priors_and_means, summarize_dataloaders
 
 seed_everything(42, workers=True, verbose=False)
 
-def train_model(cfg, data_path, dataset_name, overwrite_device_count=None, overwrite_strategy=None):
+def train_model(cfg, data_path, dataset_name, project_name=None):
+    # Set wandb logging dir
+    fpath = '/store/DAMTP/lc865/workspace/wandb-cache'
+    set_wandb_cache_dir(fpath)
 
     # Determine the number of workers for data loading
     if 'SLURM_JOB_ID' in os.environ:
@@ -35,7 +38,7 @@ def train_model(cfg, data_path, dataset_name, overwrite_device_count=None, overw
     gvae = LitGVAE(cfg, priors)
 
     # Setup logger
-    logger = WandbLogger(project='similar-expressions-01')  # , log_model=True, Disable automatic syncing
+    logger = WandbLogger(project=project_name, save_dir=fpath)
     cfg_dict = OmegaConf.to_container(cfg)
     cfg_dict['dataset_hashes'] = data_info['hashes']
     cfg_dict['dataset_name'] = data_info['dataset_name']
@@ -66,10 +69,6 @@ def train_model(cfg, data_path, dataset_name, overwrite_device_count=None, overw
     else:
         strategy = "auto"
         devices = 1  # Default to 1 if not running on SLURM or GPU count not specified
-    if overwrite_device_count is not None:
-        devices = overwrite_device_count
-    if overwrite_strategy is not None:
-        strategy = overwrite_strategy
     print(f"Using strategy: {strategy} and {devices} device(s)")
 
     # Setup trainer and train model
@@ -90,10 +89,10 @@ def train_model(cfg, data_path, dataset_name, overwrite_device_count=None, overw
 
 
 if __name__ == '__main__':
-    data_path = ['/store/DAMTP/lc865/workspace/data', '/Users/luis/Desktop/Cranmer2024/Workplace/smallMutations/similar-expressions/data'][1]
+    data_path = ['/store/DAMTP/lc865/workspace/data', '/Users/luis/Desktop/Cranmer2024/Workplace/smallMutations/similar-expressions/data'][0]
 
     cfg = load_config('src/model/config.yaml')
-    train_model(cfg, data_path, dataset_name='dataset_241008_1')  # dataset_240910_1, dataset_240822_1, dataset_240817_2
+    train_model(cfg, data_path, dataset_name='dataset_241008_1', project_name='similar-expressions-01')  # dataset_240910_1, dataset_240822_1, dataset_240817_2
 
 
 

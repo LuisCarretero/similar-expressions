@@ -3,7 +3,7 @@ from src.model.util import load_config, update_cfg
 from src.model.train import train_model
 
 def exec_single_run():
-    wandb.init()
+    wandb.init(dir='/store/DAMTP/lc865/workspace/wandb-cache')
     assert len(wandb.config.keys()) > 0, "Wandb config is empty. Script needs to be called via wandb agent."
 
     # Load default config
@@ -13,7 +13,7 @@ def exec_single_run():
     update_cfg(cfg, wandb.config)
 
     # Run training
-    data_path = ['/store/DAMTP/lc865/workspace/data', '/Users/luis/Desktop/Cranmer2024/Workplace/smallMutations/similar-expressions/data'][1]
+    data_path = ['/store/DAMTP/lc865/workspace/data', '/Users/luis/Desktop/Cranmer2024/Workplace/smallMutations/similar-expressions/data'][0]
     train_model(cfg, data_path, dataset_name='dataset_241008_1')  # , overwrite_device_count=1, overwrite_strategy='auto'
 
 if __name__ == '__main__':
