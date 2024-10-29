@@ -18,8 +18,6 @@ from src.model.data_util import create_dataloader, calc_priors_and_means, summar
 seed_everything(42, workers=True, verbose=False)
 
 def train_model(cfg, data_path, dataset_name, overwrite_device_count=None, overwrite_strategy=None):
-    # if trainer.is_global_zero:
-    #     wandb.init()
 
     # Determine the number of workers for data loading
     if 'SLURM_JOB_ID' in os.environ:
