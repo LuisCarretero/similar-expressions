@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from omegaconf.dictconfig import DictConfig
 
-from src.model.util import build_rectengular_mlp
+from src.model.components import build_rectengular_mlp, build_residual_mlp
 
 class Encoder(nn.Module):
     """Convolutional encoder for Grammar VAE.
@@ -18,7 +18,7 @@ class Encoder(nn.Module):
         
         self.mlp, self.conv = None, None
 
-        if cfg.encoder.architecture == 'small':
+        if cfg.encoder.architecture == 'conv-small':
             self.conv = nn.Sequential(
                 nn.Conv1d(self.input_dim, 2, kernel_size=2), nn.ReLU(),
                 nn.Conv1d(2, 3, kernel_size=3), nn.ReLU(),
@@ -26,7 +26,7 @@ class Encoder(nn.Module):
                 nn.Flatten(),
                 nn.Linear(36, cfg.encoder.size_hidden), nn.ReLU()
             )
-        elif cfg.encoder.architecture == 'large':
+        elif cfg.encoder.architecture == 'conv-large':
             self.conv = nn.Sequential(
                 nn.Conv1d(self.input_dim, self.input_dim*2, kernel_size=2), nn.ReLU(),
                 nn.Conv1d(self.input_dim*2, self.input_dim, kernel_size=3), nn.ReLU(),
@@ -34,7 +34,7 @@ class Encoder(nn.Module):
                 nn.Flatten(),
                 nn.Linear(self.input_dim*9, self.hidden_size), nn.ReLU()
             )
-        elif cfg.encoder.architecture == 'extra_large':
+        elif cfg.encoder.architecture == 'conv-extra-large':
             self.conv = nn.Sequential(
                 nn.Conv1d(self.input_dim, self.input_dim*4, kernel_size=2), nn.ReLU(),
                 nn.Conv1d(self.input_dim*4, self.input_dim*2, kernel_size=3), nn.ReLU(),
@@ -43,28 +43,13 @@ class Encoder(nn.Module):
                 nn.Flatten(),
                 nn.Linear(self.input_dim*5, self.hidden_size), nn.ReLU()
             )
-        elif cfg.encoder.architecture == 'mlp-large':
-            self.mlp = nn.Sequential(
-                nn.Flatten(),
-                nn.Linear(self.input_len*self.input_dim, 256), nn.ReLU(),
-                nn.Linear(256, 512), nn.ReLU(),
-                nn.Linear(512, 1024), nn.ReLU(),
-                nn.Linear(1024, 2048), nn.ReLU(),
-                nn.Linear(2048, 1024), nn.ReLU(),
-                nn.Linear(1024, 512), nn.ReLU(),
-                nn.Linear(512, self.hidden_size), nn.ReLU()
-            )
         elif cfg.encoder.architecture == 'mlp-parameterized':
             self.mlp = build_rectengular_mlp(cfg.encoder.depth, cfg.encoder.width, self.input_len*self.input_dim, self.hidden_size)
-        elif cfg.encoder.architecture == 'mlp-wide':
-            self.mlp = nn.Sequential(
-                nn.Linear(self.input_len*self.input_dim, 1024), nn.ReLU(),
-                nn.Linear(1024, 1024), nn.ReLU(),
-                nn.Linear(1024, self.hidden_size), nn.ReLU()
-            )
+        elif cfg.encoder.architecture == 'residual-parameterized':
+            self.mlp = build_residual_mlp(cfg.encoder.depth, cfg.encoder.width, self.input_len*self.input_dim, self.hidden_size)
         else:
             raise ValueError(f'Invalid value for `architecture`: {cfg.encoder.architecture}.'
-                             ' Must be in [small, large, extra_large, mlp-large, mlp, mlp-wide]')
+                             ' Must be in [conv-small, conv-large, conv-extra-large, mlp-parameterized, residual-parameterized]')
 
         self.mu = nn.Linear(self.hidden_size, cfg.z_size)
         self.sigma = nn.Linear(self.hidden_size, cfg.z_size)

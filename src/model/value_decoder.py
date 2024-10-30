@@ -1,7 +1,8 @@
 import torch.nn as nn
 from omegaconf.dictconfig import DictConfig
 
-from src.model.util import calc_zslice, build_rectengular_mlp
+from src.model.util import calc_zslice
+from src.model.components import build_rectengular_mlp, build_residual_mlp
 
 class ValueDecoder(nn.Module):
     def __init__(self, cfg: DictConfig):
@@ -29,31 +30,8 @@ class ValueDecoder(nn.Module):
             )
         elif self.architecture == 'mlp-parameterized':
             self.lin = build_rectengular_mlp(cfg.value_decoder.depth, cfg.value_decoder.width, self.input_size, self.out_dim)
-        elif self.architecture == 'mlp-medium-wide':
-            self.lin = nn.Sequential(
-                nn.Linear(self.input_size, 2048), nn.ReLU(),
-                nn.Linear(2048, 2048), nn.ReLU(),
-                nn.Linear(2048, self.out_dim)
-            )
-        elif self.architecture == 'mlp-large':
-            self.lin = nn.Sequential(
-                nn.Linear(self.input_size, 256), nn.ReLU(),
-                nn.Linear(256, 512), nn.ReLU(),
-                nn.Linear(512, 512), nn.ReLU(),
-                nn.Linear(512, 1024), nn.ReLU(),
-                nn.Linear(1024, 1024), nn.ReLU(),
-                nn.Linear(1024, self.out_dim)
-            )
-        elif self.architecture == 'mlp-extra-large':
-            self.lin = nn.Sequential(
-                nn.Linear(self.input_size, 512), nn.ReLU(),
-                nn.Linear(512, 1024), nn.ReLU(),
-                nn.Linear(1024, 2048), nn.ReLU(),
-                nn.Linear(2048, 2048), nn.ReLU(),
-                nn.Linear(2048, 2048), nn.ReLU(),
-                nn.Linear(2048, 2048), nn.ReLU(),
-                nn.Linear(2048, self.out_dim)
-            )
+        elif self.architecture == 'residual-parameterized':
+            self.lin = build_residual_mlp(cfg.value_decoder.depth, cfg.value_decoder.width, self.input_size, self.out_dim)
         else:
             raise ValueError(f'Invalid value for `architecture`: {self.architecture}.'
                              ' Must be in [small, medium, large]')

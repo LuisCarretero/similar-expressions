@@ -5,14 +5,14 @@ metric:
   goal: minimize
 parameters:
   model.encoder.depth:
-    values: [1, 2, 3, 4, 5]
+    values: [3, 4, 5]
   model.encoder.width:
-    values: [128, 256, 512, 1024, 2048, 4096]
+    values: [128, 256, 512, 1024, 2048]
   model.value_decoder.depth:
-    values: [1, 2, 3, 4, 5]
+    values: [3, 4, 5]
   model.value_decoder.width:
-    values: [128, 256, 512, 1024, 2048, 4096]
+    values: [128, 256, 512, 1024, 2048]
   model.z_size:
     values: [128, 256, 512, 1024, 2048]
   training.batch_size:
-    values: [256, 512, 1024, 2048]
+    values: [512, 1024, 2048]
