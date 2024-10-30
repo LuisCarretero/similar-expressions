@@ -3,7 +3,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from omegaconf.dictconfig import DictConfig
 
-from src.model.util import calc_zslice, build_rectengular_mlp
+from src.model.util import calc_zslice
+from src.model.components import build_rectengular_mlp, build_residual_mlp
 
 class Decoder(nn.Module):
     """Decoder that reconstructs the sequence of rules from laten z"""
@@ -26,8 +27,11 @@ class Decoder(nn.Module):
         elif self.architecture == 'mlp-parameterized':
             out_dim = self.out_len * self.out_width
             self.lin = build_rectengular_mlp(cfg.decoder.depth, cfg.decoder.width, self.input_size, out_dim)
+        elif self.architecture == 'residual-parameterized':
+            out_dim = self.out_len * self.out_width
+            self.lin = build_residual_mlp(cfg.decoder.depth, cfg.decoder.width, self.input_size, out_dim)
         else:
-            raise ValueError('Select architecture from [lstm, lstm-large, gru, mlp-parameterized]')
+            raise ValueError('Select architecture from [lstm, lstm-large, gru, mlp-parameterized, residual-parameterized]')
 
         if self.rnn is not None:
             self.linear_in = nn.Linear(self.input_size, self.hidden_size)

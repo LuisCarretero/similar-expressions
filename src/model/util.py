@@ -1,7 +1,6 @@
 import math
 from typing import Dict, List, Tuple
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 from lightning.pytorch.callbacks import Callback
 from lightning.pytorch.loggers import WandbLogger
@@ -180,21 +179,6 @@ def calc_zslice(z_slice: List[int], z_size: int) -> Tuple[List[int], int]:
     assert z_slice[1] <= z_size, f"z_slice has to be subset of z: z_slice[1]: {z_slice[1]}, z_size: {z_size}"
 
     return z_slice, input_size
-
-def build_rectengular_mlp(depth: int, width: int, input_size: int, output_size: int) -> nn.Module:
-    """
-    Build a rectangular mlp with the given depth, width, input size and output size. Works for depth >= 1.
-    """
-    layers = []
-    in_features = input_size
-    for _ in range(depth - 1):
-        layers.extend([
-            nn.Linear(in_features, width),
-            nn.ReLU()
-        ])
-        in_features = width
-    layers.append(nn.Linear(in_features, output_size))
-    return nn.Sequential(*layers)
 
 class MiscCallback(Callback):
     """

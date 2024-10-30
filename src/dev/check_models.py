@@ -1,7 +1,8 @@
-from config_util import load_config
-from model import LitGVAE
-from data_util import get_empty_priors, create_dataloader
-import torch
+from src.model.util import load_config
+from src.model.model import LitGVAE
+from src.model.data_util import get_empty_priors, create_dataloader
+
+from torch import randn
 
 
 def main():
@@ -17,7 +18,7 @@ def main():
 
     print('Checking model...')
     syntax_shape = (batch_size, cfg.model.io_format.seq_len, cfg.model.io_format.token_cnt)
-    x = torch.randn(syntax_shape)
+    x = randn(syntax_shape)
     mu, sigma = gvae.encoder(x)
     z = mu  # No sampling
     syntax_out = gvae.decoder(z)

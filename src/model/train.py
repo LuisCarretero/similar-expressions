@@ -81,7 +81,7 @@ def train_model(cfg, data_path, dataset_name, project_name=None, overwrite_devic
         logger=logger, 
         max_epochs=cfg.training.epochs, 
         gradient_clip_val=cfg.training.optimizer.clip,
-        callbacks=[checkpoint_callback, early_stopping_callback, MiscCallback()],
+        callbacks=[checkpoint_callback, MiscCallback()],  # early_stopping_callback
         log_every_n_steps=100,
         devices=devices,
         strategy=strategy
@@ -96,7 +96,7 @@ if __name__ == '__main__':
     data_path = ['/store/DAMTP/lc865/workspace/data', '/Users/luis/Desktop/Cranmer2024/Workplace/smallMutations/similar-expressions/data'][0]
 
     cfg = load_config('src/model/config.yaml')
-    train_model(cfg, data_path, dataset_name='dataset_241008_1', project_name='similar-expressions-01')  # dataset_240910_1, dataset_240822_1, dataset_240817_2
+    train_model(cfg, data_path, dataset_name='dataset_241008_1', project_name='simexp-03')  # dataset_240910_1, dataset_240822_1, dataset_240817_2
 
 
 

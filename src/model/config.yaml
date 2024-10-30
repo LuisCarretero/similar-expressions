@@ -1,10 +1,10 @@
 model:
   encoder:
     size_hidden: 256
-    architecture: mlp-parameterized
-    depth: 4
-    width: 2048
-  z_size: 1024
+    architecture: residual-parameterized
+    depth: 3
+    width: 512
+  z_size: 256
   decoder:
     z_slice: [0, -1]
     size_hidden: 128
@@ -13,17 +13,17 @@ model:
     width: 16
   value_decoder:
     z_slice: [0, -1]
-    architecture: mlp-parameterized
-    depth: 4
-    width: 2048
+    architecture: residual-parameterized
+    depth: 3
+    width: 512
   io_format:
     seq_len: 15
     token_cnt: 10
     val_points: 100
 
 training:
-  batch_size: 512
-  epochs: 50
+  batch_size: 2048
+  epochs: 200
   valid_split: 0.1
   dataset_len_limit: null
   criterion:
@@ -35,12 +35,12 @@ training:
     prior_std: 1
     eps: 0
   optimizer:
-    lr: 4e-3
-    clip: 5.0
-    scheduler_factor: 0.2
-    scheduler_patience: 2
-    scheduler_threshold: 1e-3
-    scheduler_min_lr: 1e-5
+    lr: 5e-3
+    clip: null
+    scheduler_factor: 0.1
+    scheduler_patience: 10
+    scheduler_threshold: 2e-4
+    scheduler_min_lr: 0
   performance_metric: train/loss
   kl_anneal:
     schedule: sigmoid
