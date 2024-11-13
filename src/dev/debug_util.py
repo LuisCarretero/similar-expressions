@@ -5,9 +5,9 @@ import torch.nn.functional as F
 from scipy.stats import norm
 from typing import Union
 from tqdm import tqdm
+from omegaconf.dictconfig import DictConfig
 
-from parsing import logits_to_infix, eval_from_logits
-from config_util import ModelConfig
+from src.model.parsing import logits_to_infix, eval_from_logits
 
 
 def calc_properties_and_partials(y_values: torch.Tensor):
@@ -239,7 +239,7 @@ def plot_var_distributions(mean_of_var_train, mean_of_var_test, std_of_var_train
     plt.show()
 
 
-def plot_latent_distribution(z_train: np.ndarray, cfg: ModelConfig):
+def plot_latent_distribution(z_train: np.ndarray, cfg: DictConfig):
     num_dims = cfg.model.z_size
     num_bins = 100
     
