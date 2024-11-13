@@ -127,7 +127,7 @@ class LitGVAE(L.LightningModule):
         return {'loss': loss, 'step_metrics': step_metrics}
     
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(
+        optimizer = torch.optim.AdamW(  # AdamW uses weight_decay=0.01 by default
             self.parameters(), 
             lr=self.cfg.training.optimizer.lr
         )
@@ -173,15 +173,13 @@ class LitGVAE(L.LightningModule):
         self._log_from_buffer(self.train_step_metrics_buffer)
         
     def _log_from_buffer(self, buffer: List):
-        # Average the metrics over the last N steps
         if len(buffer) == 0:
             return
 
+        # Average the metrics over the last N steps
         # avg_metrics = {k: sum(d[k] for d in buffer) / len(buffer) for k in buffer[0]}
         avg_metrics = {k: sum(step_dict[k] for step_dict in buffer) / len(buffer) for k in buffer[0]}
 
-        # Log the averaged metrics
+        # Log the averaged metrics and clear the buffer
         self.log_dict(avg_metrics, sync_dist=True)
-        
-        # Clear the buffer
         buffer.clear()

@@ -1,18 +1,24 @@
 program: src/sweeps/train_wrapper.py
 method: bayes
 metric:
-  name: train/loss
+  name: valid/loss
   goal: minimize
 parameters:
   model.encoder.depth:
-    values: [3, 4, 5]
+    values: [4, 5]
   model.encoder.width:
-    values: [128, 256, 512, 1024, 2048]
+    values: [256, 512, 1024]
   model.value_decoder.depth:
-    values: [3, 4, 5]
+    values: [4, 5]
   model.value_decoder.width:
-    values: [128, 256, 512, 1024, 2048]
+    values: [256, 512, 1024]
   model.z_size:
-    values: [128, 256, 512, 1024, 2048]
+    values: [128]
   training.batch_size:
-    values: [512, 1024, 2048]
+    values: [1024]
+  training.optimizer.lr:
+    values: [1e-4]
+  training.criterion.kl_weight:
+    values: [1e-2, 1e-3, 1e-4]
+  training.sampling.eps:
+    values: [0, 1e-6, 1e-4, 1e-2]
