@@ -24,7 +24,7 @@ CONFIG_PATH = '/home/lc865/workspace/similar-expressions/src/sweeps/sweep_config
 PROJECT_NAME = 'simexp-03'
 N_RUNS = 1
 N_ARRAY_RUNS = 4  # Preferred to multiple runs.
-RUNS_PER_AGENT = 100
+RUNS_PER_AGENT = 50
 
 
 # Execting wandb in CLI instead of using python API as the latter somehow does not close the localhast connection resulting in an error when starting the agent

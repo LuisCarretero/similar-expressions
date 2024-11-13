@@ -1,33 +1,34 @@
 model:
   encoder:
     size_hidden: 256
-    architecture: residual-parameterized
+    architecture: mlp-parameterized
     depth: 3
-    width: 512
+    width: 1024
   z_size: 256
   decoder:
     z_slice: [0, -1]
     size_hidden: 128
     architecture: mlp-parameterized
-    depth: 1
-    width: 16
+    depth: 10
+    width: 128
   value_decoder:
     z_slice: [0, -1]
-    architecture: residual-parameterized
+    architecture: mlp-parameterized
     depth: 3
-    width: 512
+    width: 1024
   io_format:
     seq_len: 15
     token_cnt: 10
     val_points: 100
 
 training:
-  batch_size: 2048
+  batch_size: 512
   epochs: 200
   valid_split: 0.1
   dataset_len_limit: null
+  mode: value_prediction  # value_prediction, autoencoding or mixed
   criterion:
-    ae_weight: 0.0
+    ae_weight: 0
     kl_weight: 0
     syntax_weight: 0.5
     contrastive_weight: 0
@@ -36,7 +37,7 @@ training:
     eps: 0
   optimizer:
     lr: 5e-3
-    clip: null
+    clip: 1
     scheduler_factor: 0.1
     scheduler_patience: 10
     scheduler_threshold: 2e-4

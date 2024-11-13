@@ -12,7 +12,6 @@ def load_config(file_path: str) -> DictConfig:
     # TODO: Add error handling, fallback values, etc.
     return OmegaConf.load(file_path)
 
-
 class Stack:
     # TODO: Use built-in
     """A simple first in last out stack.
@@ -110,6 +109,7 @@ def criterion_factory(cfg: DictConfig, priors: Dict):
         loss_recon_ae = SYNTAX_WEIGHT*loss_syntax + (1-SYNTAX_WEIGHT)*loss_consts
 
         # VAE total loss (loss_ae = -ELBO = -log p(x|z) + KL_WEIGHT*KL(q(z|x)||p(z)) where KL_WEIGHT is usually denoted as beta)
+        kl = torch.tensor(0.0, device=z.device) if KL_WEIGHT == 0 else kl
         loss_vae = loss_recon_ae + KL_WEIGHT*alpha*kl
 
         # Value prediction loss
@@ -129,6 +129,7 @@ def criterion_factory(cfg: DictConfig, priors: Dict):
             loss_contrastive = torch.tensor(0.0, device=z.device)
 
         # Total loss
+        # loss_vae = torch.tensor(0.0, device=z.device) if AE_WEIGHT == 0 else loss_vae  # FIXME: This is a hack to avoid NaNs in the loss if AE_WEIGHT is 0 (and hence the loss may grow without bound)
         loss = AE_WEIGHT*loss_vae + (1-AE_WEIGHT)*loss_values + CONTRASTIVE_WEIGHT*loss_contrastive
 
         partial_losses = {

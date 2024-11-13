@@ -53,7 +53,6 @@ class Encoder(nn.Module):
 
         self.mu = nn.Linear(self.hidden_size, cfg.z_size)
         self.sigma = nn.Linear(self.hidden_size, cfg.z_size)
-
         self.softplus = nn.Softplus()
 
     def forward(self, x):
@@ -69,7 +68,7 @@ class Encoder(nn.Module):
             x = x.flatten(1)
             h = self.mlp(x)
 
-        mu = self.mu(h)
-        sigma = self.softplus(self.sigma(h))
+        mean = self.mu(h)
+        ln_var = self.softplus(self.sigma(h))
 
-        return mu, sigma
+        return mean, ln_var

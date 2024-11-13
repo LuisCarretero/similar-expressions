@@ -18,18 +18,18 @@ class LitGVAE(L.LightningModule):
     def __init__(self, cfg: DictConfig, priors: Dict[str, float]):
         super().__init__()
 
-        self.encoder = Encoder(cfg.model)
-        self.decoder = Decoder(cfg.model)
-        self.value_decoder = ValueDecoder(cfg.model)
-
         self.cfg = cfg
         self.prior_std = cfg.training.sampling.prior_std
         self.prior_var = self.prior_std**2
         self.ln_prior_var = math.log(self.prior_var)
         self.sampling_eps = cfg.training.sampling.eps
+        self.mode = cfg.training.mode  # value_prediction, autoencoding, mixed
+
+        self.encoder = Encoder(cfg.model)
+        self.decoder = Decoder(cfg.model) if self.mode != 'value_prediction' else None
+        self.value_decoder = ValueDecoder(cfg.model) if self.mode != 'autoencoding' else None
 
         self.use_grammar_mask = cfg.training.use_grammar_mask
-        self.max_length = cfg.model.io_format.seq_len
         
         self.priors = priors
         self.criterion = criterion_factory(cfg, self.priors)
@@ -56,9 +56,20 @@ class LitGVAE(L.LightningModule):
     def forward(self, x):
         mean, ln_var = self.encoder(x)
         z = self.sample(mean, ln_var)
-        logits = self.decoder(z)
-        values = self.value_decoder(z)
-        return logits, values
+
+        if self.mode == 'mixed':
+            logits = self.decoder(z)
+            values = self.value_decoder(z)
+        elif self.mode == 'value_prediction':
+            logits = torch.zeros(x.shape[0], self.cfg.model.io_format.seq_len, self.cfg.model.io_format.token_cnt).to(z.device)
+            values = self.value_decoder(z)
+        elif self.mode == 'autoencoding':
+            logits = self.decoder(z)
+            values = torch.zeros(x.shape[0], self.cfg.model.io_format.val_points).to(z.device)
+        else:
+            raise ValueError(f"Invalid mode: {self.mode}")
+        
+        return mean, ln_var, z, logits, values
 
     def generate(self, z, sample=False, max_length=15):
         """Generate a valid expression from z using the decoder and grammar to create a set of rules that can 
@@ -75,13 +86,10 @@ class LitGVAE(L.LightningModule):
         x, y_syntax, y_consts, y_values = batch
 
         # Forward pass
-        mean, ln_var = self.encoder(x)
-        z = self.sample(mean, ln_var)
-        logits = self.decoder(z)
+        mean, ln_var, z, logits, values = self.forward(x)
         if self.use_grammar_mask:
             logits = logits * calc_grammar_mask(y_syntax)
-        values = self.value_decoder(z)
-        
+
         # Compute losses
         kl = self.calc_kl(mean, ln_var)  # Positive definite scalar, aim to minimize
         alpha = self.kl_anneal.alpha(self.current_epoch)
@@ -100,12 +108,9 @@ class LitGVAE(L.LightningModule):
         x, y_syntax, y_consts, y_values = batch
 
         # Forward pass
-        mean, ln_var = self.encoder(x)
-        z = self.sample(mean, ln_var)
-        logits = self.decoder(z)
+        mean, ln_var, z, logits, values = self.forward(x)
         if self.use_grammar_mask:
             logits = logits * calc_grammar_mask(y_syntax)
-        values = self.value_decoder(z)
 
         # Compute losses
         kl = self.calc_kl(mean, ln_var)  # Positive definite scalar, aim to minimize
