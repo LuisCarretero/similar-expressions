@@ -17,8 +17,8 @@ nfeatures = 1
 ops = OperatorEnum((+, -, *, /), (sin, exp))
 op_probs = ExpressionGenerator.OperatorProbEnum(ops, [1.0, 1.0, 1.0, 1.0], [1.0, 1.0])
 seq_len = 15
-N = 2_200_000
-name = "dataset_241008_1"
+N = 6_000_000
+name = "dataset_241126_1"
 
 eval_x = reshape(collect(range(-10, 10, length=100)), (1, 100))
 filter_settings = FilterSettings(

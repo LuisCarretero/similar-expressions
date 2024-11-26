@@ -341,7 +341,7 @@ def plot_latent_distances(z_train: np.ndarray, z_test: np.ndarray, title: str, s
 def slerp(v0: np.ndarray, v1: np.ndarray, t: np.ndarray) -> np.ndarray:
     """Spherical linear interpolation. FIXME: Vectorize."""
     # Compute the cosine of the angle between the two vectors
-    omega = np.arccos(np.dot(v0, v1))
+    omega = np.arccos(np.dot(v0, v1)/(np.linalg.norm(v0)*np.linalg.norm(v1)))
     sin_omega = np.sin(omega)
 
     s0 = np.sin((1 - t) * omega) / sin_omega
@@ -401,7 +401,7 @@ def calc_and_plot_samples(model, x: torch.Tensor, values_true: torch.Tensor, n_s
         assert val_x is not None, 'val_x must be provided for syntax mode'
         assert value_transform is not None, 'value_transform must be provided for syntax mode'
 
-        logits_pred = model.decoder(mean, max_length=model.max_length)
+        logits_pred = model.decoder(mean)
         res_raw = eval_from_logits(logits_pred.squeeze(), val_x.squeeze())
         try:
             res = res_raw.astype(np.float32)
@@ -411,7 +411,7 @@ def calc_and_plot_samples(model, x: torch.Tensor, values_true: torch.Tensor, n_s
 
         # Sample and decode from neighbourhood
         z = model.sample(mean.repeat(n_samples, 1), ln_var.repeat(n_samples, 1))
-        logits_neigh = model.decoder(z, max_length=model.max_length)
+        logits_neigh = model.decoder(z)
         
         values_neigh = torch.empty([n_samples, len(val_x)])
         
@@ -462,7 +462,7 @@ def plot_interpolation(model, val_x: torch.Tensor, z_start: np.ndarray, z_end: n
     
     # Decode into values and logits
     values_interp = model.value_decoder(torch.tensor(z_interp.astype(np.float32)))
-    logits_interp = model.decoder(torch.tensor(z_interp.astype(np.float32)), max_length=15)
+    logits_interp = model.decoder(torch.tensor(z_interp.astype(np.float32)))
 
     # Decode logits into values
     values_interp_syntax = torch.empty_like(values_interp)
@@ -484,6 +484,10 @@ def plot_interpolation(model, val_x: torch.Tensor, z_start: np.ndarray, z_end: n
     plt.show()
 
 def plot_value_interpolation(ax: plt.Axes, val_x: torch.Tensor, values_interp: torch.Tensor, start_true: np.ndarray, end_true: np.ndarray, title: str):
+
+    if values_interp.isnan().any():
+        print('Warning: values_interp contains NaNs')
+
     # Pred values (interpolated)
     cmap = plt.get_cmap('rainbow')
     for idx, value in enumerate(values_interp[1:-1]):

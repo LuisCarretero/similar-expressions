@@ -1,7 +1,8 @@
 import torch
 from nltk import Nonterminal
-from torch.distributions import Categorical
 from nltk.grammar import Production
+
+from torch.distributions import Categorical
 from typing import List, Tuple, Literal
 import sympy as sp
 import numpy as np
@@ -60,7 +61,7 @@ def prods_to_prefix(prods, to_string=False):
     else:
         return seq
 
-def logits_to_prods(logits, grammar, start_symbol: Nonterminal = S, sample=False, max_length=15, insert_const=True, const_token='CON', replace_const: Literal['numerical', 'placeholder', 'nothing'] = 'numerical'):
+def logits_to_prods(logits, grammar, start_symbol: Nonterminal = S, sample=False, max_length=15, insert_const=True, const_token='CON', replace_const: Literal['numerical', 'placeholder', 'nothing', 'numerical_rounded'] = 'numerical', round_const_decimals=2):
     stack = Stack(grammar=grammar, start_symbol=start_symbol)
 
     logits_prods = logits[:, :-1]
@@ -89,6 +90,8 @@ def logits_to_prods(logits, grammar, start_symbol: Nonterminal = S, sample=False
         if insert_const and (rule.rhs()[0] == const_token):
             if replace_const == 'numerical':
                 rule = Production(lhs=rule.lhs(), rhs=(str(constants[t].item()),))
+            elif replace_const == 'numerical_rounded':
+                rule = Production(lhs=rule.lhs(), rhs=(str(round(constants[t].item(), round_const_decimals)),))
             elif replace_const == 'placeholder':
                 placeholder_name = f'CON_{j}'
                 rule = Production(lhs=rule.lhs(), rhs=(placeholder_name,))
@@ -198,11 +201,11 @@ def prefix_to_infix(expr: List[str], variables=['x1']) -> List[str]:
         raise Exception(f'Incorrect prefix expression "{expr}". "{r}" was not parsed.')
     return p
 
-def logits_to_infix(logits, sample=False, replace_const='numerical'):
+def logits_to_infix(logits, sample=False, replace_const='numerical', round_const_decimals=2):
     # FIXME: Add variables, GCFG pass-through
 
     assert len(logits.shape) == 2, "Logits should be 2D, no batch dimension"
-    prods = logits_to_prods(logits, GCFG, sample=sample, replace_const=replace_const)
+    prods = logits_to_prods(logits, GCFG, sample=sample, replace_const=replace_const, round_const_decimals=round_const_decimals)
     prefix = prods_to_prefix(prods)
     infix = prefix_to_infix(prefix, variables=['x1'])
     return infix
