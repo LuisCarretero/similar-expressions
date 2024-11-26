@@ -7,18 +7,19 @@ parameters:
   model.encoder.depth:
     values: [4, 5]
   model.encoder.width:
-    values: [256, 512, 1024]
+    values: [1024]
   model.value_decoder.depth:
     values: [4, 5]
   model.value_decoder.width:
     values: [256, 512, 1024]
   model.z_size:
-    values: [128]
+    values: [128, 256]
   training.batch_size:
-    values: [1024]
+    values: [128, 256, 512]
   training.optimizer.lr:
-    values: [1e-4]
+    values: [1e-4, 3e-4]
   training.criterion.kl_weight:
     values: [1e-2, 1e-3, 1e-4]
   training.sampling.eps:
-    values: [0, 1e-6, 1e-4, 1e-2]
+    values: [0, 1e-6, 1e-4, 1e-3]
+  
