@@ -211,7 +211,15 @@ function get_onehot_legend(dataset)::Vector{String}  # ::DatasetModule.Dataset
         typeof(*) => "MUL",
         typeof(/) => "DIV",
         typeof(sin) => "SIN",
-        typeof(exp) => "EXP"
+        typeof(cos) => "COS",
+        typeof(log) => "LOG",
+        typeof(log2) => "LOG2",
+        typeof(log10) => "LOG10",
+        typeof(sqrt) => "SQRT",
+        typeof(exp) => "EXP",
+        typeof(tanh) => "TANH",
+        typeof(cosh) => "COSH",
+        typeof(sinh) => "SINH",
     )
 
     # Create a new array with the string versions in the same order as ops
