@@ -407,7 +407,7 @@ def calc_and_plot_samples(model, x: torch.Tensor, values_true: torch.Tensor, n_s
             res = res_raw.astype(np.float32)
         except TypeError:
             res = np.zeros_like(res_raw, dtype=np.float32)
-        values_pred = value_transform(torch.tensor(res))
+        values_pred = value_transform(torch.tensor(res).unsqueeze(0)).squeeze()
 
         # Sample and decode from neighbourhood
         z = model.sample(mean.repeat(n_samples, 1), ln_var.repeat(n_samples, 1))
@@ -423,7 +423,7 @@ def calc_and_plot_samples(model, x: torch.Tensor, values_true: torch.Tensor, n_s
                 res = np.zeros_like(res_raw, dtype=np.float32)
                 print(f'Warning: Failed to decode logits {i}')
 
-            values_neigh[i, ...] = value_transform(torch.tensor(res))
+            values_neigh[i, ...] = value_transform(torch.tensor(res).unsqueeze(0)).squeeze()
         
     plot_sample_distribution(val_x, values_true, values_pred, values_neigh, ax=ax)
 
@@ -470,7 +470,7 @@ def plot_interpolation(model, val_x: torch.Tensor, z_start: np.ndarray, z_end: n
         res = eval_from_logits(logits_interp[idx, ...], val_x.squeeze())
         try:
             res = res.astype(np.float32)
-            values_interp_syntax[idx, ...] = value_transform(torch.tensor(res))
+            values_interp_syntax[idx, ...] = value_transform(torch.tensor(res).unsqueeze(0)).squeeze()
         except TypeError:
             print(f'Warning: Failed to decode logits {idx}')
             values_interp_syntax[idx, ...] = torch.zeros_like(res, dtype=torch.float32)

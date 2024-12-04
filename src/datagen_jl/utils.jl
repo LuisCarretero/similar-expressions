@@ -120,7 +120,7 @@ function filter_evaluated_trees(trees::Vector{Node{T}}, eval_y::AbstractMatrix{T
     deriv_4 = first_deriv(eval_x[:, 4:end], deriv_3)
 
     range = maximum(eval_y_transformed, dims=2) - minimum(eval_y_transformed, dims=2)
-    valid = valid .& all((range .> settings.min_range), dims=2)
+    valid = valid .& all((range .> settings.min_range) .| (range .== 0), dims=2)
     println("Number of valid expressions after range check: ", sum(valid) / length(valid))
 
     valid = valid .& all((abs.(deriv_1) .< settings.max_1st_deriv), dims=2)

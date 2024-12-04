@@ -118,6 +118,7 @@ def create_value_transform(transform_cfg: DictConfig, values: torch.Tensor):
     }[transform_cfg.mapping]
 
     if transform_cfg.bias == 'dataset' or transform_cfg.scale in ['dataset-std', 'dataset-range']:
+        assert values is not None, "Values are needed to calculate bias and scale over whole dataset."
         values_mapped = mapping(values)
     else:
         values_mapped = None
