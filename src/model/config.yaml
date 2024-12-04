@@ -18,7 +18,7 @@ model:
     width: 1024
   io_format:
     seq_len: 15
-    token_cnt: 10
+    token_cnt: 14
     val_points: 100
 
 training:
