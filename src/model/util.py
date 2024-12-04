@@ -92,9 +92,10 @@ def criterion_factory(cfg: DictConfig, priors: Dict):
     input_size = z_slice[1] - z_slice[0]
 
     l2_dist = torch.nn.PairwiseDistance(p=2)
-    a = 40  # Sharpness
-    b = 5  # Shift
-    gamma_func = lambda x: 1/(1+ torch.exp(a * x - b))
+    SIMILARITY_THRESHOLD = 1e-3
+    # a = 40  # Sharpness
+    # b = 5  # Shift
+    # gamma_func = lambda x: 1/(1+ torch.exp(a * x - b))
 
     def criterion(expr_pred: torch.Tensor, values_pred: torch.Tensor, y_rule_idx: torch.Tensor, y_consts: torch.Tensor, y_val: torch.Tensor, kl: float, alpha: float, z: torch.Tensor):
         """
@@ -122,14 +123,22 @@ def criterion_factory(cfg: DictConfig, priors: Dict):
         loss_values = mse(values_pred, y_val)/VALUES_PRIOR
 
         if CONTRASTIVE_WEIGHT > 0:  # Expensive, so only calculate if necessary
-            # Contrastive loss (batch-wise)
-            y_val = F.normalize(y_val, p=2, dim=1, eps=1e-12)
-            values_dist = l2_dist(y_val.unsqueeze(1), y_val.unsqueeze(0))  # Make this indep of z_size, add some scaling factor
-            gamma = gamma_func(values_dist.square())  # Scaling factor: Only if graphs are similar should large z_dissim be penalized
+            # # Contrastive loss (batch-wise)
+            # y_val = F.normalize(y_val, p=2, dim=1, eps=1e-12)
+            # values_dist = l2_dist(y_val.unsqueeze(1), y_val.unsqueeze(0))  # Make this indep of z_size, add some scaling factor
+            # gamma = gamma_func(values_dist.square())  # Scaling factor: Only if graphs are similar should large z_dissim be penalized
         
+            # u = z[:, z_slice[0]:z_slice[1]]
+            # u_sim = F.cosine_similarity(u.unsqueeze(1), u.unsqueeze(0), dim=2)  # u_sim -> 1 if similar, 0 if unrelated, -> -1 if different
+            # u_dissim_loss = -torch.log((1+u_sim)/2)  # u_dissim_loss -> 0 if similar, inf if different, 0.07 if unrelated
+            # loss_contrastive = torch.sum(gamma * u_dissim_loss)
+
+            values_dist = l2_dist(y_val.unsqueeze(1), y_val.unsqueeze(0))
+            gamma = values_dist < SIMILARITY_THRESHOLD
+            
             u = z[:, z_slice[0]:z_slice[1]]
-            u_sim = F.cosine_similarity(u.unsqueeze(1), u.unsqueeze(0), dim=2)  # u_sim -> 1 if similar, 0 if unrelated, -> -1 if different
-            u_dissim_loss = -torch.log((1+u_sim)/2)  # u_dissim_loss -> 0 if similar, inf if different, 0.07 if unrelated
+            u_dist = l2_dist(u.unsqueeze(1), u.unsqueeze(0))
+            u_dissim_loss = u_dist**2
             loss_contrastive = torch.sum(gamma * u_dissim_loss)
         else:
             loss_contrastive = torch.tensor(0.0, device=z.device)
