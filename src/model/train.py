@@ -96,7 +96,7 @@ if __name__ == '__main__':
     data_path = ['/store/DAMTP/lc865/workspace/data', '/Users/luis/Desktop/Cranmer2024/Workplace/smallMutations/similar-expressions/data'][0]
 
     cfg = load_config('src/model/config.yaml')
-    train_model(cfg, data_path, dataset_name='dataset_241127_2', project_name='simexp-03')  # dataset_241008_1, dataset_240910_1, dataset_240822_1, dataset_240817_2
+    train_model(cfg, data_path, dataset_name='dataset_241204_2', project_name='simexp-03')  # dataset_241008_1, dataset_240910_1, dataset_240822_1, dataset_240817_2
 
 
 
