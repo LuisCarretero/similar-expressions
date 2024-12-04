@@ -1,7 +1,7 @@
 include("ExpressionGenerator.jl")
 include("utils.jl")
 
-using .Utils: eval_trees, encode_trees, get_onehot_legend, FilterSettings, filter_evaluated_trees, filter_encoded_trees, ValueTransformSettings
+using .Utils: eval_trees, encode_trees, get_onehot_legend, FilterSettings, filter_evaluated_trees, filter_encoded_trees, ValueTransformSettings, create_value_transform
 
 value_transform_settings = ValueTransformSettings(
     mapping="arcsinh",
@@ -10,5 +10,6 @@ value_transform_settings = ValueTransformSettings(
 )
 
 values = rand(1000, 100)
+transform = create_value_transform(value_transform_settings, values)
 
-create_value_transform(value_transform_settings, values)
+transform(values)
