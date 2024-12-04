@@ -62,7 +62,7 @@ function ExpressionGeneratorConfig(op_cnt_min::Int, op_cnt_max::Int, data_type::
     p2 = 1
 
     ubi_dist = _generate_ubi_dist(op_cnt_max, nl, p1, p2)
-    nb_onehot_cats = nbin + nuna + nfeatures + 2  # +1 for constants, +1 for empty token
+    nb_onehot_cats = nbin + nuna + nfeatures + 2  # +1 for constants, +1 for end token
     const_distr = truncated(Normal(), -5, 5)  # mean=0, std=1, min=-5, max=5 TODO: Make this customizable.
     ExpressionGeneratorConfig(op_cnt_min, op_cnt_max, data_type, ubi_dist, rng, ops, op_probs, nuna, nbin, nfeatures, const_distr,nl, p1, p2, seq_len, nb_onehot_cats)
 end

@@ -32,6 +32,10 @@ training:
     kl_weight: 1e-3
     syntax_weight: 0.5
     contrastive_weight: 0
+  value_transform:
+    mapping: null  # [null, arcsinh]
+    bias: null  # [null, dataset, sample]
+    scale: null  # [null, dataset-std, sample-std, dataset-range, sample-range]
   sampling:
     prior_std: 1
     eps: 1e-2

@@ -8,9 +8,11 @@ import os
 from omegaconf.dictconfig import DictConfig
 from omegaconf import OmegaConf
 
-def load_config(file_path: str) -> DictConfig:
+def load_config(file_path: str, fallback_cfg_path: str = 'config.yaml') -> DictConfig:
     # TODO: Add error handling, fallback values, etc.
-    return OmegaConf.load(file_path)
+    fallback_cfg = OmegaConf.load(fallback_cfg_path)
+
+    return OmegaConf.merge(fallback_cfg, OmegaConf.load(file_path))  # second arg overrides first
 
 class Stack:
     # TODO: Use built-in

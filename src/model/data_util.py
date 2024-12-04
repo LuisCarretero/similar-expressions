@@ -5,7 +5,7 @@ import numpy as np
 from torch.utils.data import DataLoader, random_split, Dataset
 import hashlib
 from omegaconf.dictconfig import DictConfig
-from typing import Tuple
+from typing import Tuple, Dict
 import wandb
 import yaml
 from omegaconf import OmegaConf
@@ -101,6 +101,52 @@ def load_dataset(datapath, name):
 
     return syntax, consts, values, val_x, syntax_cats
 
+def create_value_transform(transform_cfg: DictConfig, values: torch.Tensor):
+    """
+    Parts:
+    - nonlinear mapping (e.g. arcsinh)
+    - normalization (after mapping)
+        - bias/mean (wrt. whole dataset or per sample)
+        - scale/std (wrt. whole dataset or per sample)
+
+    Build function dynamically.
+    """ 
+
+    mapping = {
+        'arcsinh': lambda x: torch.arcsinh(x),
+        None: lambda x: x
+    }[transform_cfg.mapping]
+
+    if transform_cfg.bias == 'dataset' or transform_cfg.scale in ['dataset-std', 'dataset-range']:
+        values_mapped = mapping(values)
+    else:
+        values_mapped = None
+
+    bias = {
+        'dataset': lambda _: values_mapped.mean(),
+        'sample': lambda x: x.mean(dim=1).unsqueeze(1),
+        None: lambda _: 0
+    }[transform_cfg.bias]
+
+    def replace_with(values_mapped, value, replacement):
+        values_mapped[values_mapped == value] = replacement # Dont change the scale if all values are the same
+        return values_mapped
+
+    scale = {
+        'dataset-std': lambda _: values_mapped.std().item(),
+        'sample-std': lambda x: replace_with(x.std(dim=1), 0, 1).unsqueeze(1),
+        'dataset-range': lambda _: (values_mapped.max() - values_mapped.min()).item(),
+        'sample-range': lambda x: replace_with(x.max(dim=1)[0] - x.min(dim=1)[0], 0, 1).unsqueeze(1),
+        None: lambda _: 1
+    }[transform_cfg.scale]
+    
+    def combined_transform(x):
+        x_mapped = mapping(x)
+        x_scaled = x_mapped / scale(x_mapped)
+        return x_scaled - bias(x_scaled)
+    
+    return combined_transform
+
 def create_dataloader(datapath: str, name: str, cfg: DictConfig, random_seed=0, shuffle_train=True, value_transform=None, num_workers=4) -> Tuple[DataLoader, DataLoader, dict]:
     gen = torch.Generator()
     gen.manual_seed(random_seed)
@@ -113,9 +159,7 @@ def create_dataloader(datapath: str, name: str, cfg: DictConfig, random_seed=0, 
         values = values[:cfg.training.dataset_len_limit]
 
     # Create value transform
-    min_, max_ = np.arcsinh(values.min()), np.arcsinh(values.max())
-    if value_transform is None:
-        value_transform = lambda x: 2 * (torch.arcsinh(x) - min_) / (max_ - min_) - 1  # Center in range
+    value_transform = create_value_transform(cfg.training.value_transform, torch.tensor(values))
 
     # Create the full dataset
     full_dataset = CustomTorchDataset(data_syntax, values, value_transform=value_transform)
@@ -139,8 +183,8 @@ def create_dataloader(datapath: str, name: str, cfg: DictConfig, random_seed=0, 
     }
     info = {
         'hashes': hashes,
-        'min_value': min_,
-        'max_value': max_,
+        'min_value': values.min(),  # FIXME: Still needed? Esp if we use individual normalisation
+        'max_value': values.max(),
         'value_transform': value_transform,
         'dataset_name': name,
         'datapath': datapath, 
@@ -149,16 +193,38 @@ def create_dataloader(datapath: str, name: str, cfg: DictConfig, random_seed=0, 
     }
     return train_loader, valid_loader, info
 
-def load_wandb_model(run: str, name:str = 'model.pth', device='cpu', wandb_cache_path='/Users/luis/Desktop/Cranmer2024/Workplace/smallMutations/similar-expressions/wandb_cache', project='similar-expressions-01'):
+def dict_lit2num(d: Dict, verbose=False):
+    """
+    Convert all literal values in a dictionary to numbers (int or float). Needed as WandB stores all values as strings?
+    """
+    def _convert(x):
+        if isinstance(x, dict):
+            return {k: _convert(v) for k, v in x.items()}
+        else:  # Leaf node
+            try:
+                tmp = float(x)
+                if tmp.is_integer():
+                    tmp = int(tmp)
+            except:
+                tmp = x
+            if verbose:
+                print(f'Leaf node:{x} -> {tmp}; type: {type(tmp)}')
+            return tmp
+    return _convert(d)
+
+
+def load_wandb_model(run: str, name:str = 'model.pth', device='cpu', wandb_cache_path='/Users/luis/Desktop/Cranmer2024/Workplace/smallMutations/similar-expressions/wandb_cache', project='similar-expressions-01', replace=True, fallback_cfg_path='config.yaml'):
     # Load model
-    with wandb.restore(name, run_path=f"luis-carretero-eth-zurich/{project}/runs/{run}", root=wandb_cache_path, replace=True) as io:
+    with wandb.restore(name, run_path=f"luis-carretero-eth-zurich/{project}/runs/{run}", root=wandb_cache_path, replace=replace) as io:
         name = io.name
 
     # Read the model parameters from the WandB config.yaml file
     with wandb.restore('config.yaml', run_path=f"luis-carretero-eth-zurich/{project}/runs/{run}", root=wandb_cache_path, replace=True) as config_file:
         cfg_dict = yaml.safe_load(config_file)
-        cfg = OmegaConf.create({k: v['value'] for k, v in list(cfg_dict.items()) if k not in ['wandb_version', '_wandb']})
 
+    cfg = OmegaConf.create({k: dict_lit2num(v['value']) for k, v in list(cfg_dict.items()) if k not in ['wandb_version', '_wandb']})
+    fallback_cfg = OmegaConf.load(fallback_cfg_path)  # FIXME: Combine into one method with load_config?
+    cfg = OmegaConf.merge(fallback_cfg, cfg)
     # vae_model = LitGVAE(cfg, get_empty_priors())
     
     # Load the Lightning checkpoint

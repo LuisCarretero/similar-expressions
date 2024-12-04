@@ -5,7 +5,7 @@ import numpy as np
 
 grammar = """
 S -> 'ADD' S S | 'SUB' S S | 'MUL' S S | 'DIV' S S
-S -> 'SIN' S | 'EXP' S
+S -> 'SIN' S | 'COS' S | 'EXP' S | 'TANH' S | 'COSH' S | 'SINH' S
 S -> 'CON'
 S -> 'x1' 
 END -> 'END'
