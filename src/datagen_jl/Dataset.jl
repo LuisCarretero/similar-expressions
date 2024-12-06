@@ -1,7 +1,8 @@
 module DatasetModule
 
-import ..ExpressionGenerator: ExpressionGeneratorConfig
 using DynamicExpressions: Node, OperatorEnum
+
+using .ConfigModule: ExpressionGeneratorConfig
 
 export Dataset
 

@@ -6,36 +6,13 @@ using Random: default_rng, AbstractRNG
 using Distributions
 using StatsBase
 
-export ExpressionGeneratorConfig, generate_expr_tree, OperatorProbEnum
+using ..ConfigModule: ExpressionGeneratorConfig
+
+export generate_expr_tree, OperatorProbEnum
 
 struct OperatorProbEnum
     binops_probs::Vector{Float64}
     unaops_probs::Vector{Float64}
-end
-
-mutable struct ExpressionGeneratorConfig
-    op_cnt_min::Int
-    op_cnt_max::Int
-    data_type::Type
-
-    ubi_dist::Vector{Vector{Int}}
-    rng::AbstractRNG
-
-    ops::OperatorEnum
-    op_probs::OperatorProbEnum
-    nuna::Int
-    nbin::Int
-
-    nfeatures::Int
-
-    const_distr::Distribution
-
-    nl::Int
-    p1::Int
-    p2::Int
-
-    seq_len::Int
-    nb_onehot_cats::Int
 end
 
 function OperatorProbEnum(ops::OperatorEnum, binops_probs::Vector{Float64}, unaops_probs::Vector{Float64})
@@ -46,25 +23,6 @@ function OperatorProbEnum(ops::OperatorEnum, binops_probs::Vector{Float64}, unao
     unaops_probs = [unaops_probs[i] / sum(unaops_probs) for i in 1:length(ops.unaops)]
 
     return OperatorProbEnum(binops_probs, unaops_probs)
-end
-
-function ExpressionGeneratorConfig(op_cnt_min::Int, op_cnt_max::Int, data_type::Type, ops::OperatorEnum, op_probs::OperatorProbEnum, nfeatures::Int, seq_len::Int, seed::Int=0)
-    @assert op_cnt_min <= op_cnt_max
-    @assert op_cnt_min > 0
-
-    rng = Random.MersenneTwister(seed)
-
-    nuna = length(ops.unaops)
-    nbin = length(ops.binops)
-
-    nl = 1 # FIXME: Adjust these values?
-    p1 = 1
-    p2 = 1
-
-    ubi_dist = _generate_ubi_dist(op_cnt_max, nl, p1, p2)
-    nb_onehot_cats = nbin + nuna + nfeatures + 2  # +1 for constants, +1 for end token
-    const_distr = truncated(Normal(), -5, 5)  # mean=0, std=1, min=-5, max=5 TODO: Make this customizable.
-    ExpressionGeneratorConfig(op_cnt_min, op_cnt_max, data_type, ubi_dist, rng, ops, op_probs, nuna, nbin, nfeatures, const_distr,nl, p1, p2, seq_len, nb_onehot_cats)
 end
 
 function generate_expr_tree(config::ExpressionGeneratorConfig)::Node

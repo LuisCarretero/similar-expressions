@@ -1,50 +1,21 @@
 module Utils
 
-using ..ExpressionGenerator: ExpressionGeneratorConfig
 using DynamicExpressions: eval_tree_array, OperatorEnum, Node
 using Statistics: mean, std 
+using Distributed
 
-export eval_trees, encode_trees, node_to_token_idx, create_value_transform, FilterSettings, ValueTransformSettings
+using ..ConfigModule: FilterSettings, ValueTransformSettings, ExpressionGeneratorConfig
+using ..DatasetModule: Dataset
 
-struct FilterSettings
-    max_abs_value::Float64
-    max_1st_deriv::Float64
-    max_2nd_deriv::Float64
-    max_3rd_deriv::Float64
-    max_4th_deriv::Float64
-    min_range::Float64
-    filter_unique_skeletons::Bool
-    filter_unique_expressions::Bool
-    unique_expression_const_tol::Int  # digits of precision for considering two expressions as the same
+export eval_trees, encode_trees, node_to_token_idx, create_value_transform, FilterSettings, ValueTransformSettings, generate_dataset, merge_datasets, generate_datasets_parallel, kill_workers
 
-    # Constructor with keyword arguments
-    FilterSettings(;
-        max_abs_value::Float64 = 1e2,
-        max_1st_deriv::Float64 = 1e2,
-        max_2nd_deriv::Float64 = 1e2,
-        max_3rd_deriv::Float64 = 1e2,
-        max_4th_deriv::Float64 = 1e2,
-        min_range::Float64 = 1e-3,  # Minimum range: If the range is smaller we will reach
-        filter_unique_skeletons::Bool = true,
-        filter_unique_expressions::Bool = true,
-        unique_expression_const_tol::Int = 3
-    ) = new(max_abs_value, max_1st_deriv, max_2nd_deriv, max_3rd_deriv, max_4th_deriv, min_range, filter_unique_skeletons, filter_unique_expressions, unique_expression_const_tol)
+
+function kill_workers()
+    println("Killing workers...")
+    rmprocs(workers())
 end
 
-struct ValueTransformSettings
-    mapping::Union{String, Nothing}
-    bias::Union{String, Nothing} 
-    scale::Union{String, Nothing}
-
-    # Constructor with keyword arguments
-    ValueTransformSettings(;
-        mapping::Union{String, Nothing} = nothing,
-        bias::Union{String, Nothing} = nothing,
-        scale::Union{String, Nothing} = nothing
-    ) = new(mapping, bias, scale)
-end
-
-function create_value_transform(settings::ValueTransformSettings, values::AbstractMatrix{T}) where T <: Number
+function create_value_transform(settings::ValueTransformSettings)::Function
     # Define mapping functions
     mapping = if settings.mapping == "arcsinh"
         x -> asinh.(x)
@@ -53,19 +24,19 @@ function create_value_transform(settings::ValueTransformSettings, values::Abstra
     end
 
     # Pre-compute mapped values if needed for dataset stats
-    values_mapped = if settings.bias == "dataset" || settings.scale in ["dataset-std", "dataset-range"]
-        mapping(values)
-    else
-        nothing
-    end
+    # values_mapped = if settings.bias == "dataset" || settings.scale in ["dataset-std", "dataset-range"]
+    #     mapping(values)
+    # else
+    #     nothing
+    # end
 
     # Define bias function
-    bias = if settings.bias == "dataset"
-        _ -> mean(values_mapped)
-    elseif settings.bias == "sample"
+    # bias = if settings.bias == "dataset"
+    #     _ -> mean(values_mapped)
+    bias = if settings.bias == "sample"
         x -> reshape(mean(x, dims=2), :, 1)
     else
-        _ -> zero(T)
+        _ -> zero(Float32)
     end
 
     # Helper to replace values
@@ -75,20 +46,20 @@ function create_value_transform(settings::ValueTransformSettings, values::Abstra
     end
 
     # Define scale function 
-    scale = if settings.scale == "dataset-std"
-        _ -> std(values_mapped)
-    elseif settings.scale == "sample-std"
+    # scale = if settings.scale == "dataset-std"
+    #     _ -> std(values_mapped)
+    # elseif settings.scale == "dataset-range"
+    #     _ -> maximum(values_mapped) - minimum(values_mapped)
+    scale = if settings.scale == "sample-std"
         x -> reshape(replace_with(std(x, dims=2), 0, 1), :, 1)
-    elseif settings.scale == "dataset-range"
-        _ -> maximum(values_mapped) - minimum(values_mapped)
     elseif settings.scale == "sample-range"
         x -> reshape(replace_with(maximum(x, dims=2) - minimum(x, dims=2), 0, 1), :, 1)
     else
-        _ -> one(T)
+        _ -> one(Float32)
     end
 
     # Return combined transform function
-    function combined_transform(x)
+    function combined_transform(x::Matrix{Float32})::Matrix{Float32}
         x_mapped = mapping(x)
         x_scaled = x_mapped ./ scale(x_mapped)
         return x_scaled .- bias(x_scaled)
@@ -98,39 +69,35 @@ function create_value_transform(settings::ValueTransformSettings, values::Abstra
 end
 
 
-
-
-function filter_evaluated_trees(trees::Vector{Node{T}}, eval_y::AbstractMatrix{T}, success::Vector{Bool}, eval_x::AbstractMatrix{T}, settings::FilterSettings, transform_settings::ValueTransformSettings) where T <: Number
-    # TODO: Use dataset?
+function filter_evaluated_trees(trees::Vector{Node{T}}, eval_y::AbstractMatrix{T}, eval_y_transformed::AbstractMatrix{T}, success::Vector{Bool}, eval_x::AbstractMatrix{T}, settings::FilterSettings, value_transform::Function) where T <: Number
+    # TODO: Return mask only and create function that takes mask and dataset and filters
     println("Checking ", length(success), " expressions.")
     println("Number of valid expressions after evaluation: ", sum(success) / length(success))
     valid = success
 
     # Absolute value check (original values)
-    valid = valid .& all((abs.(eval_y) .< settings.max_abs_value), dims=2)  # FIXME: Use range for consistency?
+    valid = valid .& all((abs.(eval_y_transformed) .< value_transform(settings.max_abs_value)), dims=2)  # FIXME: Use range for consistency?
     println("Number of valid expressions after abs value check: ", sum(valid) / length(valid))
 
-    # Checks (using transformed values)  # FIXME: Allow to provide transformation to be applied?
-    value_transform = create_value_transform(transform_settings, eval_y)
-    eval_y_transformed = value_transform(eval_y)
-
     deriv_1 = first_deriv(eval_x, eval_y_transformed)
+    valid = valid .& all((abs.(deriv_1) .< settings.max_1st_deriv), dims=2)
+    println("Number of valid expressions after 1st deriv check: ", sum(valid) / length(valid))
+
     deriv_2 = first_deriv(eval_x[:, 2:end], deriv_1)
+    valid = valid .& all((abs.(deriv_2) .< settings.max_2nd_deriv), dims=2)
+    println("Number of valid expressions after 2nd deriv check: ", sum(valid) / length(valid))
+
     deriv_3 = first_deriv(eval_x[:, 3:end], deriv_2)
+    valid = valid .& all((abs.(deriv_3) .< settings.max_3rd_deriv), dims=2)
+    println("Number of valid expressions after 3rd deriv check: ", sum(valid) / length(valid))
+
     deriv_4 = first_deriv(eval_x[:, 4:end], deriv_3)
+    valid = valid .& all((abs.(deriv_4) .< settings.max_4th_deriv), dims=2)
+    println("Number of valid expressions after 4th deriv check: ", sum(valid) / length(valid))
 
     range = maximum(eval_y_transformed, dims=2) - minimum(eval_y_transformed, dims=2)
     valid = valid .& all((range .> settings.min_range) .| (range .== 0), dims=2)
     println("Number of valid expressions after range check: ", sum(valid) / length(valid))
-
-    valid = valid .& all((abs.(deriv_1) .< settings.max_1st_deriv), dims=2)
-    println("Number of valid expressions after 1st deriv check: ", sum(valid) / length(valid))
-    valid = valid .& all((abs.(deriv_2) .< settings.max_2nd_deriv), dims=2)
-    println("Number of valid expressions after 2nd deriv check: ", sum(valid) / length(valid))
-    valid = valid .& all((abs.(deriv_3) .< settings.max_3rd_deriv), dims=2)
-    println("Number of valid expressions after 3rd deriv check: ", sum(valid) / length(valid))
-    valid = valid .& all((abs.(deriv_4) .< settings.max_4th_deriv), dims=2)
-    println("Number of valid expressions after 4th deriv check: ", sum(valid) / length(valid))
 
     # Filter
     valid = vec(valid)
@@ -141,6 +108,9 @@ function filter_evaluated_trees(trees::Vector{Node{T}}, eval_y::AbstractMatrix{T
     @assert !any(isnan, eval_y)
     @assert !any(isinf, eval_y)
     @assert all(isfinite, eval_y)
+    @assert !any(isnan, eval_y_transformed)
+    @assert !any(isinf, eval_y_transformed)
+    @assert all(isfinite, eval_y_transformed)
 
     return trees, eval_y, eval_y_transformed
 end
@@ -149,21 +119,29 @@ function first_deriv(x::AbstractMatrix{T}, y::AbstractMatrix{T}) where T <: Numb
     return diff(y, dims=2) ./ diff(x, dims=2)
 end
 
-function eval_trees(trees::Vector{Node{T}}, ops::OperatorEnum, x::AbstractMatrix{T}) where T <: Number
+function eval_trees(trees::Vector{Node{T}}, ops::OperatorEnum, x::AbstractMatrix{T}, value_transform::Function) where T <: Number
     # Initialize a matrix to store results for all trees
-    res_mat = Matrix{Float64}(undef, length(trees), size(x, 2))
+    res_mat = Matrix{Float32}(undef, length(trees), size(x, 2))
+    transformed_res_mat = Matrix{Float32}(undef, length(trees), size(x, 2))
     success = Vector{Bool}(undef, length(trees))
 
     # Evaluate each tree and store the results
     for (i, tree) in enumerate(trees)
         (res, complete) = eval_tree_array(tree, x, ops)
-        good = complete && all((res .< prevfloat(typemax(Float64))) .& (res .> nextfloat(typemin(Float64)))) && !any(isnan, res) && !any(isinf, res)
+        good = complete && all((res .< prevfloat(typemax(Float32))) .& (res .> nextfloat(typemin(Float32)))) && !any(isnan, res) && !any(isinf, res)
         success[i] = good
         if good
-            res_mat[i, :] = res
+            res_mat[i, :] = Float32.(res)
         end
     end
-    return res_mat, success
+
+    # Transform results
+    println("type of res_mat: ", typeof(res_mat))
+    transformed_res_mat = value_transform.(res_mat)
+    transformed_valid = .!any(isnan.(transformed_res_mat) .| isinf.(transformed_res_mat), dims=2)
+    success = success .& vec(transformed_valid)
+
+    return res_mat, transformed_res_mat, success
 end
 
 function _tree_to_prefix(tree::Node{T})::Vector{Node{T}} where T <: Number
