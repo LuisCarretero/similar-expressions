@@ -1,9 +1,11 @@
-module DatasetCreation
+module DatasetGeneration
 
-using ..ExpressionGenerator: ExpressionGeneratorConfig, generate_expr_tree
+using ..ExpressionGenerator: generate_expr_tree
 using ..Utils: create_value_transform, eval_trees, encode_trees, filter_evaluated_trees, filter_encoded_trees
 using ..DatasetModule: Dataset
-using ..ConfigModule: FilterSettings, ValueTransformSettings, ExpressionGeneratorConfig
+using ..Configs: ExpressionGeneratorConfig
+
+using Distributed: pmap, nworkers, workers
 
 """
 Generate a single dataset.
@@ -37,16 +39,12 @@ function generate_dataset(config::ExpressionGeneratorConfig, chunk_size::Int)
     onehot, consts, valid = filter_encoded_trees(onehot, consts, success, config.filter_settings)
     trees = trees[valid]
     eval_y_to_save = eval_y_to_save[valid, :]
-    onehot = onehot[valid, :, :]
-    consts = consts[valid, :]
 
     return Dataset(config, trees, config.eval_x, eval_y_to_save, onehot, consts)
 end
 
-function merge_datasets(datasets::Vector{Dataset})
+function merge_datasets(datasets::Vector{Dataset{T}}) where T <: Number
     println("Merging datasets...")
-    # Verify all datasets have same config
-    @assert all(d.generatorConfig == datasets[1].generatorConfig for d in datasets)
     config = datasets[1].generatorConfig
 
     # Concatenate all components
@@ -58,7 +56,6 @@ function merge_datasets(datasets::Vector{Dataset})
     # Filter duplicates from combined dataset 
     success = trues(size(onehot, 1))
     onehot_filtered, consts_filtered, valid = filter_encoded_trees(onehot, consts, success, config.filter_settings)
-    println("Number of valid expressions after uniqueness check: ", sum(valid) / length(valid))
 
     # Apply filtering to other components
     trees_filtered = trees[valid]

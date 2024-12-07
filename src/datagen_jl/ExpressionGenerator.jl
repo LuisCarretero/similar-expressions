@@ -1,29 +1,34 @@
 module ExpressionGenerator
 
-using Random
-using DynamicExpressions: Node, OperatorEnum, AbstractExpressionNode, constructorof
-using Random: default_rng, AbstractRNG
-using Distributions
+using DynamicExpressions: Node
+using Random: default_rng, AbstractRNG, MersenneTwister, shuffle!
+using Distributions: truncated, Normal, Distribution, Categorical
 using StatsBase
+using DynamicExpressions: OperatorEnum
 
-using ..ConfigModule: ExpressionGeneratorConfig
+using ..Configs: ExpressionGeneratorConfig, OperatorProbEnum, ValueTransformSettings, FilterSettings
 
-export generate_expr_tree, OperatorProbEnum
+export generate_expr_tree
 
-struct OperatorProbEnum
-    binops_probs::Vector{Float64}
-    unaops_probs::Vector{Float64}
-end
+function build_expression_generator_config(op_cnt_min::Int, op_cnt_max::Int, data_type::Type, ops::OperatorEnum, op_probs::OperatorProbEnum, nfeatures::Int, seq_len::Int, seed::Int=0, value_transform_settings::ValueTransformSettings=ValueTransformSettings(), filter_settings::FilterSettings=FilterSettings(), eval_x::Matrix{Float64}=Matrix{Float64}(undef, 0, 0), save_transformed::Bool=true)
+        @assert op_cnt_min <= op_cnt_max
+        @assert op_cnt_min > 0
+    
+        rng = MersenneTwister(seed)
+    
+        nuna = length(ops.unaops)
+        nbin = length(ops.binops)
+    
+        nl = 1 # FIXME: Adjust these values?
+        p1 = 1
+        p2 = 1
+    
+        ubi_dist = _generate_ubi_dist(op_cnt_max, nl, p1, p2)
+        nb_onehot_cats = nbin + nuna + nfeatures + 2  # +1 for constants, +1 for end token
+        const_distr = truncated(Normal(), -5, 5)  # mean=0, std=1, min=-5, max=5 TODO: Make this customizable.
+        return ExpressionGeneratorConfig(op_cnt_min, op_cnt_max, data_type, ubi_dist, rng, ops, op_probs, nuna, nbin, nfeatures, const_distr,nl, p1, p2, seq_len, nb_onehot_cats, value_transform_settings, filter_settings, eval_x, save_transformed)
+    end
 
-function OperatorProbEnum(ops::OperatorEnum, binops_probs::Vector{Float64}, unaops_probs::Vector{Float64})
-    @assert length(binops_probs) == length(ops.binops)
-    @assert length(unaops_probs) == length(ops.unaops)
-
-    binops_probs = [binops_probs[i] / sum(binops_probs) for i in 1:length(ops.binops)]
-    unaops_probs = [unaops_probs[i] / sum(unaops_probs) for i in 1:length(ops.unaops)]
-
-    return OperatorProbEnum(binops_probs, unaops_probs)
-end
 
 function generate_expr_tree(config::ExpressionGeneratorConfig)::Node
     stack = _generate_expr_prefix(config, config.data_type)

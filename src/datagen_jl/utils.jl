@@ -4,7 +4,7 @@ using DynamicExpressions: eval_tree_array, OperatorEnum, Node
 using Statistics: mean, std 
 using Distributed
 
-using ..ConfigModule: FilterSettings, ValueTransformSettings, ExpressionGeneratorConfig
+using ..Configs: FilterSettings, ValueTransformSettings, ExpressionGeneratorConfig
 using ..DatasetModule: Dataset
 
 export eval_trees, encode_trees, node_to_token_idx, create_value_transform, FilterSettings, ValueTransformSettings, generate_dataset, merge_datasets, generate_datasets_parallel, kill_workers
@@ -69,14 +69,23 @@ function create_value_transform(settings::ValueTransformSettings)::Function
 end
 
 
-function filter_evaluated_trees(trees::Vector{Node{T}}, eval_y::AbstractMatrix{T}, eval_y_transformed::AbstractMatrix{T}, success::Vector{Bool}, eval_x::AbstractMatrix{T}, settings::FilterSettings, value_transform::Function) where T <: Number
+function filter_evaluated_trees(
+    trees::Vector{Node{T}}, 
+    eval_y::Matrix{Float32}, 
+    eval_y_transformed::Matrix{Float32}, 
+    success::BitArray{1}, 
+    eval_x::Matrix{Float64}, 
+    settings::FilterSettings, 
+    value_transform::Function
+)::Tuple{Vector{Node{T}}, Matrix{Float32}, Matrix{Float32}} where T <: Number
+
     # TODO: Return mask only and create function that takes mask and dataset and filters
     println("Checking ", length(success), " expressions.")
     println("Number of valid expressions after evaluation: ", sum(success) / length(success))
     valid = success
 
     # Absolute value check (original values)
-    valid = valid .& all((abs.(eval_y_transformed) .< value_transform(settings.max_abs_value)), dims=2)  # FIXME: Use range for consistency?
+    valid = valid .& all((abs.(eval_y) .< settings.max_abs_value), dims=2)  # FIXME: Use range for consistency?
     println("Number of valid expressions after abs value check: ", sum(valid) / length(valid))
 
     deriv_1 = first_deriv(eval_x, eval_y_transformed)
@@ -115,11 +124,17 @@ function filter_evaluated_trees(trees::Vector{Node{T}}, eval_y::AbstractMatrix{T
     return trees, eval_y, eval_y_transformed
 end
 
-function first_deriv(x::AbstractMatrix{T}, y::AbstractMatrix{T}) where T <: Number
+function first_deriv(x::Matrix{Float64}, y::Matrix{Float32})::Matrix{Float32}
     return diff(y, dims=2) ./ diff(x, dims=2)
 end
 
-function eval_trees(trees::Vector{Node{T}}, ops::OperatorEnum, x::AbstractMatrix{T}, value_transform::Function) where T <: Number
+function eval_trees(
+    trees::Vector{Node{T}}, 
+    ops::OperatorEnum, 
+    x::Matrix{Float64}, 
+    value_transform::Function
+)::Tuple{Matrix{Float32}, Matrix{Float32}, BitArray{1}} where T <: Number
+
     # Initialize a matrix to store results for all trees
     res_mat = Matrix{Float32}(undef, length(trees), size(x, 2))
     transformed_res_mat = Matrix{Float32}(undef, length(trees), size(x, 2))
@@ -136,8 +151,7 @@ function eval_trees(trees::Vector{Node{T}}, ops::OperatorEnum, x::AbstractMatrix
     end
 
     # Transform results
-    println("type of res_mat: ", typeof(res_mat))
-    transformed_res_mat = value_transform.(res_mat)
+    transformed_res_mat = value_transform(res_mat)
     transformed_valid = .!any(isnan.(transformed_res_mat) .| isinf.(transformed_res_mat), dims=2)
     success = success .& vec(transformed_valid)
 
@@ -172,7 +186,10 @@ function node_to_token_idx(node::Node{T}, generator_config::ExpressionGeneratorC
     end
 end
 
-function _onehot_encode(idx::Vector{Vector{Tuple{Int, Float64}}}, generator_config::ExpressionGeneratorConfig)
+function _onehot_encode(
+    idx::Vector{Vector{Tuple{Int, Float64}}}, 
+    generator_config::ExpressionGeneratorConfig
+)::Tuple{BitArray{3}, Matrix{Float64}, BitArray{1}}
     onehot = falses(length(idx), generator_config.seq_len, generator_config.nb_onehot_cats)
     consts = zeros(Float64, length(idx), generator_config.seq_len)
     success = trues(length(idx))
@@ -192,7 +209,10 @@ function _onehot_encode(idx::Vector{Vector{Tuple{Int, Float64}}}, generator_conf
     return onehot, consts, success
 end
 
-function encode_trees(trees::Vector{Node{T}}, generator_config::ExpressionGeneratorConfig) where T <: Number
+function encode_trees(
+    trees::Vector{Node{T}}, 
+    generator_config::ExpressionGeneratorConfig
+)::Tuple{BitArray{3}, Matrix{Float64}, BitArray{1}} where T <: Number
 
     prefix = [_tree_to_prefix(tree) for tree in trees] # Vector{Vector{Node}}
 
@@ -205,18 +225,18 @@ function encode_trees(trees::Vector{Node{T}}, generator_config::ExpressionGenera
     return onehot, consts, success
 end
 
-function filter_encoded_trees(onehot::BitArray{3}, consts::AbstractMatrix{Float64}, success::AbstractVector{Bool}, settings::FilterSettings)
+function filter_encoded_trees(onehot::BitArray{3}, consts::Matrix{Float64}, success::BitArray{1}, settings::FilterSettings)
     # TODO: Use dataset?
     valid = success
     println("Checking ", length(valid), " expressions.")
     # Checks
     if settings.filter_unique_skeletons
         check_unique_skeletons!(onehot, valid)
-        println("Number of valid expressions after skeleton check: ", sum(valid) / length(valid))
+        println("Number of valid expressions after skeleton uniqueness check: ", sum(valid) / length(valid))
     end
     if settings.filter_unique_expressions
         check_unique_expressions!(onehot, consts, valid, settings)
-        println("Number of valid expressions after expression check: ", sum(valid) / length(valid))
+        println("Number of valid expressions after expression uniqueness check: ", sum(valid) / length(valid))
     end
 
     # Filter

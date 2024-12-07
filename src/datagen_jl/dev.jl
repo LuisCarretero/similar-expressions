@@ -71,3 +71,7 @@ value_transform = create_value_transform(value_transform_settings)
 
 x = rand(Float32, 1, 10)
 value_transform(x)
+
+
+probs = [0.1, 0.2, 0.7]
+rand(MersenneTwister(1), Categorical(probs))
