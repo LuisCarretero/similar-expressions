@@ -139,7 +139,7 @@ def criterion_factory(cfg: DictConfig, priors: Dict):
             u = z[:, z_slice[0]:z_slice[1]]
             u_dist = l2_dist(u.unsqueeze(1), u.unsqueeze(0))
             u_dissim_loss = u_dist**2
-            loss_contrastive = torch.sum(gamma * u_dissim_loss)
+            loss_contrastive = torch.sum(gamma * u_dissim_loss)  # FIXME: Should this be sum or mean? Might get averages later?
         else:
             loss_contrastive = torch.tensor(0.0, device=z.device)
 
