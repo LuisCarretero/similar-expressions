@@ -1,12 +1,12 @@
 module ExpressionGenerator
 
+using ..Configs: ExpressionGeneratorConfig, OperatorProbEnum, ValueTransformSettings, FilterSettings
+
 using DynamicExpressions: Node
 using Random: default_rng, AbstractRNG, MersenneTwister, shuffle!
 using Distributions: truncated, Normal, Distribution, Categorical
 using StatsBase
 using DynamicExpressions: OperatorEnum
-
-using ..Configs: ExpressionGeneratorConfig, OperatorProbEnum, ValueTransformSettings, FilterSettings
 
 export generate_expr_tree
 

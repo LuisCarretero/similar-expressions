@@ -24,9 +24,10 @@ ops = OperatorEnum((+, -, *, /), (sin, cos, exp, tanh, cosh, sinh))
 op_probs = OperatorProbEnum(ops, [1.0, 1.0, 1.0, 1.0], [1.0, 1.0, 1.0, 1.0, 1.0, 1.0])
 seq_len = 15
 save_transformed = true
-N = 100_000
-name = "dataset_241207_3"
-max_procs = 8  # Number of workers + 1
+N = 20_000_000
+datapath = "/store/DAMTP/lc865/workspace/data"
+name = "dataset_241208_1"
+max_procs = 10  # Number of workers + 1
 
 eval_x = reshape(collect(range(-10, 10, length=100)), (1, 100))
 filter_settings = FilterSettings(
@@ -78,12 +79,12 @@ dataset = merge_datasets(datasets)
 
 # Save dataset
 println("Saving dataset...")
-open("./data/$name.jls", "w") do io
+open("$datapath/$name.jls", "w") do io
     serialize(io, dataset)
 end
 
 # # Save as HDF5 file to be used in python
-h5open("./data/$name.h5", "w") do file
+h5open("$datapath/$name.h5", "w") do file
     file["eval_x"] = dataset.eval_x
     file["eval_y"] = dataset.eval_y
     file["onehot"] = Array(dataset.onehot)
