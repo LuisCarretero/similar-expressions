@@ -23,19 +23,19 @@ model:
 
 training:
   batch_size: 512
-  epochs: 100
+  epochs: 10
   valid_split: 0.1
-  dataset_len_limit: null
+  dataset_len_limit: 569
   mode: encoding  # value_prediction, autoencoding, mixed, encoding
   criterion:
-    ae_weight: 0.5
+    ae_weight: 0
     kl_weight: 0
     syntax_weight: 0.5
-    contrastive_weight: 1e-2
+    contrastive_weight: 1
   value_transform:
-    mapping: arcsinh  # [null, arcsinh]
-    bias: dataset  # [null, dataset, sample]
-    scale: dataset-range  # [null, dataset-std, sample-std, dataset-range, sample-range]
+    mapping: null  # [null, arcsinh]
+    bias: null  # [null, dataset, sample]
+    scale: null  # [null, dataset-std, sample-std, dataset-range, sample-range]
   sampling:
     prior_std: 1
     eps: 0
@@ -46,7 +46,7 @@ training:
     scheduler_patience: 10
     scheduler_threshold: 2e-4
     scheduler_min_lr: 0
-  performance_metric: valid/loss
+  performance_metric: train/loss
   kl_anneal:
     schedule: sigmoid
     midpoint: 0.4
