@@ -26,19 +26,19 @@ training:
   epochs: 100
   valid_split: 0.1
   dataset_len_limit: null
-  mode: mixed  # value_prediction, autoencoding or mixed
+  mode: encoding  # value_prediction, autoencoding, mixed, encoding
   criterion:
     ae_weight: 0.5
-    kl_weight: 1e-3
+    kl_weight: 0
     syntax_weight: 0.5
-    contrastive_weight: 0
+    contrastive_weight: 1e-2
   value_transform:
     mapping: arcsinh  # [null, arcsinh]
     bias: dataset  # [null, dataset, sample]
     scale: dataset-range  # [null, dataset-std, sample-std, dataset-range, sample-range]
   sampling:
     prior_std: 1
-    eps: 1e-2
+    eps: 0
   optimizer:
     lr: 3e-4
     clip: 5

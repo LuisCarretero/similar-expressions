@@ -23,11 +23,11 @@ class LitGVAE(L.LightningModule):
         self.prior_var = self.prior_std**2
         self.ln_prior_var = math.log(self.prior_var)
         self.sampling_eps = cfg.training.sampling.eps
-        self.mode = cfg.training.mode  # value_prediction, autoencoding, mixed
+        self.mode = cfg.training.mode  # value_prediction, autoencoding, mixed, encoding
 
         self.encoder = Encoder(cfg.model)
-        self.decoder = Decoder(cfg.model) if self.mode != 'value_prediction' else None
-        self.value_decoder = ValueDecoder(cfg.model) if self.mode != 'autoencoding' else None
+        self.decoder = Decoder(cfg.model) if self.mode in ['autoencoding', 'mixed'] else None
+        self.value_decoder = ValueDecoder(cfg.model) if self.mode in ['value_prediction', 'mixed'] else None
 
         self.use_grammar_mask = cfg.training.use_grammar_mask
         
@@ -65,6 +65,9 @@ class LitGVAE(L.LightningModule):
             values = self.value_decoder(z)
         elif self.mode == 'autoencoding':
             logits = self.decoder(z)
+            values = torch.zeros(x.shape[0], self.cfg.model.io_format.val_points).to(z.device)
+        elif self.mode == 'encoding':
+            logits = torch.zeros(x.shape[0], self.cfg.model.io_format.seq_len, self.cfg.model.io_format.token_cnt).to(z.device)
             values = torch.zeros(x.shape[0], self.cfg.model.io_format.val_points).to(z.device)
         else:
             raise ValueError(f"Invalid mode: {self.mode}")

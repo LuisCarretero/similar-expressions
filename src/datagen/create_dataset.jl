@@ -24,18 +24,18 @@ ops = OperatorEnum((+, -, *, /), (sin, cos, exp, tanh, cosh, sinh))
 op_probs = OperatorProbEnum(ops, [1.0, 1.0, 1.0, 1.0], [1.0, 1.0, 1.0, 1.0, 1.0, 1.0])
 seq_len = 15
 save_transformed = true
-N = 20_000_000
+N = 60_000_000  # 20M -> 7.3M
 datapath = "/store/DAMTP/lc865/workspace/data"
 name = "dataset_241208_1"
-max_procs = 10  # Number of workers + 1
+max_procs = 40  # Number of workers + 1
 
 eval_x = reshape(collect(range(-10, 10, length=100)), (1, 100))
 filter_settings = FilterSettings(
     max_abs_value=1e5,  # Used on original values, arcsinh(1e5) ~ 12
-    max_1st_deriv=3e2,  # Used on transformed values (everything afterwards)
-    max_2nd_deriv=3e2,
-    max_3rd_deriv=3e2,
-    max_4th_deriv=3e2,
+    max_1st_deriv=2e2,  # Used on transformed values (everything afterwards)
+    max_2nd_deriv=2e2,
+    max_3rd_deriv=2e2,
+    max_4th_deriv=2e2,
     min_range=1e-11,  # spacing of float64 for O(1) is 1e-16
     filter_unique_skeletons=false,
     filter_unique_expressions=true,

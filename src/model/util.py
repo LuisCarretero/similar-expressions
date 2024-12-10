@@ -93,6 +93,7 @@ def criterion_factory(cfg: DictConfig, priors: Dict):
 
     l2_dist = torch.nn.PairwiseDistance(p=2)
     SIMILARITY_THRESHOLD = 1e-3
+    m = 1e-2
     # a = 40  # Sharpness
     # b = 5  # Shift
     # gamma_func = lambda x: 1/(1+ torch.exp(a * x - b))
@@ -138,8 +139,8 @@ def criterion_factory(cfg: DictConfig, priors: Dict):
             
             u = z[:, z_slice[0]:z_slice[1]]
             u_dist = l2_dist(u.unsqueeze(1), u.unsqueeze(0))
-            u_dissim_loss = u_dist**2
-            loss_contrastive = torch.sum(gamma * u_dissim_loss)  # FIXME: Should this be sum or mean? Might get averages later?
+            # u_dissim_loss = u_dist**2
+            loss_contrastive = torch.sum(gamma * u_dist**2 + (~gamma) * torch.maximum(torch.tensor(0.0, device=z.device), m - u_dist)**2)  # FIXME: Should this be sum or mean? Might get averages later?
         else:
             loss_contrastive = torch.tensor(0.0, device=z.device)
 
