@@ -91,9 +91,9 @@ def criterion_factory(cfg: DictConfig, priors: Dict):
         z_slice[1] = cfg.model.z_size
     input_size = z_slice[1] - z_slice[0]
 
-    l2_dist = torch.nn.PairwiseDistance(p=2)
+    l2_dist_fn = torch.nn.PairwiseDistance(p=2)
     SIMILARITY_THRESHOLD = 1e-3
-    m = 1e-2
+    m = 1
     # a = 40  # Sharpness
     # b = 5  # Shift
     # gamma_func = lambda x: 1/(1+ torch.exp(a * x - b))
@@ -124,23 +124,25 @@ def criterion_factory(cfg: DictConfig, priors: Dict):
         loss_values = mse(values_pred, y_val)/VALUES_PRIOR
 
         if CONTRASTIVE_WEIGHT > 0:  # Expensive, so only calculate if necessary
-            # # Contrastive loss (batch-wise)
-            # y_val = F.normalize(y_val, p=2, dim=1, eps=1e-12)
-            # values_dist = l2_dist(y_val.unsqueeze(1), y_val.unsqueeze(0))  # Make this indep of z_size, add some scaling factor
-            # gamma = gamma_func(values_dist.square())  # Scaling factor: Only if graphs are similar should large z_dissim be penalized
-        
-            # u = z[:, z_slice[0]:z_slice[1]]
-            # u_sim = F.cosine_similarity(u.unsqueeze(1), u.unsqueeze(0), dim=2)  # u_sim -> 1 if similar, 0 if unrelated, -> -1 if different
-            # u_dissim_loss = -torch.log((1+u_sim)/2)  # u_dissim_loss -> 0 if similar, inf if different, 0.07 if unrelated
-            # loss_contrastive = torch.sum(gamma * u_dissim_loss)
 
-            values_dist = l2_dist(y_val.unsqueeze(1), y_val.unsqueeze(0))
-            gamma = values_dist < SIMILARITY_THRESHOLD
+            values_dist = torch.mean((y_val.unsqueeze(1) - y_val.unsqueeze(0))**2, dim=2)
+            similarity_mask = values_dist < SIMILARITY_THRESHOLD
             
             u = z[:, z_slice[0]:z_slice[1]]
-            u_dist = l2_dist(u.unsqueeze(1), u.unsqueeze(0))
-            # u_dissim_loss = u_dist**2
-            loss_contrastive = torch.sum(10 * gamma * u_dist**2 + (~gamma) * torch.maximum(torch.tensor(0.0, device=z.device), m - u_dist)**2)  # FIXME: Should this be sum or mean? Might get averages later?
+            u_dist = l2_dist_fn(u.unsqueeze(1), u.unsqueeze(0))
+            loss_contrastive = torch.sum(similarity_mask * u_dist**2 + (~similarity_mask) * torch.maximum(torch.tensor(0.0, device=z.device), m - u_dist)**2)  # FIXME: Should this be sum or mean? Might get averages later?
+
+            # Stats for debug
+            sim_ratio = similarity_mask.float().mean()
+            sim_count = similarity_mask.sum() - similarity_mask.shape[0]
+            a = (True^torch.eye(similarity_mask.shape[0], device=similarity_mask.device, dtype=torch.bool))
+            sim_notsame = similarity_mask & a
+            u_dist_simnotsame = u_dist[sim_notsame]
+            mean_dist_sim = torch.mean(u_dist_simnotsame)
+            mean_dist_top_quartile_sim = torch.quantile(u_dist_simnotsame, 0.75)
+            mean_dist_bottom_quartile_sim = torch.quantile(u_dist_simnotsame, 0.25)
+            mean_dist_dissim = torch.mean(u_dist[~similarity_mask])
+
         else:
             loss_contrastive = torch.tensor(0.0, device=z.device)
 
@@ -157,7 +159,13 @@ def criterion_factory(cfg: DictConfig, priors: Dict):
             'loss_vae': loss_vae.item(),   # -ELBO but with KL_WEIGHT*alpha so really only some distant cousing of ELBO
             'loss_values': loss_values.item(),
             'loss_contrastive': loss_contrastive.item(),
-            'loss': loss.item()
+            'loss': loss.item(),
+            'sim_ratio': sim_ratio.item(),
+            'sim_count': sim_count.item(),
+            'mean_dist_sim': mean_dist_sim.item(),
+            'mean_dist_dissim': mean_dist_dissim.item(),
+            'mean_dist_top_quartile_sim': mean_dist_top_quartile_sim.item(),
+            'mean_dist_bottom_quartile_sim': mean_dist_bottom_quartile_sim.item()
         }
 
         return loss, partial_losses
@@ -222,17 +230,6 @@ class MiscCallback(Callback):
             # FIXME: Quickfix to make sure last checkpoint is saved.
             trainer.logger.experiment.save(os.path.join(trainer.logger.experiment.dir, 'last.ckpt'),
                                            base_path=trainer.logger.experiment.dir)
-
-def update_cfg(default_cfg: DictConfig, partial_cfg: Dict):
-    """
-    Update a default config with a partial config.
-    """
-    for k, v in partial_cfg.items():
-        tmp_cfg = default_cfg
-        path = k.split('.')
-        for dir in path[:-1]:
-            tmp_cfg = tmp_cfg[dir]
-        tmp_cfg[path[-1]] = v
 
 def set_wandb_cache_dir(dir: str):
     """

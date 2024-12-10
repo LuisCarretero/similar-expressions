@@ -268,6 +268,8 @@ def data_from_loader(data_loader: DataLoader, data_type: str, idx=None, max_leng
     elif max_length is not None:  # rows until max_length
         subset_idx = subset_idx[:max_length]
         res = data_loader.dataset.dataset[subset_idx][data_idx]
+    else:
+        raise ValueError("No data selected")
 
     # Add batch dimension if not present
     if isinstance(idx, int) or (batch_size is None and (max_length == 1)):
