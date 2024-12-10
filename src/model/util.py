@@ -7,6 +7,8 @@ from lightning.pytorch.loggers import WandbLogger
 import os
 from omegaconf.dictconfig import DictConfig
 from omegaconf import OmegaConf
+from lightning.pytorch.callbacks import ModelCheckpoint
+from lightning.pytorch.callbacks.early_stopping import EarlyStopping
 
 def load_config(file_path: str, use_fallback: bool = False, fallback_cfg_path: str = 'config.yaml') -> DictConfig:
     # TODO: Add error handling, fallback values, etc.
@@ -93,7 +95,7 @@ def criterion_factory(cfg: DictConfig, priors: Dict):
 
     l2_dist_fn = torch.nn.PairwiseDistance(p=2)
     SIMILARITY_THRESHOLD = 1e-3
-    m = 1
+    m = 1e-1
     # a = 40  # Sharpness
     # b = 5  # Shift
     # gamma_func = lambda x: 1/(1+ torch.exp(a * x - b))
@@ -130,13 +132,14 @@ def criterion_factory(cfg: DictConfig, priors: Dict):
             
             u = z[:, z_slice[0]:z_slice[1]]
             u_dist = l2_dist_fn(u.unsqueeze(1), u.unsqueeze(0))
-            loss_contrastive = torch.sum(similarity_mask * u_dist**2 + (~similarity_mask) * torch.maximum(torch.tensor(0.0, device=z.device), m - u_dist)**2)  # FIXME: Should this be sum or mean? Might get averages later?
+            loss_contrastive = torch.sum(similarity_mask * u_dist**2 + (~similarity_mask) * torch.maximum(torch.tensor(0.0, device=z.device), m - u_dist)**2)
+              # FIXME: Should this be sum or mean? Might get averages later? <- Normalisation should make this invariant under batch size, u-dim and u scale
+              # /torch.sum(u**2)**2
 
             # Stats for debug
-            sim_ratio = similarity_mask.float().mean()
-            sim_count = similarity_mask.sum() - similarity_mask.shape[0]
-            a = (True^torch.eye(similarity_mask.shape[0], device=similarity_mask.device, dtype=torch.bool))
-            sim_notsame = similarity_mask & a
+            # sim_ratio = similarity_mask.float().mean()
+            # sim_count = similarity_mask.sum() - similarity_mask.shape[0]
+            sim_notsame = similarity_mask & (True^torch.eye(similarity_mask.shape[0], device=similarity_mask.device, dtype=torch.bool))
             u_dist_simnotsame = u_dist[sim_notsame]
             mean_dist_sim = torch.mean(u_dist_simnotsame)
             mean_dist_top_quartile_sim = torch.quantile(u_dist_simnotsame, 0.75)
@@ -160,8 +163,8 @@ def criterion_factory(cfg: DictConfig, priors: Dict):
             'loss_values': loss_values.item(),
             'loss_contrastive': loss_contrastive.item(),
             'loss': loss.item(),
-            'sim_ratio': sim_ratio.item(),
-            'sim_count': sim_count.item(),
+            # 'sim_ratio': sim_ratio.item(),
+            # 'sim_count': sim_count.item(),
             'mean_dist_sim': mean_dist_sim.item(),
             'mean_dist_dissim': mean_dist_dissim.item(),
             'mean_dist_top_quartile_sim': mean_dist_top_quartile_sim.item(),
@@ -239,3 +242,30 @@ def set_wandb_cache_dir(dir: str):
     os.environ['WANDB_DATA_DIR'] = dir
     os.environ['WANDB_CONFIG_DIR'] = dir
     os.environ['WANDB_ARTIFACT_DIR'] = dir
+
+
+def create_callbacks(cfg: DictConfig) -> List[Callback]:
+    """
+    Create callbacks for the trainer.
+    """
+    callbacks = [MiscCallback()]
+
+    if cfg.training.early_stopping.enabled:
+        callbacks.append(EarlyStopping(
+            monitor=cfg.training.performance_metric, 
+            min_delta=cfg.training.early_stopping.min_delta, 
+            patience=cfg.training.early_stopping.patience, 
+            verbose=False, 
+            mode="min"
+        ))
+
+    checkpoint_callback = ModelCheckpoint(
+        filename='{epoch:02d}', 
+        monitor=cfg.training.performance_metric, 
+        mode='min', 
+        save_top_k=1, # If this is used, need to specify correct dirpath
+        save_last=True
+    )
+    callbacks.append(checkpoint_callback)
+
+    return callbacks

@@ -2,9 +2,9 @@ model:
   encoder:
     size_hidden: 256
     architecture: residual-parameterized
-    depth: 2  # 4
-    width: 256  #1024
-  z_size: 16  # 32
+    depth: 4  # 4
+    width: 1024  #1024
+  z_size: 32  # 32
   decoder:
     z_slice: [0, -1]
     size_hidden: 128
@@ -23,33 +23,41 @@ model:
 
 training:
   batch_size: 512
-  epochs: 300
+  epochs: 100
   valid_split: 0.1
-  dataset_len_limit: 2275
-  mode: encoding  # value_prediction, autoencoding, mixed, encoding
+  dataset_name: dataset_241204_2
+  dataset_len_limit: null
+  wandb_settings:
+    project: simexp-03 
+  mode: autoencoding  # value_prediction, autoencoding, mixed, encoding
   criterion:
-    ae_weight: 0
-    kl_weight: 0
+    ae_weight: 1
+    kl_weight: 1e-3
     syntax_weight: 0.5
-    contrastive_weight: 1
+    contrastive_weight: 1e2
   value_transform:
     mapping: null  # [null, arcsinh]
     bias: null  # [null, dataset, sample]
     scale: null  # [null, dataset-std, sample-std, dataset-range, sample-range]
   sampling:
     prior_std: 1
-    eps: 0
+    eps: 1e-2
   optimizer:
     lr: 3e-4
     clip: 5
     scheduler_factor: 0.1
-    scheduler_patience: 20
+    scheduler_patience: 10
     scheduler_threshold: 2e-4
     scheduler_min_lr: 0
-  performance_metric: train/loss_contrastive
+  early_stopping:
+    enabled: true
+    min_delta: 0
+    patience: 15
+  performance_metric: valid/loss
   kl_anneal:
     schedule: sigmoid
     midpoint: 0.4
     steepness: 15
   values_init_bias: false
   use_grammar_mask: false
+
