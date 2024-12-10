@@ -11,6 +11,14 @@ S -> 'x1'
 END -> 'END'
 """
 
+# grammar = """
+# S -> 'ADD' S S | 'SUB' S S | 'MUL' S S | 'DIV' S S
+# S -> 'COS' S | 'EXP' S
+# S -> 'CON'
+# S -> 'x1' 
+# END -> 'END'
+# """
+
 GCFG = CFG.fromstring(grammar)
 S = Nonterminal('S')
 MAX_LEN, DIM = 15, 9  # FIXME: use config
