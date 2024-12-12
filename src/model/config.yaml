@@ -3,14 +3,14 @@ model:
     size_hidden: 256
     architecture: residual-parameterized
     depth: 4  # 4
-    width: 1024  #1024
+    width: 512  #1024
   z_size: 32  # 32
   decoder:
     z_slice: [0, -1]
     size_hidden: 128
     architecture: residual-parameterized
-    depth: 3
-    width: 1024
+    depth: 4
+    width: 512
   value_decoder:
     z_slice: [0, -1]
     architecture: residual-parameterized
@@ -32,9 +32,11 @@ training:
   mode: autoencoding  # value_prediction, autoencoding, mixed, encoding
   criterion:
     ae_weight: 1
-    kl_weight: 1e-3
+    kl_weight: 0
     syntax_weight: 0.5
-    contrastive_weight: 1e2
+    contrastive_weight: 1e-3
+    contrastive_scale: 1
+    similarity_threshold: 1e-3
   value_transform:
     mapping: null  # [null, arcsinh]
     bias: null  # [null, dataset, sample]
@@ -53,7 +55,7 @@ training:
     enabled: true
     min_delta: 0
     patience: 15
-  performance_metric: valid/loss
+  performance_metric: train/loss
   kl_anneal:
     schedule: sigmoid
     midpoint: 0.4

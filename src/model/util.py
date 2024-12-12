@@ -74,11 +74,15 @@ def criterion_factory(cfg: DictConfig, priors: Dict):
     CONTRASTIVE_WEIGHT = cfg.training.criterion.contrastive_weight
     KL_WEIGHT = cfg.training.criterion.kl_weight
     SYNTAX_WEIGHT = cfg.training.criterion.syntax_weight
+    CONTRASTIVE_SCALE = cfg.training.criterion.contrastive_scale
+    SIMILARITY_THRESHOLD = cfg.training.criterion.similarity_threshold
 
     assert 0 <= AE_WEIGHT <= 1, "AE_WEIGHT must be between 0 and 1"
     assert 0 <= SYNTAX_WEIGHT <= 1, "SYNTAX_WEIGHT must be between 0 and 1"
     assert KL_WEIGHT >= 0, "KL_WEIGHT must be nonnegative"
     assert CONTRASTIVE_WEIGHT >= 0, "CONTRASTIVE_WEIGHT must be nonnegative"
+    assert CONTRASTIVE_SCALE >= 0, "CONTRASTIVE_SCALE must be nonnegative"
+    assert SIMILARITY_THRESHOLD >= 0, "SIMILARITY_THRESHOLD must be nonnegative"
 
     SYNTAX_PRIOR = priors['syntax_prior']
     CONSTS_PRIOR = priors['consts_prior']
@@ -94,8 +98,7 @@ def criterion_factory(cfg: DictConfig, priors: Dict):
     input_size = z_slice[1] - z_slice[0]
 
     l2_dist_fn = torch.nn.PairwiseDistance(p=2)
-    SIMILARITY_THRESHOLD = 1e-3
-    m = 1e-1
+    # m = 1e-1
     # a = 40  # Sharpness
     # b = 5  # Shift
     # gamma_func = lambda x: 1/(1+ torch.exp(a * x - b))
@@ -132,7 +135,7 @@ def criterion_factory(cfg: DictConfig, priors: Dict):
             
             u = z[:, z_slice[0]:z_slice[1]]
             u_dist = l2_dist_fn(u.unsqueeze(1), u.unsqueeze(0))
-            loss_contrastive = torch.sum(similarity_mask * u_dist**2 + (~similarity_mask) * torch.maximum(torch.tensor(0.0, device=z.device), m - u_dist)**2)
+            loss_contrastive = torch.sum(similarity_mask * u_dist**2 + (~similarity_mask) * torch.maximum(torch.tensor(0.0, device=z.device), CONTRASTIVE_SCALE - u_dist)**2)
               # FIXME: Should this be sum or mean? Might get averages later? <- Normalisation should make this invariant under batch size, u-dim and u scale
               # /torch.sum(u**2)**2
 
@@ -168,7 +171,8 @@ def criterion_factory(cfg: DictConfig, priors: Dict):
             'mean_dist_sim': mean_dist_sim.item(),
             'mean_dist_dissim': mean_dist_dissim.item(),
             'mean_dist_top_quartile_sim': mean_dist_top_quartile_sim.item(),
-            'mean_dist_bottom_quartile_sim': mean_dist_bottom_quartile_sim.item()
+            'mean_dist_bottom_quartile_sim': mean_dist_bottom_quartile_sim.item(),
+            'dist_ratio': mean_dist_dissim.item() / mean_dist_sim.item()
         }
 
         return loss, partial_losses
