@@ -2,15 +2,15 @@ model:
   encoder:
     size_hidden: 256
     architecture: residual-parameterized
-    depth: 4  # 4
-    width: 512  #1024
-  z_size: 32  # 32
+    depth: 5
+    width: 1024
+  z_size: 32
   decoder:
     z_slice: [0, -1]
     size_hidden: 128
     architecture: residual-parameterized
-    depth: 4
-    width: 512
+    depth: 5
+    width: 1024
   value_decoder:
     z_slice: [0, -1]
     architecture: residual-parameterized
@@ -25,7 +25,7 @@ training:
   batch_size: 512
   epochs: 100
   valid_split: 0.1
-  dataset_name: dataset_241204_2
+  dataset_name: dataset_241208_1
   dataset_len_limit: null
   wandb_settings:
     project: simexp-03 

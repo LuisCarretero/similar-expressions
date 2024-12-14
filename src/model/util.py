@@ -145,8 +145,12 @@ def criterion_factory(cfg: DictConfig, priors: Dict):
             sim_notsame = similarity_mask & (True^torch.eye(similarity_mask.shape[0], device=similarity_mask.device, dtype=torch.bool))
             u_dist_simnotsame = u_dist[sim_notsame]
             mean_dist_sim = torch.mean(u_dist_simnotsame)
-            mean_dist_top_quartile_sim = torch.quantile(u_dist_simnotsame, 0.75)
-            mean_dist_bottom_quartile_sim = torch.quantile(u_dist_simnotsame, 0.25)
+            if u_dist_simnotsame.numel() > 0:
+                mean_dist_top_quartile_sim = torch.quantile(u_dist_simnotsame, 0.75)
+                mean_dist_bottom_quartile_sim = torch.quantile(u_dist_simnotsame, 0.25)
+            else:
+                mean_dist_top_quartile_sim = torch.tensor(float('nan'), device=z.device)
+                mean_dist_bottom_quartile_sim = torch.tensor(float('nan'), device=z.device)
             mean_dist_dissim = torch.mean(u_dist[~similarity_mask])
 
         else:
