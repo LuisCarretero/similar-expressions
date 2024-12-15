@@ -5,7 +5,7 @@ from nltk.grammar import Production
 from torch.distributions import Categorical
 from typing import List, Tuple, Literal
 import sympy as sp
-import numpy as np
+from sympy.utilities.lambdify import lambdify
 
 from src.model.grammar import get_mask, S, GCFG
 from src.model.util import Stack
@@ -217,4 +217,5 @@ def eval_from_logits(logits, val_x):
     infix = logits_to_infix(logits)
     expr = sp.sympify(infix.lower())
 
-    return np.array([expr.subs(x1, x) for x in val_x])
+    func = lambdify(x1, expr, 'numpy') # returns a numpy-ready function
+    return func(val_x)

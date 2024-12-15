@@ -242,7 +242,7 @@ def create_dataloader_from_wandb(cfg: DictConfig, value_transform=None, datapath
     train_loader, valid_loader, info = create_dataloader(datapath, name=cfg.training.dataset_name, cfg=cfg, value_transform=value_transform, shuffle_train=False)
     assert all([cfg.dataset_hashes[key] == info['hashes'][key] for key in cfg.dataset_hashes.keys()]), "Error: Using different dataset than used for training."
 
-    print(f'Using dataset "{cfg.dataset_name}" of size {len(train_loader.dataset)}')
+    print(f'Using dataset "{cfg.training.dataset_name}" of size {len(train_loader.dataset)}')
     summarize_dataloaders(train_loader, valid_loader)
 
     return train_loader, valid_loader, info
