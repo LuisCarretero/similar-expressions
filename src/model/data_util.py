@@ -148,7 +148,7 @@ def create_value_transform(transform_cfg: DictConfig, values: torch.Tensor):
     
     return combined_transform
 
-def create_dataloader(datapath: str, name: str, cfg: DictConfig, random_seed=0, shuffle_train=True, value_transform=None, num_workers=4) -> Tuple[DataLoader, DataLoader, dict]:
+def create_dataloader(datapath: str, name: str, cfg: DictConfig, random_seed=0, shuffle_train=True, value_transform=None, num_workers=4, drop_last=True) -> Tuple[DataLoader, DataLoader, dict]:
     gen = torch.Generator()
     gen.manual_seed(random_seed)
 
@@ -171,8 +171,8 @@ def create_dataloader(datapath: str, name: str, cfg: DictConfig, random_seed=0, 
     train_dataset, valid_dataset = random_split(full_dataset, [train_size, valid_size], generator=gen)
 
     # Create DataLoaders
-    train_loader = DataLoader(train_dataset, batch_size=cfg.training.batch_size, shuffle=shuffle_train, num_workers=num_workers, pin_memory=True, persistent_workers=True)
-    valid_loader = DataLoader(valid_dataset, batch_size=cfg.training.batch_size, shuffle=False, num_workers=num_workers, pin_memory=True, persistent_workers=True)
+    train_loader = DataLoader(train_dataset, batch_size=cfg.training.batch_size, shuffle=shuffle_train, num_workers=num_workers, pin_memory=True, persistent_workers=True, drop_last=drop_last)
+    valid_loader = DataLoader(valid_dataset, batch_size=cfg.training.batch_size, shuffle=False, num_workers=num_workers, pin_memory=True, persistent_workers=True, drop_last=drop_last)
 
     # Create hashes
     assert id(full_dataset) == id(train_loader.dataset.dataset) == id(valid_loader.dataset.dataset), "Datasets are not the same"
