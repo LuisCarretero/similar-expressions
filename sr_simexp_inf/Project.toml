@@ -1,0 +1,3 @@
+[deps]
+MLJ = "add582a8-e3ab-11e8-2d5e-e98b27df1bc7"
+SymbolicRegression = "8254be44-1295-4e6a-a16d-46603ac705cb"

@@ -1,0 +1,8 @@
+name = "SRSimexpInference"
+uuid = "3f9f0c00-4583-4ae9-ae33-617761340e54"
+authors = ["Luis Carretero Lopez <luis.carretero@gmx.de>"]
+version = "0.1.0"
+
+[deps]
+MLJ = "add582a8-e3ab-11e8-2d5e-e98b27df1bc7"
+SymbolicRegression = "8254be44-1295-4e6a-a16d-46603ac705cb"

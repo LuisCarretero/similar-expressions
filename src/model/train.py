@@ -70,7 +70,7 @@ def train_model(cfg, data_path, overwrite_device_count=None, overwrite_strategy=
 
 
 if __name__ == '__main__':
-    data_path = ['/store/DAMTP/lc865/workspace/data', '/Users/luis/Desktop/Cranmer2024/Workplace/smallMutations/similar-expressions/data'][0]
+    data_path = ['/store/DAMTP/lc865/workspace/data', '/Users/luis/Desktop/Cranmer2024/Workplace/smallMutations/similar-expressions/data'][1]
 
     cfg = load_config('src/model/config.yaml')
     train_model(cfg, data_path)  # dataset_241008_1, dataset_240910_1, dataset_240822_1, dataset_241204_2

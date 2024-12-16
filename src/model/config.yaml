@@ -2,15 +2,15 @@ model:
   encoder:
     size_hidden: 256
     architecture: residual-parameterized
-    depth: 5
-    width: 1024
+    depth: 1
+    width: 64
   z_size: 40
   decoder:
     z_slice: [0, -1]
     size_hidden: 128
     architecture: residual-parameterized
-    depth: 5
-    width: 1024
+    depth: 1
+    width: 64
   value_decoder:
     z_slice: [0, -1]
     architecture: residual-parameterized
@@ -22,11 +22,11 @@ model:
     val_points: 100
 
 training:
-  batch_size: 512
-  epochs: 70
+  batch_size: 128
+  epochs: 1
   valid_split: 0.1
-  dataset_name: dataset_241208_1
-  dataset_len_limit: null
+  dataset_name: dataset_241204_2
+  dataset_len_limit: 10000
   wandb_settings:
     project: simexp-03 
   mode: autoencoding  # value_prediction, autoencoding, mixed, encoding

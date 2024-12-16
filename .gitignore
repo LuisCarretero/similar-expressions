@@ -6,3 +6,4 @@ wandb_cache
 wandb
 __pycache__
 *.egg-info
+onnx-models
