@@ -53,7 +53,8 @@ class Encoder(nn.Module):
 
         self.mu = nn.Linear(self.hidden_size, cfg.z_size)
         self.sigma = nn.Linear(self.hidden_size, cfg.z_size)
-        self.softplus = nn.Softplus()
+        # Quickfix: Softplus not available in Julia ONNX so implement it manually
+        self.softplus_custom = lambda x: torch.log(1 + torch.exp(x))
 
     def forward(self, x):
         """
@@ -69,6 +70,6 @@ class Encoder(nn.Module):
             h = self.mlp(x)
 
         mean = self.mu(h)
-        ln_var = self.softplus(self.sigma(h))
+        ln_var = self.softplus_custom(self.sigma(h))
 
         return mean, ln_var
