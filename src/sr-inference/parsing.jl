@@ -1,6 +1,83 @@
 module ParsingModule
 
 import SymbolicRegression: Node
+using Distributions: Categorical
+
+# Define grammar rules similar to Python version
+grammar_str = """
+S -> 'ADD' S S | 'SUB' S S | 'MUL' S S | 'DIV' S S
+S -> 'SIN' S | 'COS' S | 'EXP' S | 'TANH' S | 'COSH' S | 'SINH' S 
+S -> 'CON'
+S -> 'x1'
+END -> 'END'
+"""
+
+const OPERATOR_ARITY = Dict{String, Int}(
+    # Elementary functions
+    "ADD" => 2,
+    "SUB" => 2,
+    "MUL" => 2,
+    "DIV" => 2,
+
+    # Trigonometric Functions
+    "SIN" => 1,
+    "COS" => 1,
+    "EXP" => 1,
+
+    # Hyperbolic Functions
+    "SINH" => 1,
+    "COSH" => 1,
+    "TANH" => 1,
+
+    # FIXME: Handle this differently!
+    "x1" => 0
+)
+
+# Split each production rule into separate lines
+grammar_lines = String[]
+for line in split(grammar_str, "\n")
+    line = strip(line)
+    if !isempty(line)
+        lhs, rhs = split(line, "->")
+        lhs = strip(lhs)
+        # Split on | and create new lines
+        for rule in split(rhs, "|")
+            push!(grammar_lines, "$lhs -> $(strip(rule))")
+        end
+    end
+end
+grammar_str = join(grammar_lines, "\n")
+
+function _create_grammar_masks(grammar_str::String)
+    # Collect all LHS symbols and unique set
+    all_lhs = String[]
+    unique_lhs = String[]
+    
+    # Parse grammar string to get productions
+    for line in split(grammar_str, "\n")
+        if !isempty(strip(line))
+            lhs = strip(split(line, "->")[1])
+            push!(all_lhs, lhs)
+            if !(lhs in unique_lhs)
+                push!(unique_lhs, lhs)
+            end
+        end
+    end
+
+    # Create masks matrix - each row corresponds to a unique LHS symbol
+    # and has 1s for productions with that LHS
+    masks = falses(length(unique_lhs), length(all_lhs))
+    for (i, symbol) in enumerate(unique_lhs)
+        for (j, lhs) in enumerate(all_lhs)
+            masks[i,j] = (symbol == lhs)
+        end
+    end
+
+    allowed_prod_idx = findall(vec(any(masks, dims=1)))
+
+    return masks, allowed_prod_idx, unique_lhs
+end
+masks, allowed_prod_idx, unique_lhs = _create_grammar_masks(grammar_str)
 
 mutable struct nn_config
     nbin::Int
@@ -74,61 +151,138 @@ function _node_to_token_idx(node::Node{T}, cfg::nn_config)::Tuple{Int, Float64} 
 end
 
 
-
-function _create_grammar_masks()
-    # Define grammar rules similar to Python version
-    grammar_str = """
-    S -> 'ADD' S S | 'SUB' S S | 'MUL' S S | 'DIV' S S
-    S -> 'SIN' S | 'COS' S | 'EXP' S | 'TANH' S | 'COSH' S | 'SINH' S 
-    S -> 'CON'
-    S -> 'x1'
-    END -> 'END'
-    """
-
-    # Split each production rule into separate lines
-    grammar_lines = String[]
-    for line in split(grammar_str, "\n")
-        line = strip(line)
-        if !isempty(line)
-            lhs, rhs = split(line, "->")
-            lhs = strip(lhs)
-            # Split on | and create new lines
-            for rule in split(rhs, "|")
-                push!(grammar_lines, "$lhs -> $(strip(rule))")
-            end
-        end
-    end
-    grammar_str = join(grammar_lines, "\n")
-
-    # Collect all LHS symbols and unique set
-    all_lhs = String[]
-    unique_lhs = String[]
+function logits_to_prods(logits::Matrix{Float32}, sample::Bool=false, max_length::Int=15)::Vector{Tuple{String, String}}
+    # Initialize empty stack with start symbol 'S'
+    stack = ["S"]
     
-    # Parse grammar string to get productions
-    for line in split(grammar_str, "\n")
-        if !isempty(strip(line))
-            lhs = strip(split(line, "->")[1])
-            push!(all_lhs, lhs)
-            if !(lhs in unique_lhs)
-                push!(unique_lhs, lhs)
+    # Split logits into productions and constants
+    logits_prods = logits[:, 1:end-1] 
+    constants = logits[:, end]
+    
+    prods = []
+    t = 1
+    
+    while !isempty(stack)
+        alpha = pop!(stack)  # Current LHS toke
+        
+        # Get mask for current symbol
+        symbol_idx = findfirst(==(alpha), unique_lhs)
+        mask = masks[symbol_idx, :]
+        
+        # Calculate probabilities
+        probs = mask .* exp.(logits_prods[t, :])
+        tot = sum(probs)
+        @assert tot > 0 "Sum of probs is 0 at t=$t. Probably due to bad mask or invalid logits?"
+        probs = probs ./ tot
+        
+        # Select production rule
+        if sample
+            i = rand(Categorical(probs))
+        else
+            _, i = findmax(probs)
+        end
+        
+        # Get selected rule
+        rule = split(grammar_str, "\n")[i]
+        lhs, rhs = split(strip(rule), "->")
+        lhs = strip(lhs)
+        rhs = strip(rhs)
+        
+        # If rule produces CONST, replace with actual constant
+        if rhs == "'CON'"
+            rhs = string(constants[t])
+        end
+        
+        # Add production to list
+        push!(prods, (lhs, rhs))
+        
+        # Add RHS nonterminals to stack in reverse order
+        rhs_symbols = split(rhs)
+        for symbol in reverse(rhs_symbols)
+            clean_symbol = replace(symbol, "'" => "")
+            if clean_symbol in unique_lhs
+                push!(stack, clean_symbol)
             end
         end
-    end
-
-    # Create masks matrix - each row corresponds to a unique LHS symbol
-    # and has 1s for productions with that LHS
-    masks = falses(length(unique_lhs), length(all_lhs))
-    for (i, symbol) in enumerate(unique_lhs)
-        for (j, lhs) in enumerate(all_lhs)
-            masks[i,j] = (symbol == lhs)
+        
+        t += 1
+        if t > max_length
+            break
         end
     end
+    
+    return prods
+end
 
-    allowed_prod_idx = findall(vec(any(masks, dims=1)))
+function prods_to_tree(prods::Vector{Tuple{String, String}}, OP_INDEX::Dict{String, Int})
+    # global prods stack
+    # Create node for each production
+    # Depending on arity, create 0, 1 or 2 children
+    # 
+    prefix_list = _prods_to_prefix(prods, OP_INDEX)
+    tree = _prefix_to_tree!(prefix_list)
 
-    return masks, allowed_prod_idx
+    return tree
+end
+
+function _prods_to_prefix(prods::Vector{Tuple{String, String}}, OP_INDEX::Dict{String, Int})::Vector{Node{Float64}}
+    prefix_list = []
+    for prod in prods
+        op_match = match(r"'([^']+)'", prod[2])  # Alternatively, use prod to infer arity?
+        if op_match !== nothing
+            op = op_match.captures[1]
+            arity = OPERATOR_ARITY[op]
+            if arity == 0
+                push!(prefix_list, Node{Float64}(; feature=1))  # FIXME: Only univariate for now
+            elseif arity == 1
+                push!(prefix_list, _make_childless_op(arity, OP_INDEX[op], Float64))
+            elseif arity == 2
+                push!(prefix_list, _make_childless_op(arity, OP_INDEX[op], Float64))
+            end
+        else  # Constant
+            push!(prefix_list, Node{Float64}(; val=parse(Float64, prod[2])))
+        end
+    end
+    return prefix_list
 end
 
 
+"""
+Copied from datagen/ExpressionGenerator.jl. Consolidate.
+"""
+function _make_childless_op(degree::Int, op_index::Int, ::Type{T})::Node{T} where {T<:Number}
+    op_node = Node{T}()
+    op_node.degree = degree
+    op_node.op = op_index
+    return op_node
+end
+
+"""
+Copied from datagen/ExpressionGenerator.jl. Consolidate.
+"""
+function _prefix_to_tree!(prefix_list::Vector{Node{T}})::Node{T} where {T<:Number}
+    function build_subtree()
+        if isempty(prefix_list)
+            error("Unexpected end of prefix list")
+        end
+        node = popfirst!(prefix_list)
+        if node.degree == 0
+            # Leaf node, no children to add
+        elseif node.degree == 1
+            node.l = build_subtree()
+        elseif node.degree == 2
+            node.l = build_subtree()
+            node.r = build_subtree()
+        else
+            error("Invalid node degree: $(node.degree)")
+        end
+        return node
+    end
+
+    if isempty(prefix_list)
+        error("Empty prefix list")
+    end
+    return build_subtree()
+end
 
 end

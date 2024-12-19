@@ -73,7 +73,17 @@ class LitGVAE(L.LightningModule):
             raise ValueError(f"Invalid mode: {self.mode}")
         
         return mean, ln_var, z, logits, values
-
+    
+    def __call__(self, x, sample_eps):
+        """
+        Temporary function for streamlined sampling.
+        """
+        mean, ln_var = self.encoder(x)
+        self.sampling_eps = sample_eps
+        z = self.sample(mean, torch.zeros_like(ln_var))
+        logits = self.decoder(z)
+        return logits
+    
     def generate(self, z, sample=False, max_length=15):
         """Generate a valid expression from z using the decoder and grammar to create a set of rules that can 
         be parsed into an expression tree. Note that it only works on single equations at a time."""
