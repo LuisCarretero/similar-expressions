@@ -8,13 +8,11 @@ from torch.distributions import Normal
 from src.model.encoder import Encoder
 from src.model.decoder import Decoder
 from src.model.value_decoder import ValueDecoder
-from src.model.parsing import logits_to_prods
-from src.model.grammar import GCFG, calc_grammar_mask
+from src.model.grammar import calc_grammar_mask
 from src.model.util import criterion_factory, AnnealKLSigmoid, compute_latent_metrics, calc_syntax_accuracy
 
 
 class LitGVAE(L.LightningModule):
-    """Grammar Variational Autoencoder"""
     def __init__(self, cfg: DictConfig, priors: Dict[str, float]):
         super().__init__()
 
@@ -76,24 +74,13 @@ class LitGVAE(L.LightningModule):
     
     def __call__(self, x, sample_eps):
         """
-        Temporary function for streamlined sampling.
+        Used for final ONNX inference version.
         """
         mean, ln_var = self.encoder(x)
         self.sampling_eps = sample_eps
         z = self.sample(mean, torch.zeros_like(ln_var))
         logits = self.decoder(z)
         return logits
-    
-    def generate(self, z, sample=False, max_length=15):
-        """Generate a valid expression from z using the decoder and grammar to create a set of rules that can 
-        be parsed into an expression tree. Note that it only works on single equations at a time."""
-
-        # Decoder works with general batch size. Only allow batch size 1 for now
-        logits = self.decoder(z)
-        assert logits.shape[0] == 1, "Batch size must be 1"
-        logits = logits.squeeze()  # Only considering 1st batch
-
-        return logits_to_prods(logits, GCFG, sample=sample, max_length=max_length)
     
     def training_step(self, batch, batch_idx):
         x, y_syntax, y_consts, y_values = batch
@@ -190,7 +177,6 @@ class LitGVAE(L.LightningModule):
             return
 
         # Average the metrics over the last N steps
-        # avg_metrics = {k: sum(d[k] for d in buffer) / len(buffer) for k in buffer[0]}
         avg_metrics = {k: sum(step_dict[k] for step_dict in buffer) / len(buffer) for k in buffer[0]}
 
         # Log the averaged metrics and clear the buffer

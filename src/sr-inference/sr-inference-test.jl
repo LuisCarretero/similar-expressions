@@ -3,7 +3,7 @@ import SymbolicRegression.SymbolicRegression: Node
 using DynamicExpressions: parse_expression
 import ONNXRunTime as ORT
 
-model = ORT.load_inference("src/dev/ONNX/onnx-models/model-9j0cbuui.onnx")
+model = ORT.load_inference("src/dev/ONNX/onnx-models/model-c2a4odt7.onnx")
 
 include("parsing.jl")
 using .ParsingModule: nn_config, node_to_onehot, _create_grammar_masks, logits_to_prods, prods_to_tree
@@ -55,7 +55,7 @@ const OP_INDEX = Dict{String, Int}(
 t = parse_expression(:((cos(x1) * 3) + x1), operators=options.operators, variable_names=["x1"])
 success, x = node_to_onehot(t.tree, cfg)
 
-input = Dict("onnx::Flatten_0" => reshape(x, (1, size(x)...)))
+input = Dict("onnx::Flatten_0" => reshape(x, (1, size(x)...)), "sample_eps" => Array{Float32}(1e-3))
 raw = model(input)
 x_out = raw["155"][1, :, :]
 prods = logits_to_prods(x_out, true)
