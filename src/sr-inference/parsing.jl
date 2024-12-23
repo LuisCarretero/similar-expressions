@@ -214,18 +214,18 @@ function logits_to_prods(logits::Matrix{Float32}, sample::Bool=false, max_length
     return prods
 end
 
-function prods_to_tree(prods::Vector{Tuple{String, String}}, OP_INDEX::Dict{String, Int})
+function prods_to_tree(prods::Vector{Tuple{String, String}}, OP_INDEX::Dict{String, Int}, feature::Int)
     # global prods stack
     # Create node for each production
     # Depending on arity, create 0, 1 or 2 children
     # 
-    prefix_list = _prods_to_prefix(prods, OP_INDEX)
+    prefix_list = _prods_to_prefix(prods, OP_INDEX, feature)
     tree = _prefix_to_tree!(prefix_list)
 
     return tree
 end
 
-function _prods_to_prefix(prods::Vector{Tuple{String, String}}, OP_INDEX::Dict{String, Int})::Vector{Node{Float64}}
+function _prods_to_prefix(prods::Vector{Tuple{String, String}}, OP_INDEX::Dict{String, Int}, feature::Int)::Vector{Node{Float64}}
     prefix_list = []
     for prod in prods
         op_match = match(r"'([^']+)'", prod[2])  # Alternatively, use prod to infer arity?
@@ -233,7 +233,7 @@ function _prods_to_prefix(prods::Vector{Tuple{String, String}}, OP_INDEX::Dict{S
             op = op_match.captures[1]
             arity = OPERATOR_ARITY[op]
             if arity == 0
-                push!(prefix_list, Node{Float64}(; feature=1))  # FIXME: Only univariate for now
+                push!(prefix_list, Node{Float64}(; feature=feature))  # FIXME: Only univariate for now
             elseif arity == 1
                 push!(prefix_list, _make_childless_op(arity, OP_INDEX[op], Float64))
             elseif arity == 2
@@ -283,6 +283,57 @@ function _prefix_to_tree!(prefix_list::Vector{Node{T}})::Node{T} where {T<:Numbe
         error("Empty prefix list")
     end
     return build_subtree()
+end
+
+"""
+Selects a subtree to use for neural sampling. Requirements for the subtree:
+    - Univariate (only one feature)
+    - 2-14 nodes
+
+Returns the subtree and the feature used in the subtree.
+
+FIXME: Make stochastic.
+"""
+function select_subtree(t::Node)::Tuple{Node, Node, Int}
+    node_list = _tree_to_prefix(t)
+
+    valid_subtrees = []
+    for node in node_list
+        subtree_nodes = _tree_to_prefix(node)
+        
+        # Check size constraint
+        if length(subtree_nodes) < 2 || length(subtree_nodes) > 14
+            continue
+        end
+        
+        # Track which features are used
+        features_used = Set{Int}()
+        for n in subtree_nodes
+            if n.degree == 0 && !n.constant
+                push!(features_used, n.feature)
+            end
+        end
+        
+        # Check univariate constraint
+        if length(features_used) == 1
+            # Find parent node
+            parent = nothing
+            for potential_parent in node_list
+                if potential_parent.l === node || potential_parent.r === node
+                    parent = potential_parent
+                    break
+                end
+            end
+            push!(valid_subtrees, (node, parent, first(features_used)))
+        end
+    end
+
+    if isempty(valid_subtrees)
+        return nothing
+    end
+
+    return valid_subtrees[rand(1:length(valid_subtrees))]
+    
 end
 
 end
