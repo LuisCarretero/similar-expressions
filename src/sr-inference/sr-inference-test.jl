@@ -126,4 +126,19 @@ end
 tree = hall_of_fame.members[16].tree
 new_tree = mutate_tree(tree)
 
+# ############################################################
 
+import SymbolicRegression: Options
+using Revise
+
+
+include("/Users/luis/.julia/dev/SymbolicRegression/src/Parsing.jl")
+include("/Users/luis/.julia/dev/SymbolicRegression/src/NeuralMutationsModule.jl")
+
+options = Options(
+    binary_operators=[+, *, /, -],
+    unary_operators=[sin, cos, exp, cosh, sinh, tanh],
+    populations=20 )
+using NeuralMutationsModule: neural_mutate_tree
+
+neural_mutate_tree(tree, options)
