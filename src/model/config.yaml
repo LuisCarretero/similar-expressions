@@ -26,7 +26,7 @@ training:
   epochs: 1
   valid_split: 0.1
   dataset_name: dataset_241204_2
-  dataset_len_limit: 10000
+  dataset_len_limit: 2_000_000
   wandb_settings:
     project: simexp-03 
   mode: autoencoding  # value_prediction, autoencoding, mixed, encoding
