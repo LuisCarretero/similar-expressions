@@ -1,0 +1,3 @@
+[submodule "PySR"]
+	path = PySR
+	url = https://github.com/MilesCranmer/PySR.git
