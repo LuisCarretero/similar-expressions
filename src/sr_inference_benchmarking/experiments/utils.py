@@ -1,4 +1,6 @@
 import json
+from typing import List, Dict, Tuple
+
 import numpy as np
 import pandas as pd
 
@@ -13,11 +15,6 @@ arccos = np.arccos
 log = np.log
 ln = np.log
 tanh = np.tanh
-
-
-def load_json(pth):
-    with open(pth, "r") as file:
-        return json.load(file)
 
 
 def idx_model_selection(equations: pd.DataFrame, model_selection: str) -> int:
@@ -36,8 +33,7 @@ def idx_model_selection(equations: pd.DataFrame, model_selection: str) -> int:
         )
     return chosen_idx
 
-
-def sample(method, b, num_samples):
+def sample(method: str, b: Tuple[float, float], num_samples: int):
     if method == "constant":  # const
         return np.full(num_samples, b)
     elif method == "uniform":  # (low, high)
@@ -53,7 +49,7 @@ def sample(method, b, num_samples):
     else:
         print("Not valid method")
 
-def sample_equation(equation, bounds, num_samples, noise, add_extra_vars):
+def sample_equation(equation: str, bounds: Dict[str, Tuple[str, Tuple[float, float]]], num_samples: int, noise: float, add_extra_vars: bool):
     out = []
     for var in bounds:
         if bounds[var] is None:  # goal
@@ -61,7 +57,7 @@ def sample_equation(equation, bounds, num_samples, noise, add_extra_vars):
         out.append((var, sample(*bounds[var], num_samples=num_samples)))
 
     exp = equation.split(" = ")[1].replace("^", "**")
-    exp_as_func = eval(f"lambda {','.join([x[0] for x in out])}: {exp}")
+    exp_as_func = eval(f"lambda {','.join([x[0] for x in out])}: {exp}")  # TODO: use sympy?
 
     Y = list()
     X_temp = np.transpose(np.stack([x[1] for x in out]))
@@ -86,7 +82,10 @@ def sample_equation(equation, bounds, num_samples, noise, add_extra_vars):
 
     return X, Y, var_order
 
-def sample_dataset(equations, num_samples, noise, add_extra_vars):
+def sample_dataset(equations: List[Tuple[int, Tuple[str, Dict[str, Tuple[str, List[float]]]]]], num_samples: int, noise: float, add_extra_vars: bool):
+    """
+    Dataset: [(idx, (equation, X, Y, var_order))]
+    """
     dataset = []
     for (idx, (eq, bounds)) in equations:
         X, Y, var_order = sample_equation(eq, bounds, num_samples, noise, add_extra_vars=add_extra_vars)

@@ -1,4 +1,5 @@
 import csv
+from typing import List
 
 from experiments.srsd import (
     dataset_easy,
@@ -8,7 +9,7 @@ from experiments.srsd import (
     hints_hard,
     hints_medium,
 )
-from experiments.utils import load_json, sample_dataset
+from experiments.utils import sample_dataset
 
 
 def feynman_equations(dataset_path, skip_equations: set = None):
@@ -41,24 +42,16 @@ def feynman_equations(dataset_path, skip_equations: set = None):
     return dataset
 
 
-def feynman_dataset(
-    dataset_path,
-    equations_to_keep,
-    num_samples,
-    noise,
-    use_hints=False,
-    hints_path=None,
-):
+def feynman_dataset(dataset_path: str, equations_to_keep: set, num_samples: int, noise: float):
     equations = feynman_equations(
         dataset_path, skip_equations=set(range(1, 101)) - equations_to_keep
     )
-    all_hints = load_json(hints_path) if use_hints else None
     add_extra_vars = False
     dataset = sample_dataset(equations, num_samples, noise, add_extra_vars)
-    return dataset, all_hints
+    return dataset
 
 
-def synthetic_equations(equations_to_keep):
+def synthetic_equations(equations_to_keep: List[int]):
     dataset = []
     eqs = [
         "exp(((1.485035504085099 - log(y2)) / (-0.5917667741788188 - y4)) + (sqrt(y1 + y4) + sqrt(y2)))",
@@ -114,12 +107,11 @@ def synthetic_equations(equations_to_keep):
     return dataset
 
 
-def synthetic_dataset(num_samples, noise, **kwargs):
+def synthetic_dataset(num_samples: int, noise: float, **kwargs):
     equations = synthetic_equations(kwargs.get("equations_to_keep", set(range(0, 42))))
-    all_hints = None
     add_extra_vars = True
     dataset = sample_dataset(equations, num_samples, noise, add_extra_vars)
-    return dataset, all_hints
+    return dataset
 
 
 def srsd_equations():
@@ -132,9 +124,8 @@ def srsd_equations():
     return datasets, dataset_order
 
 
-def srsd_dataset(equations_order, num_samples, noise, use_hints=False, hints_path=None):
+def srsd_dataset(equations_order: List[str], num_samples: int, noise: float):
     equations, _ = srsd_equations()
     equations = equations[equations_order][0]
-    all_hints = equations[equations_order][1] if use_hints else None
     dataset = sample_dataset(equations, num_samples, noise, add_extra_vars=True)
-    return dataset, all_hints
+    return dataset
