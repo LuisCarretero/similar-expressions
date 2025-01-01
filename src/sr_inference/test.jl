@@ -7,7 +7,7 @@ options = Options(
     unary_operators=[sin, cos, exp, cosh, sinh, tanh],
     populations=40,
     neural_options=NeuralOptions(
-        active=true,  # If not active, will still be called according to MutationWeights.neural_mutate_tree rate but will return the original tree
+        active=false,  # If not active, will still be called according to MutationWeights.neural_mutate_tree rate but will return the original tree
         sampling_eps=0.01,
         subtree_min_nodes=5,
         subtree_max_nodes=10,
@@ -27,7 +27,7 @@ options = Options(
         optimize = 0.0,
         form_connection = 0.5,
         break_connection = 0.1,
-        neural_mutate_tree = 1.0
+        neural_mutate_tree = 0.0
     ),
 )
 
@@ -40,7 +40,7 @@ function mutate_multiple(ex, options, n)
     end
 end
 
-mutate_multiple(ex, options, 1)
+mutate_multiple(ex, options, 100)
 
 stats = SymbolicRegression.NeuralMutationsModule.get_mutation_stats()
 
