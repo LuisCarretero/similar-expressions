@@ -1,3 +1,6 @@
 [submodule "PySR"]
 	path = PySR
 	url = https://github.com/MilesCranmer/PySR.git
+[submodule "SymbolicRegression"]
+	path = SymbolicRegression
+	url = https://github.com/LuisCarretero/SymbolicRegression.jl.git
