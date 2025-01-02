@@ -3,7 +3,7 @@ import copy
 import os
 import numpy as np
 from pysr import PySRRegressor
-from .utils import idx_model_selection
+from ..utils import idx_model_selection
 
 pi = np.pi
 cos = np.cos
@@ -77,9 +77,7 @@ def eval_equation(idx, eq, X, Y, var_order, args, llm_options, hints, log_files,
                 "cos",
             ],
             full_objective=custom_loss,
-            early_stop_condition=f"f(loss, complexity) = (loss < {format(float(args.early_stopping_condition), 'f')})"
-            if args.early_stopping_condition
-            else None,
+            early_stop_condition=f"f(loss, complexity) = (loss < {format(float(args.early_stopping_condition), 'f')})" if args.early_stopping_condition else None,
             verbosity=0,
             temp_equation_file=True,
             tempdir="pysr_runs",

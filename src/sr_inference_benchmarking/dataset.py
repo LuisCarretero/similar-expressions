@@ -9,7 +9,7 @@ from experiments.srsd import (
     hints_hard,
     hints_medium,
 )
-from experiments.utils import sample_dataset
+from src.sr_inference_benchmarking.utils import sample_dataset
 
 
 def feynman_equations(dataset_path, skip_equations: set = None):
@@ -51,7 +51,7 @@ def feynman_dataset(dataset_path: str, equations_to_keep: set, num_samples: int,
     return dataset
 
 
-def synthetic_equations(equations_to_keep: List[int]):
+def synthetic_equations(equations_to_keep: set):
     dataset = []
     eqs = [
         "exp(((1.485035504085099 - log(y2)) / (-0.5917667741788188 - y4)) + (sqrt(y1 + y4) + sqrt(y2)))",
@@ -107,9 +107,8 @@ def synthetic_equations(equations_to_keep: List[int]):
     return dataset
 
 
-def synthetic_dataset(num_samples: int, noise: float, **kwargs):
+def synthetic_dataset(num_samples: int, noise: float, add_extra_vars: bool = True, **kwargs):
     equations = synthetic_equations(kwargs.get("equations_to_keep", set(range(0, 42))))
-    add_extra_vars = True
     dataset = sample_dataset(equations, num_samples, noise, add_extra_vars)
     return dataset
 
@@ -126,6 +125,6 @@ def srsd_equations():
 
 def srsd_dataset(equations_order: List[str], num_samples: int, noise: float):
     equations, _ = srsd_equations()
-    equations = equations[equations_order][0]
+    equations = zip(range(1, len(equations[equations_order][0]) + 1), equations[equations_order][0])
     dataset = sample_dataset(equations, num_samples, noise, add_extra_vars=True)
     return dataset

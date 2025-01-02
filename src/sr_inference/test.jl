@@ -31,7 +31,8 @@ options = Options(
     ),
 )
 
-ex = parse_expression(:((x1*x1 * 3) + cos(x2)*2 +5), operators=options.operators, variable_names=["x1", "x2"])
+# ex = parse_expression(:((x1*x1 * 3) + cos(x2)*2 +5), operators=options.operators, variable_names=["x1", "x2"])
+ex = parse_expression(:(y1 * (((y1 * y1) / (2.189911201366985 / cos((1.2114819663272414 - y4) + -0.20111570724898717))) / exp(-0.08661496242802426 * y5))), operators=options.operators, variable_names=["y1", "y2", "y3", "y4", "y5"])
 
 ex_out = nothing
 function mutate_multiple(ex, options, n)
@@ -40,24 +41,8 @@ function mutate_multiple(ex, options, n)
     end
 end
 
-mutate_multiple(ex, options, 100)
+mutate_multiple(ex, options, 1000)
 
 stats = SymbolicRegression.NeuralMutationsModule.get_mutation_stats()
 
 # SymbolicRegression.NeuralMutationsModule.reset_mutation_stats!()
-
-
-ops = [options.operators.binops..., options.operators.unaops...]
-op_index = Dict{String, Int}(
-    "ADD" => findfirst(==(+), ops),
-    "SUB" => findfirst(==(-), ops), 
-    "MUL" => findfirst(==(*), ops),
-    "DIV" => findfirst(==(/), ops),
-    "SIN" => findfirst(==(sin), ops) - 4,
-    "COS" => findfirst(==(cos), ops) - 4,
-    "EXP" => findfirst(==(exp), ops) - 4,
-    "TANH" => findfirst(==(tanh), ops) - 4,
-    "COSH" => findfirst(==(cosh), ops) - 4,
-    "SINH" => findfirst(==(sinh), ops) - 4,
-)
-@assert maximum(values(op_index)) == maximum([4, 6]) "Operator index out of bounds"

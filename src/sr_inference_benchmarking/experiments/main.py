@@ -1,7 +1,7 @@
 from time import sleep
 import json
 from .config import parse_args, setup_logging, setup_api_key
-from .dataset import feynman_dataset, synthetic_dataset, srsd_dataset
+from ..dataset import feynman_dataset, synthetic_dataset, srsd_dataset
 from .model import eval_dataset
 
 
