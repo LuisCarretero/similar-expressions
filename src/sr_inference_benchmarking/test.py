@@ -4,9 +4,8 @@ import numpy as np
 import sys
 sys.path.append("/Users/luis/Desktop/Cranmer2024/Workplace/smallMutations/similar-expressions/src/sr_inference_benchmarking")
 from importlib import reload
-import dataset
-reload(dataset)
-from dataset import synthetic_dataset
+import dataset_utils
+reload(dataset_utils)
 
 def eval_equation(X, y, n_iterations=10, early_stopping_condition=1e-8):
     custom_loss = """
@@ -47,10 +46,10 @@ def eval_equation(X, y, n_iterations=10, early_stopping_condition=1e-8):
     return model
 
 
-data = synthetic_dataset(num_samples=2000, equations_to_keep=[ 5,  9, 16, 20, 25, 31, 32, 36, 39], noise=1e-4, add_extra_vars=False)
-idx, (eq, (X, Y, var_order)) = data[0]
+dataset = dataset_utils.load_datasets('synthetic', num_samples=2000, noise=0, equation_indices=[9])[0]
+dataset.equation
 
-model = eval_equation(X, Y)
+model = eval_equation(dataset.X, dataset.Y)
 
 
 
@@ -68,7 +67,7 @@ sys.path.append("/Users/luis/Desktop/Cranmer2024/Workplace/smallMutations/simila
 import dataset_utils
 from importlib import reload
 reload(dataset_utils)
-from dataset_utils import get_synthetic_equations, load_feynman_equations, create_datasets
+from dataset_utils import get_synthetic_equations, load_feynman_equations, load_datasets
 
 equations = get_synthetic_equations([0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
 
@@ -80,5 +79,5 @@ for idx, (equation, bounds) in equations:
 a = load_feynman_equations('/Users/luis/Desktop/Cranmer2024/Workplace/smallMutations/similar-expressions/src/sr_inference_benchmarking/data/FeynmanEquations.csv')
 a[0]
 
-a = create_datasets('feynman', 100, 1e-4, equation_indices=set(range(0, 100)))
+a = load_datasets('feynman', 100, 1e-4, equation_indices=set(range(0, 100)))
 a[0]

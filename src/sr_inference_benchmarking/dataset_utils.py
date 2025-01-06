@@ -27,6 +27,8 @@ arccos = np.arccos
 log = np.log
 ln = np.log
 tanh = np.tanh
+sinh = np.sinh
+cosh = np.cosh
 
 
 def sample_equation(equation: str, bounds: Dict[str, Tuple[str, Tuple[float, float]]], num_samples: int, noise: float, add_extra_vars: bool):
@@ -142,7 +144,7 @@ def get_synthetic_equations(idx: Iterable[int]):
 
     return [(i, (f'y = {EXPRESSIONS_RAW[i]}', variable_distr)) for i in sorted(idx)]
 
-def create_datasets(which: str, num_samples: int, noise: float, equation_indices: Iterable[int] = None, add_extra_vars: bool = False, feynman_fpath: str = None):
+def load_datasets(which: str, num_samples: int, noise: float, equation_indices: Iterable[int] = None, add_extra_vars: bool = False, feynman_fpath: str = None):
     if which == "synthetic":
         if equation_indices is None:
             equation_indices = range(0, 41)
@@ -194,3 +196,11 @@ def load_feynman_equations(fpath: str, skip_equations: Iterable[int] = None):
 
     dataset.sort()
     return dataset
+
+def create_dataset_from_expression(expr: str, num_samples: int, noise: float):
+    eq_str = f'y = {expr}'
+
+    # Extract variables x0-x9 from expression
+    variable_distr = {f'x{i}': ('uniform', (1, 10)) for i in range(10) if f'x{i}' in expr}
+    X, Y, var_order = sample_equation(eq_str, variable_distr, num_samples, noise, add_extra_vars=False)
+    return SyntheticDataset(idx=0, equation=eq_str, X=X, Y=Y, var_order=var_order)
