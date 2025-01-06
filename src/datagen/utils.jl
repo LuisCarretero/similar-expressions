@@ -276,7 +276,6 @@ end
 function get_onehot_legend(dataset)::Vector{String}  # ::DatasetModule.Dataset
     ops = (dataset.ops.binops..., dataset.ops.unaops...)
 
-    # Map ops to their string versions using the provided mapping
     op_map = Dict(
         typeof(+) => "ADD",
         typeof(-) => "SUB",

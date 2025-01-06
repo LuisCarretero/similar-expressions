@@ -46,3 +46,29 @@ mutate_multiple(ex, options, 1000)
 stats = SymbolicRegression.NeuralMutationsModule.get_mutation_stats()
 
 # SymbolicRegression.NeuralMutationsModule.reset_mutation_stats!()
+
+using Distributions
+# %% Check how close to 1 we need probs to work
+
+logits_prods = Float32[-10.712675, 10.319759, -16.263983, 6.586913, -14.957393, 6.610545, 15.951616, 13.097554, 27.844213, 1.0822272, -5.8365364, -5.5205793, -5.6031995]
+mask = Float32[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+probs = mask .* exp.(logits_prods)
+tot = sum(probs)
+a = (tot == 0 || !isfinite(tot))
+probs = probs ./ tot
+b = (any(!isfinite, probs) || abs(sum(probs) - 1) > 1e-10)
+println("tot: $tot, a: $a, b: $b")
+
+Categorical(probs.+1)
+
+a = Float32[-88.0, -88.0, -60.72827, 88.0, 88.0, 88.0, -88.0, -88.0, -88.0, -88.0, -88.0, -88.0, -88.0] * 84/88
+b = exp.(a)
+b = b ./ sum(b)
+Categorical(b)
+
+
+c = clamp.(Float32[-1e4, 1e2], -88.0f0, 88.0f0)
+exp.(c)
+
+
+log(floatmax(Float32)/50)

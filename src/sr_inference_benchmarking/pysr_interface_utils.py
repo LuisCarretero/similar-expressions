@@ -10,3 +10,6 @@ def get_mutation_stats():
         else:
             stats[k] = val
     return stats
+
+def reset_mutation_stats():
+    pysr.julia_import.SymbolicRegression.NeuralMutationsModule.reset_mutation_stats_b()
