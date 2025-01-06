@@ -12,6 +12,9 @@ class SyntheticDataset:
     Y: np.ndarray
     var_order: Dict[str, str]
 
+    def __repr__(self):
+        return f'SyntheticDataset(idx={self.idx}, equation="{self.equation}", X={self.X.shape}, Y={self.Y.shape}, var_order={self.var_order})'
+
 
 # useful constants. Required for sample_equation -> eval(lambda ...) to work.
 pi = np.pi
@@ -135,18 +138,23 @@ def get_synthetic_equations(idx: Iterable[int]):
         "(y3 * (cos(cos(y1 + y4)) * y3)) * (-0.03533937466533261 * (y3 + exp(cos(y1))))",
         "(((y1 * exp(sqrt(y2))) + log(y1)) * cos(sqrt(y2) * -0.9577782191948018)) - sqrt(exp(y2))",
     ]
-    bounds = {f'y{j}': ('uniform', (1, 10)) for j in range(1, 6)}
+    variable_distr = {f'y{j}': ('uniform', (1, 10)) for j in range(1, 6)}
 
-    return [(i, (f'y = {EXPRESSIONS_RAW[i]}', bounds)) for i in sorted(idx)]
+    return [(i, (f'y = {EXPRESSIONS_RAW[i]}', variable_distr)) for i in sorted(idx)]
 
 def create_datasets(which: str, num_samples: int, noise: float, equation_indices: Iterable[int] = None, add_extra_vars: bool = False, feynman_fpath: str = None):
     if which == "synthetic":
         if equation_indices is None:
-            equation_indices = range(0, 42)
+            equation_indices = range(0, 41)
+        else:
+            if max(equation_indices) > 40 or min(equation_indices) < 0:
+                raise ValueError("Synthetic dataset numbering starts at 0 and goes up to 40.")
         equations = get_synthetic_equations(equation_indices)
     elif which == "feynman":
         if feynman_fpath is None:
             feynman_fpath = os.path.join(os.path.dirname(__file__), "data", "FeynmanEquations.csv")
+        if max(equation_indices) > 100 or min(equation_indices) < 1:
+            raise ValueError("Feynman dataset numbering starts at 1 and goes up to 100.")
         equation_indices = set() if equation_indices is None else set(equation_indices)
         equations = load_feynman_equations(feynman_fpath, skip_equations=set(range(1, 101)) - equation_indices)
     else:
