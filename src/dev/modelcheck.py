@@ -31,6 +31,30 @@ def single_forward():
     print('All good!')
 
 
+def single_training_step():
+    batch_size = 2  
+
+    print('Loading config...')
+    cfg_path = 'src/model/config.yaml'
+    cfg = load_config(cfg_path)
+
+    print('Initialising model...')
+    gvae = LitGVAE(cfg, get_empty_priors())
+
+    print('Creating dataloader...')
+    data_path = ['/mnt/cephfs/store/gr-mc2473/lc865/workspace/data', '/Users/luis/Desktop/Cranmer2024/Workplace/smallMutations/similar-expressions/data'][0]
+    dataset_name='dataset_250110_1'
+    train_loader, valid_loader, data_info = create_dataloader(data_path, dataset_name, cfg, num_workers=1)
+
+    print('Getting batch...')
+    batch = next(iter(train_loader))
+    x = batch[0]
+    print(f'{x.shape = }')
+    
+    print('Running training step...')
+    gvae.training_step(batch, 0)
+
+
 def single_forward_backward():
     batch_size = 2  
 
@@ -89,4 +113,4 @@ def check_dataloader():
 
 if __name__ == '__main__':
     # check_dataloader()
-    single_forward_backward()
+    single_training_step()
