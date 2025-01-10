@@ -4,30 +4,29 @@ include("utils.jl")
 include("ExpressionGenerator.jl")
 include("dataset_generation.jl")
 
-using .Utils: get_onehot_legend, create_value_transform, kill_workers
+using .Utils: get_onehot_legend, create_value_transform, kill_workers, zero_sqrt
 using .DatasetModule: Dataset
 using .Configs: OperatorProbEnum, ExpressionGeneratorConfig, ValueTransformSettings, FilterSettings
 using .DatasetGeneration: generate_datasets_parallel, merge_datasets
 using .ExpressionGenerator: build_expression_generator_config
 
-using DynamicExpressions: OperatorEnum, string_tree, sqrt_sage
+using DynamicExpressions: OperatorEnum, string_tree
 using Serialization
 using HDF5
 using Distributed
-
 
 # Settings
 op_cnt_min = 1
 op_cnt_max = 7
 nfeatures = 1
-ops = OperatorEnum((+, -, *, /), (sin, cos, exp, ))
-op_probs = OperatorProbEnum(ops, [1.0, 1.0, 1.0, 1.0], [1.0, 1.0, 1.0, 1.0, 1.0, 1.0])
+ops = OperatorEnum((+, -, *, /), (sin, cos, exp, zero_sqrt))
+op_probs = OperatorProbEnum(ops, [1.0, 1.0, 1.0, 1.0], [1.0, 1.0, 1.0, 1.0])
 seq_len = 15
 save_transformed = true
-N = 100_000  # 20M -> 7.3M
+N = 60_000_000  # 20M -> 7.3M
 datapath = "/mnt/cephfs/store/gr-mc2473/lc865/workspace/data"
-name = "dataset_250110_1"
-max_procs = 10  # Number of workers + 1
+name = "dataset_250110_2"
+max_procs = 41  # Number of workers + 1
 
 eval_x = reshape(collect(range(-10, 10, length=100)), (1, 100))
 filter_settings = FilterSettings(
@@ -62,7 +61,7 @@ end
     include("dataset_generation.jl")
 
     using .ExpressionGenerator: generate_expr_tree
-    using .Utils: create_value_transform, eval_trees, encode_trees, filter_evaluated_trees, filter_encoded_trees
+    using .Utils: create_value_transform, eval_trees, encode_trees, filter_evaluated_trees, filter_encoded_trees, zero_sqrt
     using .DatasetModule: Dataset
 
     using Random: default_rng, AbstractRNG, MersenneTwister, shuffle!
