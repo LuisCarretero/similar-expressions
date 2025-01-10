@@ -10,7 +10,7 @@ using .Configs: OperatorProbEnum, ExpressionGeneratorConfig, ValueTransformSetti
 using .DatasetGeneration: generate_datasets_parallel, merge_datasets
 using .ExpressionGenerator: build_expression_generator_config
 
-using DynamicExpressions: OperatorEnum, string_tree
+using DynamicExpressions: OperatorEnum, string_tree, sqrt_sage
 using Serialization
 using HDF5
 using Distributed
@@ -20,14 +20,14 @@ using Distributed
 op_cnt_min = 1
 op_cnt_max = 7
 nfeatures = 1
-ops = OperatorEnum((+, -, *, /), (sin, cos, exp, tanh, cosh, sinh))
+ops = OperatorEnum((+, -, *, /), (sin, cos, exp, ))
 op_probs = OperatorProbEnum(ops, [1.0, 1.0, 1.0, 1.0], [1.0, 1.0, 1.0, 1.0, 1.0, 1.0])
 seq_len = 15
 save_transformed = true
-N = 60_000_000  # 20M -> 7.3M
+N = 100_000  # 20M -> 7.3M
 datapath = "/mnt/cephfs/store/gr-mc2473/lc865/workspace/data"
-name = "dataset_241223_2"
-max_procs = 40  # Number of workers + 1
+name = "dataset_250110_1"
+max_procs = 10  # Number of workers + 1
 
 eval_x = reshape(collect(range(-10, 10, length=100)), (1, 100))
 filter_settings = FilterSettings(

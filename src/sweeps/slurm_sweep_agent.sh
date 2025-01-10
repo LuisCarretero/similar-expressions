@@ -17,7 +17,7 @@ SWEEP_PATH=$1
 COUNT=$2
 
 # Load environment (activate conda environment)
-source /mnt/cephfs/store/gr-mc2473/lc865/misc/miniforge3/etc/profile.d/conda.sh
+source /mnt/cephfs/store/gr-mc2473/lc865/misc/condaforge/etc/profile.d/conda.sh
 conda activate ml
 
 # Working directory

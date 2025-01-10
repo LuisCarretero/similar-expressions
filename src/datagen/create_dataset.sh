@@ -9,7 +9,7 @@
 #SBATCH --output=/mnt/cephfs/store/gr-mc2473/lc865/workspace/slurm-logs/datagen/%x-%j.out
 
 #! Load environment (activate conda environment)
-source /mnt/cephfs/store/gr-mc2473/lc865/misc/miniforge3/etc/profile.d/conda.sh
+source /mnt/cephfs/store/gr-mc2473/lc865/misc/condaforge/etc/profile.d/conda.sh
 conda activate julia-env
 
 #! Working directory
