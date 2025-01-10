@@ -63,10 +63,10 @@ class Encoder(nn.Module):
         Input size is size is [batch_cnt, seq_len, token_cnt] where token_cnt is the number of categories plus one for the value.
         """
         if self.conv is not None:
-            x = x.permute(0, 2, 1)  # conv1d expects [batch, in_channels, seq_len]
+            x = x.permute(0, 2, 1)  # conv1d expects [batch_size, in_channels, seq_len]
             h = self.conv(x)
         elif self.mlp is not None:
-            x = x.flatten(1)
+            x = x.flatten(1)  # [batch_size, seq_len*token_cnt]
             h = self.mlp(x)
 
         mean = self.mu(h)

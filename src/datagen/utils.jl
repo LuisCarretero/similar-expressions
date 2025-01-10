@@ -10,6 +10,9 @@ using ..DatasetModule: Dataset
 export eval_trees, encode_trees, node_to_token_idx, create_value_transform, FilterSettings, ValueTransformSettings, generate_dataset, merge_datasets, generate_datasets_parallel, kill_workers
 
 
+zero_sqrt(x) = x >= 0 ? sqrt(x) : zero(x)
+
+
 function kill_workers()
     println("Killing workers...")
     rmprocs(workers())
@@ -291,6 +294,7 @@ function get_onehot_legend(dataset)::Vector{String}  # ::DatasetModule.Dataset
         typeof(tanh) => "TANH",
         typeof(cosh) => "COSH",
         typeof(sinh) => "SINH",
+        typeof(zero_sqrt) => "ZERO_SQRT",
     )
 
     # Create a new array with the string versions in the same order as ops

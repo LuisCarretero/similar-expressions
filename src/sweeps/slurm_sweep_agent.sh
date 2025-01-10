@@ -7,7 +7,7 @@
 #SBATCH --gres=gpu:1
 #SBATCH --time=24:00:00
 #SBATCH --partition=lovelace
-#SBATCH --output=/store/DAMTP/lc865/workspace/slurm-logs/sweeps/%x-%j.out
+#SBATCH --output=/mnt/cephfs/store/gr-mc2473/lc865/workspace/slurm-logs/sweeps/%x-%j.out
 
 if [ $# -eq 1 ]; then
     echo "Error: No wandb sweep path or count provided. Usage: $0 <wandb_sweep_path> <count>"
@@ -17,7 +17,7 @@ SWEEP_PATH=$1
 COUNT=$2
 
 # Load environment (activate conda environment)
-source /store/DAMTP/lc865/misc/miniforge3/etc/profile.d/conda.sh
+source /mnt/cephfs/store/gr-mc2473/lc865/misc/condaforge/etc/profile.d/conda.sh
 conda activate ml
 
 # Working directory
