@@ -25,8 +25,8 @@ op_probs = OperatorProbEnum(ops, [1.0, 1.0, 1.0, 1.0], [1.0, 1.0, 1.0, 1.0, 1.0,
 seq_len = 15
 save_transformed = true
 N = 60_000_000  # 20M -> 7.3M
-datapath = "/store/DAMTP/lc865/workspace/data"
-name = "dataset_241208_1"
+datapath = "/mnt/cephfs/store/gr-mc2473/lc865/workspace/data"
+name = "dataset_241223_2"
 max_procs = 40  # Number of workers + 1
 
 eval_x = reshape(collect(range(-10, 10, length=100)), (1, 100))
@@ -43,8 +43,8 @@ filter_settings = FilterSettings(
 )
 value_transform_settings = ValueTransformSettings(
     mapping="arcsinh",
-    bias="sample",
-    scale="sample-range"
+    bias=nothing,
+    scale=nothing
 )
 
 # Setup
@@ -76,12 +76,6 @@ generator_config = build_expression_generator_config(op_cnt_min, op_cnt_max, Flo
 # Generate datasets by workers and merge
 datasets = generate_datasets_parallel(generator_config, N)
 dataset = merge_datasets(datasets)
-
-# Save dataset
-println("Saving dataset...")
-open("$datapath/$name.jls", "w") do io
-    serialize(io, dataset)
-end
 
 # # Save as HDF5 file to be used in python
 h5open("$datapath/$name.h5", "w") do file

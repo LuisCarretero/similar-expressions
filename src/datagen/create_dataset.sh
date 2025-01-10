@@ -6,10 +6,10 @@
 #SBATCH --cpus-per-task=21
 #SBATCH --time=04:00:00
 #SBATCH --partition=lovelace
-#SBATCH --output=/store/DAMTP/lc865/workspace/slurm-logs/datagen/%x-%j.out
+#SBATCH --output=/mnt/cephfs/store/gr-mc2473/lc865/workspace/slurm-logs/datagen/%x-%j.out
 
 #! Load environment (activate conda environment)
-source /store/DAMTP/lc865/misc/miniforge3/etc/profile.d/conda.sh
+source /mnt/cephfs/store/gr-mc2473/lc865/misc/miniforge3/etc/profile.d/conda.sh
 conda activate julia-env
 
 #! Working directory

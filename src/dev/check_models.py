@@ -42,7 +42,7 @@ def single_forward_backward():
     gvae = LitGVAE(cfg, get_empty_priors())
 
     print('Creating dataloader...')
-    data_path = ['/store/DAMTP/lc865/workspace/data', '/Users/luis/Desktop/Cranmer2024/Workplace/smallMutations/similar-expressions/data'][0]
+    data_path = ['/mnt/cephfs/store/gr-mc2473/lc865/workspace/data', '/Users/luis/Desktop/Cranmer2024/Workplace/smallMutations/similar-expressions/data'][0]
     dataset_name='dataset_241008_1'
     train_loader, valid_loader, data_info = create_dataloader(data_path, dataset_name, cfg, num_workers=1)
 
@@ -78,7 +78,7 @@ def check_dataloader():
     cfg = load_config(cfg_path)
     cfg.training.dataset_len_limit = 1000
 
-    data_path = ['/store/DAMTP/lc865/workspace/data', '/Users/luis/Desktop/Cranmer2024/Workplace/smallMutations/similar-expressions/data'][0]
+    data_path = ['/mnt/cephfs/store/gr-mc2473/lc865/workspace/data', '/Users/luis/Desktop/Cranmer2024/Workplace/smallMutations/similar-expressions/data'][0]
     dataset_name='dataset_241008_1'
     train_loader, valid_loader, data_info = create_dataloader(data_path, dataset_name, cfg, num_workers=1)
 
