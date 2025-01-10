@@ -9,11 +9,11 @@ class SyntheticDataset:
     idx: int
     equation: str  # Including 'y = '
     X: np.ndarray
-    Y: np.ndarray
+    y: np.ndarray
     var_order: Dict[str, str]
 
     def __repr__(self):
-        return f'SyntheticDataset(idx={self.idx}, equation="{self.equation}", X={self.X.shape}, Y={self.Y.shape}, var_order={self.var_order})'
+        return f'SyntheticDataset(idx={self.idx}, equation="{self.equation}", X={self.X.shape}, y={self.y.shape}, var_order={self.var_order})'
 
 
 # useful constants. Required for sample_equation -> eval(lambda ...) to work.
@@ -44,12 +44,12 @@ def sample_equation(equation: str, bounds: Dict[str, Tuple[str, Tuple[float, flo
     expr = equation.split(" = ")[1].replace("^", "**")
     expr_as_func = eval(f"lambda {','.join([x[0] for x in out])}: {expr}")  # TODO: use sympy?
 
-    Y = list()
+    y = list()
     X_temp = np.transpose(np.stack([x[1] for x in out]))
     for i in range(num_samples):
-        Y.append(expr_as_func(*list(X_temp[i])))
-    Y = np.array(Y)
-    Y = Y + np.random.normal(0, np.sqrt(np.square(Y).mean()) * noise, Y.shape)
+        y.append(expr_as_func(*list(X_temp[i])))
+    y = np.array(y)
+    y = y + np.random.normal(0, np.sqrt(np.square(y).mean()) * noise, y.shape)
 
     if add_extra_vars:
         total_vars = len(["x", "y", "z", "k", "j", "l", "m", "n", "p", "a", "b"])
@@ -65,7 +65,7 @@ def sample_equation(equation: str, bounds: Dict[str, Tuple[str, Tuple[float, flo
     var_order = {"x" + str(i): out[i][0] for i in range(len(out))}
     X = np.transpose(np.stack([x[1] for x in out]))
 
-    return X, Y, var_order
+    return X, y, var_order
 
 def sample_datasets(equations: List[Tuple[int, Tuple[str, Dict[str, Tuple[str, List[float]]]]]], num_samples: int, noise: float, add_extra_vars: bool) -> List[SyntheticDataset]:
     """
@@ -202,5 +202,5 @@ def create_dataset_from_expression(expr: str, num_samples: int, noise: float):
 
     # Extract variables x0-x9 from expression
     variable_distr = {f'x{i}': ('uniform', (1, 10)) for i in range(10) if f'x{i}' in expr}
-    X, Y, var_order = sample_equation(eq_str, variable_distr, num_samples, noise, add_extra_vars=False)
-    return SyntheticDataset(idx=0, equation=eq_str, X=X, Y=Y, var_order=var_order)
+    X, y, var_order = sample_equation(eq_str, variable_distr, num_samples, noise, add_extra_vars=False)
+    return SyntheticDataset(idx=0, equation=eq_str, X=X, y=y, var_order=var_order)

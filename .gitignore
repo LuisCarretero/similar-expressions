@@ -2,6 +2,7 @@ data
 .DS_Store
 checkpoints
 log
+logs
 wandb_cache
 wandb
 __pycache__

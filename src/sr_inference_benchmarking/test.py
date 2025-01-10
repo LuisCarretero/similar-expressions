@@ -37,7 +37,7 @@ def eval_equation(X, y, n_iterations=10, early_stopping_condition=1e-8):
             subtree_min_nodes=1,
             subtree_max_nodes=10,
         ),
-        weight_neural_mutate_tree=1.0,
+        weight_neural_mutate_tree=0.0,
         # elementwise_loss="loss(prediction, target) = (prediction - target)^2",
         loss_function=custom_loss,
         early_stop_condition=f"f(loss, complexity) = (loss < {early_stopping_condition:e})"
@@ -45,11 +45,11 @@ def eval_equation(X, y, n_iterations=10, early_stopping_condition=1e-8):
     model.fit(X, y)
     return model
 
-
-dataset = dataset_utils.load_datasets('synthetic', num_samples=2000, noise=0, equation_indices=[9])[0]
+expr = 'cosh(x0)/x0+x0 + x1 - sinh(x1)'
+dataset = dataset_utils.create_dataset_from_expression(expr, 100, 0)
 dataset.equation
 
-model = eval_equation(dataset.X, dataset.Y)
+model = eval_equation(dataset.X, dataset.Y, n_iterations=20, early_stopping_condition=1e-8)
 
 
 
