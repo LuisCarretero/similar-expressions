@@ -8,7 +8,7 @@ from torch.distributions import Normal
 from src.model.encoder import Encoder
 from src.model.decoder import Decoder
 from src.model.value_decoder import ValueDecoder
-from src.model.grammar import calc_grammar_mask
+from src.model.grammar import calc_grammar_mask, GRAMMAR_STR, create_masks_and_allowed_prod_idx
 from src.model.util import criterion_factory, AnnealKLSigmoid, compute_latent_metrics, calc_syntax_accuracy
 
 
@@ -35,6 +35,10 @@ class LitGVAE(L.LightningModule):
 
         self.train_step_metrics_buffer = []
         self.valid_step_metrics_buffer = []
+        
+        masks, allowed_prod_idx = create_masks_and_allowed_prod_idx(GRAMMAR_STR)
+        self.masks = masks.to(self.device)
+        self.allowed_prod_idx = allowed_prod_idx.to(self.device)
     
     def sample(self, mean, ln_var):
         """Reparametrized sample from a N(mu, sigma) distribution"""
@@ -88,7 +92,7 @@ class LitGVAE(L.LightningModule):
         # Forward pass
         mean, ln_var, z, logits, values = self.forward(x)
         if self.use_grammar_mask:
-            logits = logits * calc_grammar_mask(y_syntax)
+            logits = logits * calc_grammar_mask(y_syntax, self.masks, self.allowed_prod_idx)
 
         # Compute losses
         kl = self.calc_kl(mean, ln_var)  # Positive definite scalar, aim to minimize
@@ -110,7 +114,7 @@ class LitGVAE(L.LightningModule):
         # Forward pass
         mean, ln_var, z, logits, values = self.forward(x)
         if self.use_grammar_mask:
-            logits = logits * calc_grammar_mask(y_syntax)
+            logits = logits * calc_grammar_mask(y_syntax, self.masks, self.allowed_prod_idx)
 
         # Compute losses
         kl = self.calc_kl(mean, ln_var)  # Positive definite scalar, aim to minimize
