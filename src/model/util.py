@@ -237,10 +237,11 @@ class MiscCallback(Callback):
 
     def on_train_end(self, trainer, pl_module):
         if isinstance(trainer.logger, WandbLogger) and trainer.is_global_zero:
-            # print(f'Files in wandb dir: {os.listdir(trainer.logger.experiment.dir)}')
             # FIXME: Quickfix to make sure last checkpoint is saved.
-            trainer.logger.experiment.save(os.path.join(trainer.logger.experiment.dir, 'last.ckpt'),
-                                           base_path=trainer.logger.experiment.dir)
+            for file in os.listdir(trainer.logger.experiment.dir):
+                if file.endswith('.ckpt'):
+                    trainer.logger.experiment.save(os.path.join(trainer.logger.experiment.dir, file),
+                                                    base_path=trainer.logger.experiment.dir)
 
 def set_wandb_cache_dir(dir: str):
     """

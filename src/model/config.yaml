@@ -2,15 +2,15 @@ model:
   encoder:
     size_hidden: 256
     architecture: residual-parameterized
-    depth: 5
-    width: 1280
+    depth: 4
+    width: 1024
   z_size: 48
   decoder:
     z_slice: [0, -1]
     size_hidden: 128
     architecture: residual-parameterized
-    depth: 5
-    width: 1280
+    depth: 4
+    width: 1024
   value_decoder:
     z_slice: [0, -1]
     architecture: residual-parameterized
@@ -34,9 +34,9 @@ training:
     ae_weight: 1
     kl_weight: 0
     syntax_weight: 0.5
-    contrastive_weight: 2e-2
+    contrastive_weight: 3e-4
     contrastive_scale: 1
-    similarity_threshold: 1e-3
+    similarity_threshold: 0.2
   value_transform:
     mapping: null  # [null, arcsinh]
     bias: null  # [null, dataset, sample]
