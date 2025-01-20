@@ -76,15 +76,16 @@ class LitGVAE(L.LightningModule):
         
         return mean, ln_var, z, logits, values
     
-    # def __call__(self, x, sample_eps):
-    #     """
-    #     Used for final ONNX inference version.
-    #     """
-    #     mean, ln_var = self.encoder(x)
-    #     self.sampling_eps = sample_eps
-    #     z = self.sample(mean, torch.zeros_like(ln_var))
-    #     logits = self.decoder(z)
-    #     return logits
+    def __call__(self, x, sample_eps):
+        """
+        Comment this out when creating ONNX model. Causes error when not commenting out during training.
+        Used for final ONNX inference version.
+        """
+        mean, ln_var = self.encoder(x)
+        self.sampling_eps = sample_eps
+        z = self.sample(mean, torch.zeros_like(ln_var))
+        logits = self.decoder(z)
+        return logits
     
     def training_step(self, batch, batch_idx):
         x, y_syntax, y_consts, y_values = batch

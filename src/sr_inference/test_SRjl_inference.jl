@@ -1,8 +1,9 @@
-using SymbolicRegression
-import SymbolicRegression: Options, equation_search
 using Revise
 using StatsBase
 using Plots
+using SymbolicRegression
+import SymbolicRegression: Options, equation_search
+
 
 
 X = randn(2, 100)
@@ -11,7 +12,7 @@ y = tanh.(X[1, :] .^ 2) .- 2 + 2 * cos.(X[2, :])
 
 options = Options(
     binary_operators=[+, *, /, -],
-    unary_operators=[sin, cos, exp, cosh, sinh, tanh],
+    unary_operators=[sin, cos, exp, ],
     populations=40)
 
 hall_of_fame = equation_search(

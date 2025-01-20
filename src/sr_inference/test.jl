@@ -1,17 +1,20 @@
+using Revise
 using SymbolicRegression
 using DynamicExpressions: parse_expression, Expression
-using Revise
+using SymbolicRegression.NeuralMutationsModule: zero_sqrt
 
+# model_id = "zwrgtnj0"
+model_id = "fhgrred2"
 options = Options(
     binary_operators=[+, *, /, -],
-    unary_operators=[sin, cos, exp, cosh, sinh, tanh],
+    unary_operators=[sin, cos, exp, zero_sqrt],
     populations=40,
     neural_options=NeuralOptions(
         active=true,  # If not active, will still be called according to MutationWeights.neural_mutate_tree rate but will return the original tree
-        sampling_eps=0.01,
+        sampling_eps=2,
         subtree_min_nodes=5,
         subtree_max_nodes=10,
-        model_path="/Users/luis/Desktop/Cranmer2024/Workplace/smallMutations/similar-expressions/src/dev/ONNX/onnx-models/model-zwrgtnj0.onnx",
+        model_path="/Users/luis/Desktop/Cranmer2024/Workplace/smallMutations/similar-expressions/src/dev/ONNX/onnx-models/model-$model_id.onnx",
     ),
     mutation_weights=MutationWeights(
         mutate_constant = 0.0353,
@@ -31,9 +34,15 @@ options = Options(
     ),
 )
 
-# ex = parse_expression(:((x1*x1 * 3) + cos(x2)*2 +5), operators=options.operators, variable_names=["x1", "x2"])
-ex = parse_expression(:(y1 * (((y1 * y1) / (2.189911201366985 / cos((1.2114819663272414 - y4) + -0.20111570724898717))) / exp(-0.08661496242802426 * y5))), operators=options.operators, variable_names=["y1", "y2", "y3", "y4", "y5"])
 
+# ex = parse_expression(:((x1*x1 * 3) + cos(x2)*2 +5), operators=options.operators, variable_names=["x1", "x2"])
+ex = parse_expression(:(y1*y1+y1-y1*zero_sqrt(y1)), operators=options.operators, variable_names=["y1", "y2", "y3", "y4", "y5"])
+
+
+# Sample single
+ex_out = SymbolicRegression.NeuralMutationsModule.neural_mutate_tree(copy(ex), options)
+
+# Sample multiple
 ex_out = nothing
 function mutate_multiple(ex, options, n)
     for i in 1:n
@@ -72,3 +81,74 @@ exp.(c)
 
 
 log(floatmax(Float32)/50)
+
+
+#############################
+
+
+# Import from Parsing.jl
+using SymbolicRegression.ParsingModule: OPERATOR_ARITY
+
+# Create dict and print sorted by arity
+op_index = Dict(
+    "SIN" => 1,
+    "COS" => 2, 
+    "EXP" => 3,
+    "ZERO_SQRT" => 4,
+    "ADD" => 1,
+    "SUB" => 4,
+    "MUL" => 2,
+    "DIV" => 3
+)
+
+println("Unary operators:")
+for (op, idx) in sort(collect(filter(p -> OPERATOR_ARITY[p.first] == 1, op_index)), by=x->x[2])
+    println("  $op => $idx")
+end
+
+println("\nBinary operators:") 
+for (op, idx) in sort(collect(filter(p -> OPERATOR_ARITY[p.first] == 2, op_index)), by=x->x[2])
+    println("  $op => $idx")
+end
+
+logit_index = ["ADD", "SUB", "MUL", "DIV", "SIN", "COS", "EXP", "ZERO_SQRT", "CON", "x1", "END"]
+
+op_to_logits: Dict(
+    (3, 1) => 7, 
+    (1, 1) => 5, 
+    (2, 1) => 6,
+    (4, 1) => 8, 
+
+
+    (3, 2) => 4, 
+    (1, 2) => 1, 
+    (4, 2) => 2, 
+    (2, 2) => 3, 
+    )
+
+
+#######
+
+grammar_str = """
+S -> 'ADD' S S | 'SUB' S S | 'MUL' S S | 'DIV' S S
+S -> 'SIN' S | 'COS' S | 'EXP' S | 'ZERO_SQRT' S
+S -> 'CON'
+S -> 'x1'
+END -> 'END'
+"""
+
+# Split each production rule into separate lines
+grammar_lines = String[]
+for line in split(grammar_str, "\n")
+    line = strip(line)
+    if !isempty(line)
+        lhs, rhs = split(line, "->")
+        lhs = strip(lhs)
+        # Split on | and create new lines
+        for rule in split(rhs, "|")
+            push!(grammar_lines, "$lhs -> $(strip(rule))")
+        end
+    end
+end
+grammar_str = join(grammar_lines, "\n")
+println("grammar_str: ", grammar_str)

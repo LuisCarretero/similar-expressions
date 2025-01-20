@@ -81,3 +81,61 @@ a[0]
 
 a = load_datasets('feynman', 100, 1e-4, equation_indices=set(range(0, 100)))
 a[0]
+
+
+
+
+###################################
+from pysr import PySRRegressor
+from pysr_interface_utils import get_mutation_stats
+import numpy as np
+import sys
+sys.path.append("/Users/luis/Desktop/Cranmer2024/Workplace/smallMutations/similar-expressions/src/sr_inference_benchmarking")
+from importlib import reload
+import dataset_utils
+reload(dataset_utils)
+
+n_iterations = 1
+early_stopping_condition = 1e-8
+custom_loss = """
+function eval_loss(tree, dataset::Dataset{T,L}, options)::L where {T,L}
+    prediction, flag = eval_tree_array(tree, dataset.X, options)
+    if !flag
+        return L(Inf)
+    end
+    return sum( (1000 .* (prediction .- dataset.y) ) .^ 2) / dataset.n
+end
+"""
+
+model_id = 'fhgrred2'
+# model_id = 'zwrgtnj0'
+model = PySRRegressor(  # ops = OperatorEnum((+, -, *, /), (sin, cos, exp, zero_sqrt)); zero_sqrt(x) = x >= 0 ? sqrt(x) : zero(x)
+    niterations=n_iterations,
+    binary_operators=["+", "*", "-", "/"],
+    unary_operators=["cos", "exp", "sin", "zero_sqrt(x) = x >= 0 ? sqrt(x) : zero(x)"],
+    extra_sympy_mappings={"zero_sqrt": lambda x: x if x >= 0 else 0},
+    precision=64,
+    neural_options=dict(
+        active=True,
+        model_path=f"/Users/luis/Desktop/Cranmer2024/Workplace/smallMutations/similar-expressions/src/dev/ONNX/onnx-models/model-{model_id}.onnx",
+        sampling_eps=0.01,
+        subtree_min_nodes=1,
+        subtree_max_nodes=10,
+    ),
+    weight_neural_mutate_tree=1.0,
+    # elementwise_loss="loss(prediction, target) = (prediction - target)^2",
+    loss_function=custom_loss,
+    early_stop_condition=f"f(loss, complexity) = (loss < {early_stopping_condition:e})"
+)
+
+expr = 'cosh(x0)/(x0+2)+x0 + (x1 - sinh(x1))/exp(x1+3) - 5'
+dataset = dataset_utils.create_dataset_from_expression(expr, 100, 0)
+dataset.equation
+
+model.fit(dataset.X, dataset.y)
+
+model.model
+
+stats = get_mutation_stats()
+in_sizes, out_sizes = stats['subtree_in_sizes'], stats['subtree_out_sizes']
+
