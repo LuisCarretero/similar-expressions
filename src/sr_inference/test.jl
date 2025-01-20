@@ -11,7 +11,7 @@ options = Options(
     populations=40,
     neural_options=NeuralOptions(
         active=true,  # If not active, will still be called according to MutationWeights.neural_mutate_tree rate but will return the original tree
-        sampling_eps=2,
+        sampling_eps=1e-10,
         subtree_min_nodes=5,
         subtree_max_nodes=10,
         model_path="/Users/luis/Desktop/Cranmer2024/Workplace/smallMutations/similar-expressions/src/dev/ONNX/onnx-models/model-$model_id.onnx",
@@ -36,7 +36,7 @@ options = Options(
 
 
 # ex = parse_expression(:((x1*x1 * 3) + cos(x2)*2 +5), operators=options.operators, variable_names=["x1", "x2"])
-ex = parse_expression(:(y1*y1+y1-y1*zero_sqrt(y1)), operators=options.operators, variable_names=["y1", "y2", "y3", "y4", "y5"])
+ex = parse_expression(:(y1*y1+y1-exp(y1)*cos(y1)), operators=options.operators, variable_names=["y1", "y2", "y3", "y4", "y5"])
 
 
 # Sample single

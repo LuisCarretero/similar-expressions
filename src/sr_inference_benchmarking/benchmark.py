@@ -14,24 +14,17 @@ def eval_equation(X, y, neural_options, name, max_iter=10, early_stopping_condit
         end
         return sum( (1000 .* (prediction .- dataset.y) ) .^ 2) / dataset.n
     end
-    """
-    
+    """    
     logger_spec = TensorBoardLoggerSpec(
-        log_dir=f'logs/{name}',
+        log_dir="logs/run",
         log_interval=10,  # Log every 10 iterations
     )
 
     model = PySRRegressor(
         niterations=max_iter,
         binary_operators=["+", "*", "-", "/"],
-        unary_operators=[
-            "cos",
-            "exp",
-            "sin",
-            "tanh",
-            "cosh",
-            "sinh"
-        ],
+        unary_operators=["cos","exp","sin","zero_sqrt(x) = x >= 0 ? sqrt(x) : zero(x)"],
+        extra_sympy_mappings={"zero_sqrt": lambda x: x},  # TODO: Not using Sympy rn. Fix this.
         precision=64,
         neural_options=neural_options,
         weight_neural_mutate_tree=weight_neural_mutate_tree,
@@ -44,15 +37,16 @@ def eval_equation(X, y, neural_options, name, max_iter=10, early_stopping_condit
     return model
 
 def run_benchmark(n_runs=5):
+    model_id = 'e51hcsb9'
     neural_options=dict(
         active=True,
-        model_path="/Users/luis/Desktop/Cranmer2024/Workplace/smallMutations/similar-expressions/src/dev/ONNX/onnx-models/model-zwrgtnj0.onnx",
+        model_path=f"/Users/luis/Desktop/Cranmer2024/Workplace/smallMutations/similar-expressions/src/dev/ONNX/onnx-models/model-{model_id}.onnx",
         sampling_eps=0.01,
-        subtree_min_nodes=2,
+        subtree_min_nodes=3,
         subtree_max_nodes=10,
     )
 
-    expr = 'cosh(x0)/(x0+2)+x0 + (x1 - sinh(x1))/exp(x1+3) - 5'
+    expr = 'cos(x0)/(x0+2)+x0 + (x1 - sqrt(x1))/exp(x1+3) - 5'
     dataset = dataset_utils.create_dataset_from_expression(expr, 500, 0)
     X, y = dataset.X, dataset.y
     

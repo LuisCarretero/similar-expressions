@@ -1,6 +1,7 @@
 from pysr import PySRRegressor
 from pysr_interface_utils import get_mutation_stats
 import numpy as np
+import sympy
 import sys
 sys.path.append("/Users/luis/Desktop/Cranmer2024/Workplace/smallMutations/similar-expressions/src/sr_inference_benchmarking")
 from importlib import reload
@@ -95,6 +96,10 @@ from importlib import reload
 import dataset_utils
 reload(dataset_utils)
 
+expr = 'cosh(x0)/(x0+2)+x0 + (x1 - sinh(x1))/exp(x1+3) - 5'
+dataset = dataset_utils.create_dataset_from_expression(expr, 100, 0)
+dataset.equation
+
 n_iterations = 1
 early_stopping_condition = 1e-8
 custom_loss = """
@@ -107,13 +112,13 @@ function eval_loss(tree, dataset::Dataset{T,L}, options)::L where {T,L}
 end
 """
 
-model_id = 'fhgrred2'
+model_id = 'e51hcsb9'
 # model_id = 'zwrgtnj0'
 model = PySRRegressor(  # ops = OperatorEnum((+, -, *, /), (sin, cos, exp, zero_sqrt)); zero_sqrt(x) = x >= 0 ? sqrt(x) : zero(x)
     niterations=n_iterations,
     binary_operators=["+", "*", "-", "/"],
     unary_operators=["cos", "exp", "sin", "zero_sqrt(x) = x >= 0 ? sqrt(x) : zero(x)"],
-    extra_sympy_mappings={"zero_sqrt": lambda x: x if x >= 0 else 0},
+    extra_sympy_mappings={"zero_sqrt": lambda x: sympy.Piecewise((sympy.sqrt(sympy.Symbol('x')), sympy.Symbol('x') >= 0), (0, True))},
     precision=64,
     neural_options=dict(
         active=True,
@@ -128,14 +133,9 @@ model = PySRRegressor(  # ops = OperatorEnum((+, -, *, /), (sin, cos, exp, zero_
     early_stop_condition=f"f(loss, complexity) = (loss < {early_stopping_condition:e})"
 )
 
-expr = 'cosh(x0)/(x0+2)+x0 + (x1 - sinh(x1))/exp(x1+3) - 5'
-dataset = dataset_utils.create_dataset_from_expression(expr, 100, 0)
-dataset.equation
-
 model.fit(dataset.X, dataset.y)
 
 model.model
 
 stats = get_mutation_stats()
 in_sizes, out_sizes = stats['subtree_in_sizes'], stats['subtree_out_sizes']
-
