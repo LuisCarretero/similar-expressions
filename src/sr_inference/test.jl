@@ -4,7 +4,7 @@ using DynamicExpressions: parse_expression, Expression
 using SymbolicRegression.NeuralMutationsModule: zero_sqrt
 
 # model_id = "zwrgtnj0"
-model_id = "fhgrred2"
+model_id = "e51hcsb9"
 options = Options(
     binary_operators=[+, *, /, -],
     unary_operators=[sin, cos, exp, zero_sqrt],
