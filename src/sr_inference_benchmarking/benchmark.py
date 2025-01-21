@@ -43,7 +43,7 @@ def run_benchmark(n_runs=5):
     neural_options=dict(
         active=True,
         model_path=f"/Users/luis/Desktop/Cranmer2024/Workplace/smallMutations/similar-expressions/src/dev/ONNX/onnx-models/model-{model_id}.onnx",
-        sampling_eps=0.04,
+        sampling_eps=0.08,
         subtree_min_nodes=3,
         subtree_max_nodes=10,
     )
@@ -55,7 +55,7 @@ def run_benchmark(n_runs=5):
     X, y = dataset.X, dataset.y
     
     for i in trange(n_runs, desc='Running benchmark'):
-        log_dir = os.path.join(log_basedir, f'250121_no-noise_neural_4e-2_{i}')
+        log_dir = os.path.join(log_basedir, f'250121_eq3_neural_8e-2_{i}')  # neural_4e-2
         eval_equation(X, y, neural_options, log_dir, max_iter=20, early_stopping_condition=1e-8, weight_neural_mutate_tree=1.0)
 
 run_benchmark(n_runs=5)
