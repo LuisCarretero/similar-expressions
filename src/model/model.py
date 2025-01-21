@@ -76,7 +76,7 @@ class LitGVAE(L.LightningModule):
         
         return mean, ln_var, z, logits, values
     
-    def __call__(self, x, sample_eps):
+    def __call__(self, x: torch.Tensor, sample_eps: float):
         """
         Comment this out when creating ONNX model. Causes error when not commenting out during training.
         Used for final ONNX inference version.

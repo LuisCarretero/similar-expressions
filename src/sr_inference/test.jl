@@ -11,10 +11,11 @@ options = Options(
     populations=40,
     neural_options=NeuralOptions(
         active=true,  # If not active, will still be called according to MutationWeights.neural_mutate_tree rate but will return the original tree
-        sampling_eps=1e-10,
+        sampling_eps=0.1,
         subtree_min_nodes=5,
         subtree_max_nodes=10,
-        model_path="/Users/luis/Desktop/Cranmer2024/Workplace/smallMutations/similar-expressions/src/dev/ONNX/onnx-models/model-$model_id.onnx",
+        # model_path="/Users/luis/Desktop/Cranmer2024/Workplace/smallMutations/similar-expressions/src/dev/ONNX/onnx-models/model-$model_id.onnx",
+        model_path="/home/lc865/workspace/similar-expressions/src/dev/ONNX/onnx-models/model-$model_id.onnx",
     ),
     mutation_weights=MutationWeights(
         mutate_constant = 0.0353,
@@ -152,3 +153,21 @@ for line in split(grammar_str, "\n")
 end
 grammar_str = join(grammar_lines, "\n")
 println("grammar_str: ", grammar_str)
+
+
+#####
+import CUDA
+CUDA.set_runtime_version!(v"12.6")
+
+import CUDA, cuDNN
+import ONNXRunTime as ORT
+
+model_id = "e51hcsb9"
+model_path="/home/lc865/workspace/similar-expressions/src/dev/ONNX/onnx-models/model-$model_id.onnx"
+model = ORT.load_inference(model_path, execution_provider=:cuda)
+
+
+x = rand(Float32, 13, 15)
+input = Dict("onnx::Flatten_0" => reshape(x, (1, size(x)...)), "sample_eps" => [0.01])
+raw_out = model(input)
+x_out = raw_out["276"][1, :, :]

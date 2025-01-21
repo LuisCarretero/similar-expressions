@@ -154,7 +154,7 @@ def load_datasets(which: str, num_samples: int, noise: float, equation_indices: 
         equations = get_synthetic_equations(equation_indices)
     elif which == "feynman":
         if feynman_fpath is None:
-            feynman_fpath = os.path.join(os.path.dirname(__file__), "data", "FeynmanEquations.csv")
+            feynman_fpath = os.path.join(os.path.dirname(__file__), 'FeynmanEquations.csv')
         if max(equation_indices) > 100 or min(equation_indices) < 1:
             raise ValueError("Feynman dataset numbering starts at 1 and goes up to 100.")
         equation_indices = set() if equation_indices is None else set(equation_indices)
