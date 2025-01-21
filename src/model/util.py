@@ -272,7 +272,7 @@ def create_callbacks(cfg: DictConfig) -> List[Callback]:
         filename='{epoch:02d}', 
         monitor=cfg.training.performance_metric, 
         mode='min', 
-        save_top_k=0, # If this is used, need to specify correct dirpath
+        save_top_k=1,
         save_last=True,
         save_weights_only=True
     )
