@@ -11,13 +11,15 @@ options = Options(
     populations=40,
     neural_options=NeuralOptions(
         active=true,  # If not active, will still be called according to MutationWeights.neural_mutate_tree rate but will return the original tree
-        sampling_eps=1e-10,
+        sampling_eps=0.05,
         subtree_min_nodes=5,
         subtree_max_nodes=10,
         # model_path="/Users/luis/Desktop/Cranmer2024/Workplace/smallMutations/similar-expressions/src/dev/ONNX/onnx-models/model-$model_id.onnx",
         model_path="/home/lc865/workspace/similar-expressions/src/dev/ONNX/onnx-models/model-$model_id.onnx",
         device="cuda",
         verbose=true,
+        max_resamples=10,
+        max_tree_size_diff=0,
     ),
     mutation_weights=MutationWeights(
         mutate_constant = 0.0353,
@@ -39,11 +41,15 @@ options = Options(
 
 
 # ex = parse_expression(:((x1*x1 * 3) + cos(x2)*2 +5), operators=options.operators, variable_names=["x1", "x2"])
-ex = parse_expression(:(y1*y1+y1-exp(y1)*cos(y1)), operators=options.operators, variable_names=["y1", "y2", "y3", "y4", "y5"])
+ex = parse_expression(:(y1*y1+y1-exp(y1)*cos(y1)+1.0), operators=options.operators, variable_names=["y1", "y2", "y3", "y4", "y5"])
 
 # Sample single
+SymbolicRegression.NeuralMutationsModule.reset_mutation_stats!()
 ex_out = SymbolicRegression.NeuralMutationsModule.neural_mutate_tree(copy(ex), options)
+stats = SymbolicRegression.NeuralMutationsModule.get_mutation_stats()
+dump(stats)
 
+SymbolicRegression.NeuralMutationsModule.reset_mutation_stats!()
 # Sample multiple
 ex_out = nothing
 function mutate_multiple(ex, options, n)
@@ -52,10 +58,10 @@ function mutate_multiple(ex, options, n)
     end
 end
 
-mutate_multiple(ex, options, 10000)
+mutate_multiple(ex, options, 1000)
 
 stats = SymbolicRegression.NeuralMutationsModule.get_mutation_stats()
-
+dump(stats)
 # SymbolicRegression.NeuralMutationsModule.reset_mutation_stats!()
 
 using Distributions

@@ -51,7 +51,8 @@ def setup_model(cfg, use_neural=False):
         logger_spec=logger_spec,
         verbosity=0,
         batching=True,
-        batch_size=50
+        batch_size=50,
+        output_directory=f'/mnt/cephfs/store/gr-mc2473/lc865/workspace/benchmark_data/round1/ckpts/{cfg.run_settings.run_prefix}'
     )
     return model
 
@@ -62,7 +63,7 @@ def run_benchmark(cfg, model, dataset, log_postfix):
     
     log_name = f'{cfg.run_settings.run_prefix}_eq{eq_idx}_{log_postfix}'
     for i in trange(cfg.run_settings.n_runs, desc=f'Running neural benchmark for equation {eq_idx}'):
-        run_log_dir = os.path.join(cfg.run_settings.log_dir, f'{log_name}_{i}')
+        run_log_dir = os.path.join(cfg.run_settings.log_dir, cfg.run_settings.run_prefix, f'{log_name}_{i}')
         model.logger_spec.log_dir = run_log_dir
         reset_mutation_stats()
         model.fit(X, y)
