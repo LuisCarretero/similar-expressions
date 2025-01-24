@@ -18,7 +18,7 @@ options = Options(
         model_path="/home/lc865/workspace/similar-expressions/src/dev/ONNX/onnx-models/model-$model_id.onnx",
         device="cuda",
         verbose=true,
-        max_resamples=10,
+        max_resamples=9,
         max_tree_size_diff=0,
     ),
     mutation_weights=MutationWeights(
