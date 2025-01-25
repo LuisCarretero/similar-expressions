@@ -4,7 +4,7 @@ run_settings:
   early_stopping_condition: 1e-8
   log_dir: /mnt/cephfs/store/gr-mc2473/lc865/workspace/benchmark_data/round1/logs
 
-  run_prefix: syntheticNoLog1_
+  run_prefix: syntheticNoLog2_
   do_vanilla: true
   do_neural: true
 
@@ -19,13 +19,17 @@ symbolic_regression:
   neural_options:
     active: true
     model_path: /home/lc865/workspace/similar-expressions/src/dev/ONNX/onnx-models/model-e51hcsb9.onnx
-    sampling_eps: 0.03
-    subtree_min_nodes: 3
+    sampling_eps: 0.02
+    subtree_min_nodes: 2
     subtree_max_nodes: 14
     device: cuda
     verbose: true
-    max_tree_size_diff: 7
-    max_resamples: 9
+    max_tree_size_diff: 9
+    max_resamples: 29
+    require_tree_size_similarity: true
+    require_novel_skeleton: true
+    require_expr_similarity: true
+    similarity_threshold: 0.4  # Using double actual similarity_threshold to speed up computation
   weight_neural_mutate_tree: 1.0  # Only used for neural runs. 
 
 

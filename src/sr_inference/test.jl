@@ -11,7 +11,7 @@ options = Options(
     populations=40,
     neural_options=NeuralOptions(
         active=true,  # If not active, will still be called according to MutationWeights.neural_mutate_tree rate but will return the original tree
-        sampling_eps=0.05,
+        sampling_eps=1,
         subtree_min_nodes=5,
         subtree_max_nodes=10,
         # model_path="/Users/luis/Desktop/Cranmer2024/Workplace/smallMutations/similar-expressions/src/dev/ONNX/onnx-models/model-$model_id.onnx",
@@ -19,7 +19,11 @@ options = Options(
         device="cuda",
         verbose=true,
         max_resamples=9,
-        max_tree_size_diff=0,
+        max_tree_size_diff=7,
+        require_tree_size_similarity=true,
+        require_novel_skeleton=false,
+        require_expr_similarity=true,
+        similarity_threshold=0.001,
     ),
     mutation_weights=MutationWeights(
         mutate_constant = 0.0353,
@@ -40,8 +44,9 @@ options = Options(
 )
 
 
-# ex = parse_expression(:((x1*x1 * 3) + cos(x2)*2 +5), operators=options.operators, variable_names=["x1", "x2"])
-ex = parse_expression(:(y1*y1+y1-exp(y1)*cos(y1)+1.0), operators=options.operators, variable_names=["y1", "y2", "y3", "y4", "y5"])
+ex = parse_expression(:((x1*x1 * 3) + cos(x2)*2 +5), operators=options.operators, variable_names=["x1", "x2"])
+# ex = parse_expression(:(y1*y1+y1-exp(y1)*cos(y1)+1.0), operators=options.operators, variable_names=["y1", "y2", "y3", "y4", "y5"])
+
 
 # Sample single
 SymbolicRegression.NeuralMutationsModule.reset_mutation_stats!()

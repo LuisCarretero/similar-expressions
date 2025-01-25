@@ -75,7 +75,8 @@ def main(cfg):
         cfg.dataset.name, 
         num_samples=cfg.dataset.num_samples, 
         noise=cfg.dataset.noise, 
-        equation_indices=cfg.dataset.equation_indices
+        equation_indices=cfg.dataset.equation_indices,
+        forbid_ops=cfg.dataset.forbid_ops
     )    
     
     if cfg.run_settings.do_neural:
