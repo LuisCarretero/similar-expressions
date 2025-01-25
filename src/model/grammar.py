@@ -12,8 +12,8 @@ S -> 'x1'
 END -> 'END'
 """
 S = Nonterminal('S')
-
 MAX_LEN, DIM = 15, 9  # FIXME: use config
+GCFG = CFG.fromstring(GRAMMAR_STR)
 
 # GRAMMAR_STR = """
 # S -> 'ADD' S S | 'SUB' S S | 'MUL' S S | 'DIV' S S
@@ -50,17 +50,21 @@ def create_masks_and_allowed_prod_idx(grammar: str) -> Tuple[torch.Tensor, torch
 
     return masks, allowed_prod_idx
 
-# def get_mask(nonterminal, grammar=GCFG, as_variable=False):
-#     if isinstance(nonterminal, Nonterminal):
-#         mask = [rule.lhs() == nonterminal for rule in grammar.productions()]
-#         mask = Variable(torch.FloatTensor(mask)) if as_variable else mask
-#         return mask
-#     else:
-#         raise ValueError('Input must be instance of nltk.Nonterminal')
+def get_mask(nonterminal, grammar=GCFG) -> torch.Tensor:
+    """
+    Used during dev to work on NLTK objects.
+    """
+    if isinstance(nonterminal, Nonterminal):
+        mask = [rule.lhs() == nonterminal for rule in grammar.productions()]
+        return torch.tensor(mask)
+    else:
+        raise ValueError('Input must be instance of nltk.Nonterminal')
     
 
 def calc_grammar_mask(y_syntax: torch.Tensor, masks: torch.Tensor, allowed_prod_idx: torch.Tensor, max_len: int = MAX_LEN, dim: int = DIM) -> torch.Tensor:
     """
+    Used during training/inference to work on logits directly.
+
     Use true indices to mask predictions. Spefically, only the LHS of the true rule at step t is allowed to be applied at step t. Consequently, all other productions with different LHS are set to zero.
     """
     true_prod_idx = y_syntax.reshape(-1)  # True indices but whole batch flattened

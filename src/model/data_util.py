@@ -238,9 +238,12 @@ def load_wandb_model(run: str, name:str = 'model.pth', device='cpu', wandb_cache
 
     return vae_model, cfg
 
-def create_dataloader_from_wandb(cfg: DictConfig, value_transform=None, datapath='/Users/luis/Desktop/Cranmer2024/Workplace/smallMutations/similar-expressions/data', old_x_format=False):
+def create_dataloader_from_wandb(cfg: DictConfig, value_transform=None, datapath='/Users/luis/Desktop/Cranmer2024/Workplace/smallMutations/similar-expressions/data', allow_different_dataset_hash=False):
     train_loader, valid_loader, info = create_dataloader(datapath, name=cfg.training.dataset_name, cfg=cfg, value_transform=value_transform, shuffle_train=False)
-    assert all([cfg.dataset_hashes[key] == info['hashes'][key] for key in cfg.dataset_hashes.keys()]), "Error: Using different dataset than used for training."
+    if not allow_different_dataset_hash:
+        assert all([cfg.dataset_hashes[key] == info['hashes'][key] for key in cfg.dataset_hashes.keys()]), "Error: Using different dataset than used for training."
+    elif not all([cfg.dataset_hashes[key] == info['hashes'][key] for key in cfg.dataset_hashes.keys()]):
+        print("Warning: Using different dataset than used for training.")
 
     print(f'Using dataset "{cfg.training.dataset_name}" of size {len(train_loader.dataset)}')
     summarize_dataloaders(train_loader, valid_loader)

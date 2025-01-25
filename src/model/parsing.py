@@ -7,7 +7,7 @@ from typing import List, Tuple, Literal
 import sympy as sp
 from sympy.utilities.lambdify import lambdify
 
-# from src.model.grammar import get_mask, S, GCFG
+from src.model.grammar import get_mask, S, GCFG
 from src.model.util import Stack
 
 OPERATOR_ARITY = {
@@ -61,8 +61,8 @@ def prods_to_prefix(prods, to_string=False):
     else:
         return seq
 
-def logits_to_prods(logits, grammar, start_symbol: Nonterminal = S, sample=False, max_length=15, insert_const=True, const_token='CON', replace_const: Literal['numerical', 'placeholder', 'nothing', 'numerical_rounded'] = 'numerical', round_const_decimals=2):
-    stack = Stack(grammar=grammar, start_symbol=start_symbol)
+def logits_to_prods(logits, start_symbol: Nonterminal = S, sample=False, max_length=15, insert_const=True, const_token='CON', replace_const: Literal['numerical', 'placeholder', 'nothing', 'numerical_rounded'] = 'numerical', round_const_decimals=2):
+    stack = Stack(start_symbol)
 
     logits_prods = logits[:, :-1]
     constants = logits[:, -1]
@@ -72,8 +72,8 @@ def logits_to_prods(logits, grammar, start_symbol: Nonterminal = S, sample=False
     j = 0  # Index of constant
     while stack.nonempty:
         alpha = stack.pop()  # Alpha is notation in paper: current LHS token
-        mask = get_mask(alpha, grammar, as_variable=True)
-        probs = mask * logits_prods[t].exp()
+        mask = get_mask(alpha)  # FIXME: Don't use global constants?
+        probs = torch.tensor(mask) * logits_prods[t].exp()
         assert (tot := probs.sum()) > 0, f"Sum of probs is 0 at t={t}. Probably due to bad mask or invalid logits?"
         probs = probs / tot
 
@@ -84,7 +84,7 @@ def logits_to_prods(logits, grammar, start_symbol: Nonterminal = S, sample=False
             _, i = probs.max(-1) # argmax
 
         # select rule i
-        rule = grammar.productions()[i.item()]
+        rule = GCFG.productions()[i.item()]
 
         # If rule has -> [CONST] add const
         if insert_const and (rule.rhs()[0] == const_token):
@@ -205,7 +205,7 @@ def logits_to_infix(logits, sample=False, replace_const='numerical', round_const
     # FIXME: Add variables, GCFG pass-through
 
     assert len(logits.shape) == 2, "Logits should be 2D, no batch dimension"
-    prods = logits_to_prods(logits, GCFG, sample=sample, replace_const=replace_const, round_const_decimals=round_const_decimals)
+    prods = logits_to_prods(logits, sample=sample, replace_const=replace_const, round_const_decimals=round_const_decimals)
     prefix = prods_to_prefix(prods)
     infix = prefix_to_infix(prefix, variables=['x1'])
     return infix

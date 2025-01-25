@@ -29,8 +29,7 @@ class Stack:
         start_symbol: an instance of nltk.Nonterminal that is the
             start symbol the grammar
     """
-    def __init__(self, grammar, start_symbol):
-        self.grammar = grammar
+    def __init__(self, start_symbol):
         self._stack = [start_symbol]
 
     def pop(self):
