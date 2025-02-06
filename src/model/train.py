@@ -16,7 +16,7 @@ seed_everything(42, workers=True, verbose=False)
 
 def train_model(cfg, data_path, overwrite_device_count=None, overwrite_strategy=None):
     # Set wandb logging dir
-    fpath = '/mnt/cephfs/store/gr-mc2473/lc865/workspace/wandb-cache'
+    fpath = '/cephfs/store/gr-mc2473/lc865/workspace/wandb-cache'
     set_wandb_cache_dir(fpath)
 
     # Dataloader and device setup
@@ -70,7 +70,7 @@ def train_model(cfg, data_path, overwrite_device_count=None, overwrite_strategy=
 
 
 if __name__ == '__main__':
-    data_path = ['/mnt/cephfs/store/gr-mc2473/lc865/workspace/data', '/Users/luis/Desktop/Cranmer2024/Workplace/smallMutations/similar-expressions/data'][0]
+    data_path = ['/cephfs/store/gr-mc2473/lc865/workspace/data', '/Users/luis/Desktop/Cranmer2024/Workplace/smallMutations/similar-expressions/data'][0]
 
     cfg = load_config('src/model/config.yaml')
     train_model(cfg, data_path)  # dataset_241008_1, dataset_240910_1, dataset_240822_1, dataset_241204_2

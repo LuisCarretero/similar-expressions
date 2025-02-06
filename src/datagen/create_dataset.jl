@@ -24,7 +24,7 @@ op_probs = OperatorProbEnum(ops, [1.0, 1.0, 1.0, 1.0], [1.0, 1.0, 1.0, 1.0])
 seq_len = 15
 save_transformed = true
 N = 60_000_000  # 20M -> 7.3M
-datapath = "/mnt/cephfs/store/gr-mc2473/lc865/workspace/data"
+datapath = "/cephfs/store/gr-mc2473/lc865/workspace/data"
 name = "dataset_250110_2"
 max_procs = 41  # Number of workers + 1
 

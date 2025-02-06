@@ -38,7 +38,7 @@ import os
 def run_benchmark(n_runs=5):
     model_id = 'e51hcsb9'
     model_path = f"/home/lc865/workspace/similar-expressions/src/dev/ONNX/onnx-models/model-{model_id}.onnx"
-    log_basedir = '/mnt/cephfs/store/gr-mc2473/lc865/workspace/benchmark_data/round1/logs'
+    log_basedir = '/cephfs/store/gr-mc2473/lc865/workspace/benchmark_data/round1/logs'
 
     sampling_eps = 0.05
     neural_mutate_tree_weight = 0.0

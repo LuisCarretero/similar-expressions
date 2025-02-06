@@ -18,12 +18,13 @@ options = Options(
         model_path="/home/lc865/workspace/similar-expressions/src/dev/ONNX/onnx-models/model-$model_id.onnx",
         device="cuda",
         verbose=true,
-        max_resamples=9,
         max_tree_size_diff=7,
         require_tree_size_similarity=true,
         require_novel_skeleton=false,
         require_expr_similarity=true,
         similarity_threshold=0.001,
+        max_resamples=127,
+        sample_batchsize=128
     ),
     mutation_weights=MutationWeights(
         mutate_constant = 0.0353,
@@ -63,7 +64,7 @@ function mutate_multiple(ex, options, n)
     end
 end
 
-mutate_multiple(ex, options, 1000)
+mutate_multiple(ex, options, 4000)
 
 stats = SymbolicRegression.NeuralMutationsModule.get_mutation_stats()
 dump(stats)

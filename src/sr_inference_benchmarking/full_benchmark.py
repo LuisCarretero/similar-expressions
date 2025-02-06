@@ -52,7 +52,7 @@ def setup_model(cfg, use_neural=False):
         verbosity=0,
         batching=True,
         batch_size=50,
-        output_directory=f'/mnt/cephfs/store/gr-mc2473/lc865/workspace/benchmark_data/round1/ckpts/{cfg.run_settings.run_prefix}'
+        output_directory=f'/cephfs/store/gr-mc2473/lc865/workspace/benchmark_data/round1/ckpts/{cfg.run_settings.run_prefix}'
     )
     return model
 
