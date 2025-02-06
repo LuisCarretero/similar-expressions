@@ -11,7 +11,7 @@ options = Options(
     populations=40,
     neural_options=NeuralOptions(
         active=true,  # If not active, will still be called according to MutationWeights.neural_mutate_tree rate but will return the original tree
-        sampling_eps=1,
+        sampling_eps=1e-10,
         subtree_min_nodes=5,
         subtree_max_nodes=10,
         # model_path="/Users/luis/Desktop/Cranmer2024/Workplace/smallMutations/similar-expressions/src/dev/ONNX/onnx-models/model-$model_id.onnx",
@@ -22,9 +22,11 @@ options = Options(
         require_tree_size_similarity=true,
         require_novel_skeleton=false,
         require_expr_similarity=true,
-        similarity_threshold=0.001,
+        similarity_threshold=0.2,
         max_resamples=127,
-        sample_batchsize=128
+        sample_batchsize=32,
+        sample_logits=false,
+        log_subtree_strings=true
     ),
     mutation_weights=MutationWeights(
         mutate_constant = 0.0353,
@@ -55,6 +57,7 @@ ex_out = SymbolicRegression.NeuralMutationsModule.neural_mutate_tree(copy(ex), o
 stats = SymbolicRegression.NeuralMutationsModule.get_mutation_stats()
 dump(stats)
 
+
 SymbolicRegression.NeuralMutationsModule.reset_mutation_stats!()
 # Sample multiple
 ex_out = nothing
@@ -64,7 +67,7 @@ function mutate_multiple(ex, options, n)
     end
 end
 
-mutate_multiple(ex, options, 4000)
+mutate_multiple(ex, options, 100)
 
 stats = SymbolicRegression.NeuralMutationsModule.get_mutation_stats()
 dump(stats)
