@@ -11,22 +11,23 @@ options = Options(
     populations=40,
     neural_options=NeuralOptions(
         active=true,  # If not active, will still be called according to MutationWeights.neural_mutate_tree rate but will return the original tree
-        sampling_eps=1e-10,
-        subtree_min_nodes=5,
-        subtree_max_nodes=10,
+        sampling_eps=0.02,
+        subtree_min_nodes=8,
+        subtree_max_nodes=14,
         # model_path="/Users/luis/Desktop/Cranmer2024/Workplace/smallMutations/similar-expressions/src/dev/ONNX/onnx-models/model-$model_id.onnx",
         model_path="/home/lc865/workspace/similar-expressions/src/dev/ONNX/onnx-models/model-$model_id.onnx",
         device="cuda",
         verbose=true,
         max_tree_size_diff=7,
         require_tree_size_similarity=true,
-        require_novel_skeleton=false,
+        require_novel_skeleton=true,
         require_expr_similarity=true,
         similarity_threshold=0.2,
         max_resamples=127,
         sample_batchsize=32,
         sample_logits=false,
-        log_subtree_strings=true
+        log_subtree_strings=true,
+        subtree_max_features=2
     ),
     mutation_weights=MutationWeights(
         mutate_constant = 0.0353,
@@ -47,7 +48,7 @@ options = Options(
 )
 
 
-ex = parse_expression(:((x1*x1 * 3) + cos(x2)*2 +5), operators=options.operators, variable_names=["x1", "x2"])
+ex = parse_expression(:((x1*x1 * x2 * 3) + cos(x2)*x1*2), operators=options.operators, variable_names=["x1", "x2"])
 # ex = parse_expression(:(y1*y1+y1-exp(y1)*cos(y1)+1.0), operators=options.operators, variable_names=["y1", "y2", "y3", "y4", "y5"])
 
 
@@ -69,9 +70,14 @@ end
 
 mutate_multiple(ex, options, 100)
 
+
+# SymbolicRegression.NeuralMutationsModule.reset_mutation_stats!()
+
+SymbolicRegression.NeuralMutationsModule.reset_mutation_stats!()
+@profview mutate_multiple(ex, options, 500)
 stats = SymbolicRegression.NeuralMutationsModule.get_mutation_stats()
 dump(stats)
-# SymbolicRegression.NeuralMutationsModule.reset_mutation_stats!()
+
 
 using Distributions
 # %% Check how close to 1 we need probs to work

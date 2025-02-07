@@ -3,6 +3,7 @@ from pysr import PySRRegressor, TensorBoardLoggerSpec
 from pysr_interface_utils import print_summary_stats, reset_mutation_stats, get_mutation_stats
 import os
 from tqdm import trange
+import time
 from omegaconf import OmegaConf
 
 def setup_model(cfg, use_neural=False):
@@ -56,12 +57,12 @@ def setup_model(cfg, use_neural=False):
     )
     return model
 
-def run_benchmark(cfg, model, dataset, log_postfix):
+def run_benchmark(cfg, model, dataset, start_time, log_postfix):
     eq_idx = dataset.idx
     print(f"\nBenchmarking equation {eq_idx}: {dataset.equation}")
     X, y = dataset.X, dataset.y
     
-    log_name = f'{cfg.run_settings.run_prefix}_eq{eq_idx}_{log_postfix}'
+    log_name = f'{start_time:.0f}_{cfg.run_settings.run_prefix}_eq{eq_idx}_{log_postfix}'
     for i in trange(cfg.run_settings.n_runs, desc=f'Running neural benchmark for equation {eq_idx}'):
         run_log_dir = os.path.join(cfg.run_settings.log_dir, cfg.run_settings.run_prefix, f'{log_name}_{i}')
         model.logger_spec.log_dir = run_log_dir
@@ -70,6 +71,8 @@ def run_benchmark(cfg, model, dataset, log_postfix):
         print_summary_stats(get_mutation_stats())
         
 def main(cfg):
+    start_time = time.time()
+
     # Load all datasets
     datasets = dataset_utils.load_datasets(
         cfg.dataset.name, 
@@ -82,12 +85,12 @@ def main(cfg):
     if cfg.run_settings.do_neural:
         neural_model = setup_model(cfg, use_neural=True)
         for dataset in datasets:
-            run_benchmark(cfg, neural_model, dataset, 'neural')
+            run_benchmark(cfg, neural_model, dataset, start_time, 'neural')
 
     if cfg.run_settings.do_vanilla:
         vanilla_model = setup_model(cfg, use_neural=False)
         for dataset in datasets:
-            run_benchmark(cfg, vanilla_model, dataset, 'vanilla')
+            run_benchmark(cfg, vanilla_model, dataset, start_time, 'vanilla')
 
 
 
