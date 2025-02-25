@@ -5,13 +5,14 @@ from typing import Tuple
 
 # ops = OperatorEnum((+, -, *, /), (sin, cos, exp, zero_sqrt))
 GRAMMAR_STR = """
-S -> 'ADD' S S | 'SUB' S S | 'MUL' S S | 'DIV' S S
-S -> 'SIN' S | 'COS' S | 'EXP' S | 'ZERO_SQRT' S
-S -> 'CON'
-S -> 'x1' 
+J -> 'ADD' J J | 'SUB' J J | 'MUL' J J | 'DIV' J J
+J -> 'SIN' J | 'COS' J | 'EXP' J | 'ZERO_SQRT' J
+J -> 'CON'
+J -> 'x1' 
 END -> 'END'
 """
-S = Nonterminal('S')
+
+NT = Nonterminal('J')
 MAX_LEN, DIM = 15, 9  # FIXME: use config
 GCFG = CFG.fromstring(GRAMMAR_STR)
 
@@ -26,7 +27,6 @@ GCFG = CFG.fromstring(GRAMMAR_STR)
 def create_masks_and_allowed_prod_idx(grammar: str) -> Tuple[torch.Tensor, torch.Tensor]:
     GCFG = CFG.fromstring(grammar)
     
-
     # Collect all lhs symbols, and the unique set of them
     all_lhs = [prod.lhs().symbol() for prod in GCFG.productions()]
     unique_lhs = []
@@ -34,11 +34,11 @@ def create_masks_and_allowed_prod_idx(grammar: str) -> Tuple[torch.Tensor, torch
 
     # Rhs symbol indices for each production rule
     rhs_map = []
-    for prod in GCFG.productions():  # [S -> 'ADD' S S]
+    for prod in GCFG.productions():  # [J -> 'ADD' J J]
         tmp = []
-        for prod_target in prod.rhs():  # ['ADD', S, S]
-            if not isinstance(prod_target, str):  # S
-                s = prod_target.symbol()  # 'S'
+        for prod_target in prod.rhs():  # ['ADD', J, J]
+            if not isinstance(prod_target, str):  # J
+                s = prod_target.symbol()  # 'J'
                 tmp.extend(list(np.where(np.array(unique_lhs) == s)[0]))  # [1]
         rhs_map.append(tmp)
 

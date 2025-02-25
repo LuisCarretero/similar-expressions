@@ -237,8 +237,12 @@ def eval_from_logits(logits, val_x):
     expr = sp.sympify(infix.lower())
 
     # Pass custom_functions as third argument
+    # Check for infinity or similar in expression
+    assert not expr.has(sp.zoo), f"Expression {expr} contains infinity"
     func = lambdify(x1, expr, ('numpy', CUSTOM_FUNCTIONS))
-    val_y = func(val_x)
+
+    with np.errstate(all='ignore'):
+        val_y = func(val_x)
 
     if not isinstance(val_y, np.ndarray):
         # sp.simpify simplifies expressions which may result in `expr` being a constant. 
