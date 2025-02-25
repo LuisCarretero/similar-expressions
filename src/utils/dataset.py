@@ -150,10 +150,6 @@ def create_dataloader(
     syntax, consts, values, val_x, syntax_cats = load_dataset(datapath, name, max_length=cfg.training.dataset_len_limit)
     data_syntax = np.concatenate([syntax, consts[:, :, np.newaxis]], axis=-1)  # Shape: (n_samples, seq_len, n_tokens+1)
 
-    if cfg.training.dataset_len_limit is not None:
-        data_syntax = data_syntax[:cfg.training.dataset_len_limit]
-        values = values[:cfg.training.dataset_len_limit]
-
     # Create value transform
     value_transform = create_value_transform(cfg.training.value_transform, torch.tensor(values))
 
