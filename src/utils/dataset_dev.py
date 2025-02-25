@@ -55,8 +55,14 @@ def dataloader_from_wandb_cfg(
     cfg: DictConfig, 
     value_transform=None, 
     datapath: str = '/cephfs/store/gr-mc2473/lc865/workspace/data', 
-    allow_different_dataset_hash: bool = False
+    allow_different_dataset_hash: bool = False,
+    max_length: int = None
 ) -> Tuple[DataLoader, DataLoader, Dict]:
+    
+    if max_length is not None:
+        assert allow_different_dataset_hash, \
+            "Error: Cannot limit max length of dataset if allow_different_dataset_hash is False."
+        cfg.training.dataset_len_limit = max_length
     
     train_loader, valid_loader, info = create_dataloader(
         datapath, 

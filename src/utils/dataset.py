@@ -74,12 +74,13 @@ def calc_priors_and_means(dataloader: torch.utils.data.DataLoader):
     }
     return priors, means
 
-def load_dataset(datapath, name):
+def load_dataset(datapath, name, max_length=-1):
     with h5py.File(os.path.join(datapath, f'{name}.h5'), 'r') as f:
         # Extract onehot, values (eval_y), and consts
-        syntax = f['onehot'][:].astype(np.float32).transpose([2, 1, 0])  # Shape: (n_samples, seq_len, n_tokens)
-        consts = f['consts'][:].astype(np.float32).T  # Shape: (n_samples, seq_len)
-        values = f['eval_y'][:].astype(np.float32).T  # Shape: (n_samples, n_values)
+        syntax = f['onehot'][:, :, :max_length].transpose([2, 1, 0]).astype(np.float32)  # Shape: (n_samples, seq_len, n_tokens)
+        consts = f['consts'][:, :max_length].T.astype(np.float32)  # Shape: (n_samples, seq_len)
+        values = f['eval_y'][:, :max_length].T.astype(np.float32)  # Shape: (n_samples, n_values)
+
         val_x = f['eval_x'][:].astype(np.float32)  # Shape: (n_values, 1)
         syntax_cats = list(map(lambda x: x.decode('utf-8'), f['onehot_legend'][:]))
 
@@ -146,7 +147,7 @@ def create_dataloader(
     gen = torch.Generator()
     gen.manual_seed(random_seed)
 
-    syntax, consts, values, val_x, syntax_cats = load_dataset(datapath, name)
+    syntax, consts, values, val_x, syntax_cats = load_dataset(datapath, name, max_length=cfg.training.dataset_len_limit)
     data_syntax = np.concatenate([syntax, consts[:, :, np.newaxis]], axis=-1)  # Shape: (n_samples, seq_len, n_tokens+1)
 
     if cfg.training.dataset_len_limit is not None:
