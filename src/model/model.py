@@ -8,8 +8,8 @@ from torch.distributions import Normal
 from src.model.encoder import Encoder
 from src.model.decoder import Decoder
 from src.model.value_decoder import ValueDecoder
-from src.model.grammar import calc_grammar_mask, GRAMMAR_STR, create_masks_and_allowed_prod_idx
-from src.model.util import criterion_factory, AnnealKLSigmoid, compute_latent_metrics, calc_syntax_accuracy
+from src.model.utils import criterion_factory, AnnealKLSigmoid, compute_latent_metrics, calc_syntax_accuracy
+from src.utils.grammar import calc_grammar_mask, GRAMMAR_STR, create_masks_and_allowed_prod_idx
 
 
 class LitGVAE(L.LightningModule):

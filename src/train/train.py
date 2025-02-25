@@ -9,8 +9,7 @@ import torch
 from omegaconf import OmegaConf
 
 from src.model.model import LitGVAE
-from src.model.util import load_config, set_wandb_cache_dir, create_callbacks
-from src.model.data_util import create_dataloader, calc_priors_and_means, summarize_dataloaders
+from src.utils.datasets import create_dataloader, calc_priors_and_means, summarize_dataloaders, load_config, set_wandb_cache_dir, create_callbacks
 
 seed_everything(42, workers=True, verbose=False)
 

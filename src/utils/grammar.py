@@ -6,7 +6,7 @@ from typing import Tuple
 # ops = OperatorEnum((+, -, *, /), (sin, cos, exp, zero_sqrt))
 GRAMMAR_STR = """
 S -> 'ADD' S S | 'SUB' S S | 'MUL' S S | 'DIV' S S
-S -> 'SIN' S | 'COS' S | 'EXP' S | 'SQRT' S
+S -> 'SIN' S | 'COS' S | 'EXP' S | 'ZERO_SQRT' S
 S -> 'CON'
 S -> 'x1' 
 END -> 'END'

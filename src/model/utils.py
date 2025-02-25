@@ -1,49 +1,11 @@
 import math
-from typing import Dict, List, Tuple
 import torch
-import torch.nn.functional as F
-from lightning.pytorch.callbacks import Callback
-from lightning.pytorch.loggers import WandbLogger
 import os
+from typing import Dict, List, Tuple
 from omegaconf.dictconfig import DictConfig
-from omegaconf import OmegaConf
-from lightning.pytorch.callbacks import ModelCheckpoint
+from lightning.pytorch.callbacks import ModelCheckpoint, Callback
 from lightning.pytorch.callbacks.early_stopping import EarlyStopping
-
-def load_config(file_path: str, use_fallback: bool = False, fallback_cfg_path: str = 'config.yaml') -> DictConfig:
-    # TODO: Add error handling, fallback values, etc.
-    cfg = OmegaConf.load(file_path)
-
-    if use_fallback:
-        fallback_cfg = OmegaConf.load(fallback_cfg_path)
-        cfg = OmegaConf.merge(fallback_cfg, cfg)  # second arg overrides first
-
-    return cfg
-
-class Stack:
-    # TODO: Use built-in
-    """A simple first in last out stack.
-
-    Args:
-        grammar: an instance of nltk.CFG
-        start_symbol: an instance of nltk.Nonterminal that is the
-            start symbol the grammar
-    """
-    def __init__(self, start_symbol):
-        self._stack = [start_symbol]
-
-    def pop(self):
-        return self._stack.pop()
-
-    def push(self, symbol):
-        self._stack.append(symbol)
-
-    def __str__(self):
-        return str(self._stack)
-
-    @property
-    def nonempty(self):
-        return bool(self._stack)
+from lightning.pytorch.loggers import WandbLogger
 
 class AnnealKLSigmoid:
     """Anneal the KL for VAE based training using a sigmoid schedule. No overall weighting so this return float between 0 and 1."""
@@ -250,7 +212,6 @@ def set_wandb_cache_dir(dir: str):
     os.environ['WANDB_DATA_DIR'] = dir
     os.environ['WANDB_CONFIG_DIR'] = dir
     os.environ['WANDB_ARTIFACT_DIR'] = dir
-
 
 def create_callbacks(cfg: DictConfig) -> List[Callback]:
     """

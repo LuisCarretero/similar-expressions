@@ -1,9 +1,8 @@
-from src.model.util import load_config
-from src.model.model import LitGVAE
-from src.model.data_util import get_empty_priors, create_dataloader
-
 from torch import randn
 import torch
+
+from src.utils.datasets import load_config, get_empty_priors, create_dataloader
+from src.model.model import LitGVAE
 
 
 def single_forward():

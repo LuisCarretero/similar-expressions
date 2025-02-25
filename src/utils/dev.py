@@ -7,7 +7,7 @@ from typing import Union
 from tqdm import tqdm
 from omegaconf.dictconfig import DictConfig
 
-from src.model.parsing import logits_to_infix, eval_from_logits
+from src.utils.parsing import logits_to_infix, eval_from_logits
 
 
 def calc_properties_and_partials(y_values: torch.Tensor):

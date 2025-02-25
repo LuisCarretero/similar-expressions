@@ -1,14 +1,39 @@
 import torch
 from nltk import Nonterminal
 from nltk.grammar import Production
-
 from torch.distributions import Categorical
 from typing import List, Tuple, Literal
 import sympy as sp
 from sympy.utilities.lambdify import lambdify
 
-from src.model.grammar import get_mask, S, GCFG
-from src.model.util import Stack
+from src.utils.grammar import get_mask, S, GCFG
+
+
+class Stack:
+    # TODO: Use built-in
+    """A simple first in last out stack.
+
+    Args:
+        grammar: an instance of nltk.CFG
+        start_symbol: an instance of nltk.Nonterminal that is the
+            start symbol the grammar
+    """
+    def __init__(self, start_symbol):
+        self._stack = [start_symbol]
+
+    def pop(self):
+        return self._stack.pop()
+
+    def push(self, symbol):
+        self._stack.append(symbol)
+
+    def __str__(self):
+        return str(self._stack)
+
+    @property
+    def nonempty(self):
+        return bool(self._stack)
+
 
 OPERATOR_ARITY = {
     # Elementary functions
