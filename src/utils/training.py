@@ -7,6 +7,7 @@ from lightning.pytorch.callbacks import ModelCheckpoint, Callback
 from lightning.pytorch.callbacks.early_stopping import EarlyStopping
 from lightning.pytorch.loggers import WandbLogger
 
+
 class AnnealKLSigmoid:
     """Anneal the KL for VAE based training using a sigmoid schedule. No overall weighting so this return float between 0 and 1."""
     def __init__(self, cfg: DictConfig):

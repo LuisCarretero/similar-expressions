@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from omegaconf.dictconfig import DictConfig
 
-from src.model.util import calc_zslice
+from src.utils.training import calc_zslice
 from src.model.components import build_rectengular_mlp, build_residual_mlp
 
 class Decoder(nn.Module):

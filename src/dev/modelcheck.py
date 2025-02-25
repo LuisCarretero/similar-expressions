@@ -1,7 +1,7 @@
 from torch import randn
 import torch
 
-from src.utils.datasets import load_config, get_empty_priors, create_dataloader
+from src.utils.dataset import load_config, get_empty_priors, create_dataloader
 from src.model.model import LitGVAE
 
 

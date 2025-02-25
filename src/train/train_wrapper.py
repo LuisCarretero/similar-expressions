@@ -1,5 +1,5 @@
 import wandb
-from src.utils.datasets import load_config, update_cfg
+from src.utils.dataset import load_config, update_cfg
 from src.train.train import train_model
 
 
