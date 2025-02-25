@@ -11,10 +11,23 @@ options = Options(
     populations=40,
     neural_options=NeuralOptions(
         active=true,  # If not active, will still be called according to MutationWeights.neural_mutate_tree rate but will return the original tree
-        sampling_eps=1e-10,
-        subtree_min_nodes=5,
-        subtree_max_nodes=10,
-        model_path="/Users/luis/Desktop/Cranmer2024/Workplace/smallMutations/similar-expressions/src/dev/ONNX/onnx-models/model-$model_id.onnx",
+        sampling_eps=0.02,
+        subtree_min_nodes=8,
+        subtree_max_nodes=14,
+        # model_path="/Users/luis/Desktop/Cranmer2024/Workplace/smallMutations/similar-expressions/src/dev/ONNX/onnx-models/model-$model_id.onnx",
+        model_path="/home/lc865/workspace/similar-expressions/src/dev/ONNX/onnx-models/model-$model_id.onnx",
+        device="cuda",
+        verbose=true,
+        max_tree_size_diff=7,
+        require_tree_size_similarity=true,
+        require_novel_skeleton=true,
+        require_expr_similarity=true,
+        similarity_threshold=0.2,
+        max_resamples=127,
+        sample_batchsize=32,
+        sample_logits=false,
+        log_subtree_strings=true,
+        subtree_max_features=2
     ),
     mutation_weights=MutationWeights(
         mutate_constant = 0.0353,
@@ -35,13 +48,18 @@ options = Options(
 )
 
 
-# ex = parse_expression(:((x1*x1 * 3) + cos(x2)*2 +5), operators=options.operators, variable_names=["x1", "x2"])
-ex = parse_expression(:(y1*y1+y1-exp(y1)*cos(y1)), operators=options.operators, variable_names=["y1", "y2", "y3", "y4", "y5"])
+ex = parse_expression(:((x1*x1 * x2 * 3) + cos(x2)*x1*2), operators=options.operators, variable_names=["x1", "x2"])
+# ex = parse_expression(:(y1*y1+y1-exp(y1)*cos(y1)+1.0), operators=options.operators, variable_names=["y1", "y2", "y3", "y4", "y5"])
 
 
 # Sample single
+SymbolicRegression.NeuralMutationsModule.reset_mutation_stats!()
 ex_out = SymbolicRegression.NeuralMutationsModule.neural_mutate_tree(copy(ex), options)
+stats = SymbolicRegression.NeuralMutationsModule.get_mutation_stats()
+dump(stats)
 
+
+SymbolicRegression.NeuralMutationsModule.reset_mutation_stats!()
 # Sample multiple
 ex_out = nothing
 function mutate_multiple(ex, options, n)
@@ -50,11 +68,16 @@ function mutate_multiple(ex, options, n)
     end
 end
 
-mutate_multiple(ex, options, 1000)
+mutate_multiple(ex, options, 100)
 
-stats = SymbolicRegression.NeuralMutationsModule.get_mutation_stats()
 
 # SymbolicRegression.NeuralMutationsModule.reset_mutation_stats!()
+
+SymbolicRegression.NeuralMutationsModule.reset_mutation_stats!()
+@profview mutate_multiple(ex, options, 500)
+stats = SymbolicRegression.NeuralMutationsModule.get_mutation_stats()
+dump(stats)
+
 
 using Distributions
 # %% Check how close to 1 we need probs to work
@@ -152,3 +175,24 @@ for line in split(grammar_str, "\n")
 end
 grammar_str = join(grammar_lines, "\n")
 println("grammar_str: ", grammar_str)
+
+
+#####
+import CUDA
+CUDA.set_runtime_version!(v"12.6")
+
+import CUDA, cuDNN
+import ONNXRunTime as ORT
+
+model_id = "e51hcsb9"
+model_path="/home/lc865/workspace/similar-expressions/src/dev/ONNX/onnx-models/model-$model_id.onnx"
+model = ORT.load_inference(model_path, execution_provider=:cuda)
+
+
+x = rand(Float32, 15, 12)
+input = Dict("onnx::Flatten_0" => reshape(x, (1, size(x)...)), "sample_eps" => [0.01])
+
+for i in 1:100000
+    raw_out = model(input)
+    x_out = raw_out["276"][1, :, :]
+end

@@ -96,7 +96,7 @@ def sample(method: str, b: Tuple[float, float], num_samples: int):
     else:
         print("Invalid method")
 
-def get_synthetic_equations(idx: Iterable[int]):
+def get_synthetic_equations(idx: Iterable[int], forbid_ops: Iterable[str] = None):
     EXPRESSIONS_RAW = [
         "exp(((1.485035504085099 - log(y2)) / (-0.5917667741788188 - y4)) + (sqrt(y1 + y4) + sqrt(y2)))",
         "((y1 + -0.2281497263470263) + (sqrt(y3) * (y1 * ((0.6069324861405777 - y3) * y3)))) / cos(cos(y1))",
@@ -142,19 +142,19 @@ def get_synthetic_equations(idx: Iterable[int]):
     ]
     variable_distr = {f'y{j}': ('uniform', (1, 10)) for j in range(1, 6)}
 
-    return [(i, (f'y = {EXPRESSIONS_RAW[i]}', variable_distr)) for i in sorted(idx)]
+    return [(i, (f'y = {EXPRESSIONS_RAW[i]}', variable_distr)) for i in sorted(idx) if forbid_ops is None or all(op not in EXPRESSIONS_RAW[i] for op in forbid_ops)]
 
-def load_datasets(which: str, num_samples: int, noise: float, equation_indices: Iterable[int] = None, add_extra_vars: bool = False, feynman_fpath: str = None):
+def load_datasets(which: str, num_samples: int, noise: float, equation_indices: Iterable[int] = None, add_extra_vars: bool = False, feynman_fpath: str = None, forbid_ops: Iterable[str] = None):
     if which == "synthetic":
         if equation_indices is None:
             equation_indices = range(0, 41)
         else:
             if max(equation_indices) > 40 or min(equation_indices) < 0:
                 raise ValueError("Synthetic dataset numbering starts at 0 and goes up to 40.")
-        equations = get_synthetic_equations(equation_indices)
+        equations = get_synthetic_equations(equation_indices, forbid_ops)
     elif which == "feynman":
         if feynman_fpath is None:
-            feynman_fpath = os.path.join(os.path.dirname(__file__), "data", "FeynmanEquations.csv")
+            feynman_fpath = os.path.join(os.path.dirname(__file__), 'FeynmanEquations.csv')
         if max(equation_indices) > 100 or min(equation_indices) < 1:
             raise ValueError("Feynman dataset numbering starts at 1 and goes up to 100.")
         equation_indices = set() if equation_indices is None else set(equation_indices)

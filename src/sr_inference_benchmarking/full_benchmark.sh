@@ -1,20 +1,13 @@
 #!/bin/bash
 
-#SBATCH -J simexp-agent
+#SBATCH -J simexpSR
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
-#SBATCH --cpus-per-task=4
-#SBATCH --gres=gpu:1
+#SBATCH --cpus-per-task=16
+#SBATCH --mem-per-cpu=32G
 #SBATCH --time=24:00:00
 #SBATCH --partition=lovelace
-#SBATCH --output=/cephfs/store/gr-mc2473/lc865/workspace/slurm-logs/sweeps/%x-%j.out
-
-if [ $# -eq 1 ]; then
-    echo "Error: No wandb sweep path or count provided. Usage: $0 <wandb_sweep_path> <count>"
-    exit 1
-fi
-SWEEP_PATH=$1
-COUNT=$2
+#SBATCH --output=/cephfs/store/gr-mc2473/lc865/workspace/benchmark_data/round1/%x-%j.out
 
 # Load environment (activate conda environment)
 source /cephfs/store/gr-mc2473/lc865/misc/condaforge/etc/profile.d/conda.sh
@@ -27,7 +20,8 @@ workdir="/home/lc865/workspace/similar-expressions"
 cd $workdir
 echo "Running in directory: `pwd`"
 
-CMD="srun wandb agent --count $COUNT $SWEEP_PATH"
+# Run the Python script using the options
+CMD="srun python src/sr_inference_benchmarking/full_benchmark.py"
 
 echo "Executing command: $CMD"
 eval $CMD
