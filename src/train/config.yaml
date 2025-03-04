@@ -30,13 +30,16 @@ training:
   wandb_settings:
     project: simexp-03 
   mode: autoencoding  # value_prediction, autoencoding, mixed, encoding
-  criterion:
+  loss:
     ae_weight: 1
-    kl_weight: 0
-    syntax_weight: 0.5
-    contrastive_weight: 3e-4
-    contrastive_scale: 1
-    similarity_threshold: 0.2
+    kl_weight: 0  # beta in beta-VAE
+    syntax_weight: 0.5  # Relative weighting between syntax and constants
+    contrastive:
+      mode: piecewise  # null, total, piecewise
+      dimensions: [0, 25]  # 25 intervals
+      weight: 1
+      scale: 1
+      similarity_threshold: 0.2
   value_transform:
     mapping: null  # [null, arcsinh]
     bias: null  # [null, dataset, sample]

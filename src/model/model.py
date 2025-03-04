@@ -76,23 +76,23 @@ class LitGVAE(L.LightningModule):
         
         return mean, ln_var, z, logits, values
     
-    def __call__(self, x: torch.Tensor, sample_eps: float, sample_count: int):
-        """
-        Comment this out when creating ONNX model. Causes error when not commenting out during training.
-        Used for final ONNX inference version.
+    # def __call__(self, x: torch.Tensor, sample_eps: float, sample_count: int):
+    #     """
+    #     Comment this out when creating ONNX model. Causes error when not commenting out during training.
+    #     Used for final ONNX inference version.
 
-        shapes
-        x: [batch_cnt, seq_len, token_cnt]
+    #     shapes
+    #     x: [batch_cnt, seq_len, token_cnt]
 
-        """
-        mean, ln_var = self.encoder(x)
-        mean = mean.repeat_interleave(sample_count, dim=0)
-        # ln_var = ln_var.repeat_interleave(sample_count, dim=0)
+    #     """
+    #     mean, ln_var = self.encoder(x)
+    #     mean = mean.repeat_interleave(sample_count, dim=0)
+    #     # ln_var = ln_var.repeat_interleave(sample_count, dim=0)
 
-        self.sampling_eps = sample_eps
-        z = self.sample(mean, torch.zeros_like(ln_var))  # Treating sampling radius as pure hyperparam
-        logits = self.decoder(z)
-        return logits
+    #     self.sampling_eps = sample_eps
+    #     z = self.sample(mean, torch.zeros_like(ln_var))  # Treating sampling radius as pure hyperparam
+    #     logits = self.decoder(z)
+    #     return logits
     
     def training_step(self, batch, batch_idx):
         x, y_syntax, y_consts, y_values = batch
