@@ -1,5 +1,7 @@
+import torch
 import torch.nn as nn
 from omegaconf.dictconfig import DictConfig
+from typing import Tuple
 
 from src.model.components import RectangularMLP, ResidualMLP
 
@@ -21,7 +23,7 @@ class Encoder(nn.Module):
         self.sigma = nn.Linear(self.hidden_size, cfg.z_size)
         self.softplus = nn.Softplus()
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Encode x into a mean and variance of a Normal.
 

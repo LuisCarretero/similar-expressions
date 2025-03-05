@@ -2,7 +2,7 @@ import math
 import torch
 from torch.nn import functional as F
 import os
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Callable
 from omegaconf.dictconfig import DictConfig
 from lightning.pytorch.callbacks import ModelCheckpoint, Callback
 from lightning.pytorch.callbacks.early_stopping import EarlyStopping
@@ -19,17 +19,11 @@ class AnnealKLSigmoid:
     def alpha(self, epoch: int) -> float:
         """
         Calculate the annealing factor using a sigmoid function.
-        
-        Args:
-            epoch (int): Current epoch number (0-indexed)
-        
-        Returns:
-            float: Annealing factor between 0 and 1
         """
         x = (epoch / self.total_epochs - self.midpoint) * self.steepness
         return 1 / (1 + math.exp(-x))
 
-def criterion_factory(cfg: DictConfig, priors: Dict):
+def criterion_factory(cfg: DictConfig, priors: Dict) -> Callable:
     """
     Factory function to create the criterion for the VAE.
     """
@@ -95,16 +89,17 @@ def criterion_factory(cfg: DictConfig, priors: Dict):
 
         # Contrastive loss
         if CONTRASTIVE_MODE is None or CONTRASTIVE_WEIGHT == 0:
-            loss_contrastive, stats = torch.tensor(0.0, device=z.device), {}
+            loss_contrastive, cl_stats = torch.tensor(0.0, device=z.device), {}
         elif CONTRASTIVE_MODE == 'total':
-            loss_contrastive, stats = contrastive_loss_total(z[:, z_slice[0]:z_slice[1]], y_val, SIMILARITY_THRESHOLD, CONTRASTIVE_SCALE)
+            loss_contrastive, cl_stats = contrastive_loss_total(z[:, z_slice[0]:z_slice[1]], y_val, SIMILARITY_THRESHOLD, CONTRASTIVE_SCALE)
         elif CONTRASTIVE_MODE == 'piecewise':
-            loss_contrastive, stats = contrastive_loss_piecewise(z[:, CONTRASTIVE_DIMS[0]:CONTRASTIVE_DIMS[1]], y_val, SIMILARITY_THRESHOLD, CONTRASTIVE_SCALE, CONTRASTIVE_DIMS)
+            loss_contrastive, cl_stats = contrastive_loss_piecewise(z[:, CONTRASTIVE_DIMS[0]:CONTRASTIVE_DIMS[1]], y_val, 
+                                                                    SIMILARITY_THRESHOLD, CONTRASTIVE_SCALE, CONTRASTIVE_DIMS)
 
         # Total loss
         loss = AE_WEIGHT*loss_vae + (1-AE_WEIGHT)*loss_values + CONTRASTIVE_WEIGHT*loss_contrastive
 
-        partial_losses = {
+        stats = {
             'loss_syntax': loss_syntax.item(),
             'loss_consts': loss_consts.item(),
             'loss_recon_ae': loss_reconstruction.item(),
@@ -114,36 +109,47 @@ def criterion_factory(cfg: DictConfig, priors: Dict):
             'loss_values': loss_values.item(),
             'loss_contrastive': loss_contrastive.item(),
             'loss': loss.item(),
-            **stats
+            **cl_stats
         }
 
-        return loss, partial_losses
+        return loss, stats
     return criterion
 
 def contrastive_loss_total(u: torch.Tensor, y_val: torch.Tensor, similarity_threshold: float, contrastive_scale: float) -> torch.Tensor:
     values_dist = torch.mean((y_val.unsqueeze(1) - y_val.unsqueeze(0))**2, dim=2)
     similarity_mask = values_dist < similarity_threshold
 
+    # TODO: Rm implicit sqrt in pairwise_distance. Can use squared L2 throughout.
     u_dist_L2 = F.pairwise_distance(u.unsqueeze(1), u.unsqueeze(0), p=2)  # L2 distance
-    loss_contrastive = torch.mean(similarity_mask * u_dist_L2**2 + (~similarity_mask) * (torch.clamp(contrastive_scale - u_dist_L2, min=0))**2)
-    # TODO: Make this invariant under absolute u scaling: /torch.mean(u**2)**2
+    loss_contrastive = torch.mean(similarity_mask * u_dist_L2**2 + (~similarity_mask) * (torch.clamp(contrastive_scale - u_dist_L2, min=0))**2)/torch.mean(u_dist_L2**2)
 
     stats = calc_contrastive_stats(similarity_mask, u_dist_L2)
     return loss_contrastive, stats
     
-def contrastive_loss_piecewise(u: torch.Tensor, y_val: torch.Tensor, similarity_threshold: float, contrastive_scale: float, dimensions: List[int]) -> torch.Tensor:
+def contrastive_loss_piecewise(
+    u: torch.Tensor, 
+    y_val: torch.Tensor, 
+    similarity_threshold: float, 
+    contrastive_scale: float, 
+    dimensions: List[int]
+) -> Tuple[torch.Tensor, Dict[str, float]]:
     """
-    Split y_val into ndim intervals and calculate similarity within each interval. Then apply contrastive loss to each interval and its corresponding latent space slice.
+    Split y_val into ndim intervals and calculate similarity within each interval. 
+    Then apply contrastive loss to each interval and its corresponding latent space slice.
     """
     ndim = dimensions[1] - dimensions[0]
     y_val = y_val.reshape(y_val.shape[0], ndim, -1)  # [batch_size, intervals, interval_size]
-    values_dist = torch.mean((y_val.unsqueeze(1) - y_val.unsqueeze(0))**2, dim=-1)
+    values_dist = torch.mean((y_val.unsqueeze(1) - y_val.unsqueeze(0))**2, dim=-1)  # Piecewise MSE between expressions
     similarity_mask = values_dist < similarity_threshold
     
     # Each distance only along one dimension so L2 reduces to scalar difference
     u_dist = torch.abs(u.unsqueeze(1) - u.unsqueeze(0))  # [batch_size, batch_size, udim]
-    u_dist_L2 = torch.norm(u_dist, p=2, dim=-1)
-    loss_contrastive_intervals = torch.mean(similarity_mask * u_dist**2 + (~similarity_mask) * (torch.clamp(contrastive_scale - u_dist, min=0))**2, dim=(0, 1))
+    u_dist_L2, u_dist_squared = torch.norm(u_dist, p=2, dim=-1), u_dist**2
+
+    loss_contrastive_intervals = torch.mean(
+        similarity_mask * u_dist_squared + (~similarity_mask) * (torch.clamp(contrastive_scale - u_dist, min=0))**2, 
+        dim=(0, 1)
+    ) / torch.mean(u_dist_squared)
     loss_contrastive = torch.mean(loss_contrastive_intervals)  # Mean over intervals
     
     stats = calc_contrastive_stats(similarity_mask, u_dist_L2, u_dist, loss_contrastive_intervals)
@@ -165,7 +171,7 @@ def calc_contrastive_stats(
         u_dist_simnotsame = u_dist[is_simnotsame][::int(is_simnotsame.numel()/1e5)]  # Only using about 1e5 elements to reduce resources
 
         # Stats per dimension. 
-        for i in torch.linspace(0, 25, interval_stats_cnt, dtype=int):
+        for i in torch.linspace(0, u_dist.shape[2]-1, interval_stats_cnt, dtype=int):
             u_dist_sim = (u_dist[:, :, i][is_simnotsame[:, :, i]]).mean()
             u_dist_dissim = (u_dist[:, :, i][~is_simnotsame[:, :, i]]).mean()
             u_dist_ratio = u_dist_dissim / u_dist_sim
@@ -178,7 +184,7 @@ def calc_contrastive_stats(
         u_dist_simnotsame = u_dist_L2[is_simnotsame][::int(is_simnotsame.numel()/1e5)]  # Only using about 1e5 elements to reduce resources
 
     if loss_contrastive_intervals is not None:
-        for i in torch.linspace(0, 25, interval_stats_cnt, dtype=int):
+        for i in torch.linspace(0, loss_contrastive_intervals.shape[0]-1, interval_stats_cnt, dtype=int):
             stats.update({f'loss_contrastive_intervals_{i}': loss_contrastive_intervals[i].item()})
 
     mean_dist_sim = torch.mean(u_dist_simnotsame)
@@ -204,15 +210,10 @@ def compute_latent_metrics(mean: torch.Tensor, ln_var: torch.Tensor) -> Dict[str
     """
     Compute metrics for the latent space.
     """
-    mean_norm = torch.norm(mean, dim=1).mean().item()
-    std_mean = ln_var.exp().sqrt().mean().item()
-
-    metrics = {
-        'mean_norm': mean_norm,
-        'std_mean': std_mean
+    return {
+        'mean_norm': torch.norm(mean, dim=1).mean().item(),
+        'std_mean': ln_var.exp().sqrt().mean().item()
     }
-
-    return metrics
 
 def calc_syntax_accuracy(logits: torch.Tensor, y_rule_idx: torch.Tensor) -> float:
     y_hat = logits.argmax(-1)
@@ -260,7 +261,7 @@ class MiscCallback(Callback):
                     trainer.logger.experiment.save(os.path.join(trainer.logger.experiment.dir, file),
                                                     base_path=trainer.logger.experiment.dir)
 
-def set_wandb_cache_dir(dir: str):
+def set_wandb_cache_dir(dir: str) -> None:
     """
     Not sure which ones are needed but better safe than sorry.
     """

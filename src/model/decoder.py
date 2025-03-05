@@ -12,13 +12,11 @@ class Decoder(nn.Module):
         super().__init__()
 
         self.z_slice, self.input_size = calc_zslice(cfg.value_decoder.z_slice, cfg.z_size)
-        self.hidden_size = cfg.decoder.size_hidden
-        self.architecture = cfg.decoder.architecture
         self.out_len, self.out_width = cfg.io_format.seq_len, cfg.io_format.token_cnt
 
-        if self.architecture == 'mlp-parameterized':
+        if cfg.decoder.architecture == 'mlp-parameterized':
             self.mlp = RectangularMLP(cfg.decoder.depth, cfg.decoder.width, self.input_size, self.out_len * self.out_width)
-        elif self.architecture == 'residual-parameterized':
+        elif cfg.decoder.architecture == 'residual-parameterized':
             self.mlp = ResidualMLP(cfg.decoder.depth, cfg.decoder.width, self.input_size, self.out_len * self.out_width)
         else:
             raise ValueError('Select architecture from [mlp-parameterized, residual-parameterized]')
