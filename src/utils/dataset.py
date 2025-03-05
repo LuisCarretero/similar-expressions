@@ -191,7 +191,7 @@ def create_dataloader(
     }
     info = {
         'hashes': hashes,
-        'min_value': values.min(),  # FIXME: Still needed? Esp if we use individual normalisation
+        'min_value': values.min(),
         'max_value': values.max(),
         'value_transform': value_transform,
         'dataset_name': name,

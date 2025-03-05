@@ -91,7 +91,7 @@ def logits_to_prods(
     j = 0  # Index of constant
     while len(stack) > 0:
         alpha = stack.pop()  # Alpha is notation in paper: current LHS token
-        mask = get_mask(alpha)  # FIXME: Don't use global constants?
+        mask = get_mask(alpha)
         probs = mask * logits_prods[t].exp()
         assert (tot := probs.sum()) > 0, f"Sum of probs is 0 at t={t}. Probably due to bad mask or invalid logits?"
         probs = probs / tot

@@ -23,7 +23,7 @@ model:
 
 training:
   batch_size: 512
-  epochs: 100
+  epochs: 50
   valid_split: 0.1
   dataset_name: dataset_250302_1
   dataset_len_limit: null
@@ -32,7 +32,7 @@ training:
   mode: autoencoding  # value_prediction, autoencoding, mixed, encoding
   loss:
     ae_weight: 1
-    kl_weight: 0  # beta in beta-VAE
+    kl_weight: 0.1  # beta in beta-VAE
     syntax_weight: 0.5  # Relative weighting between syntax and constants
     contrastive:
       mode: piecewise  # null, total, piecewise
@@ -55,7 +55,7 @@ training:
     scheduler_threshold: 2e-4
     scheduler_min_lr: 0
   early_stopping:
-    enabled: true
+    enabled: false
     min_delta: 0
     patience: 15
   performance_metric: valid/loss

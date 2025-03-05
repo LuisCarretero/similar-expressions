@@ -382,7 +382,7 @@ def plot_sample_distribution(val_x: Union[torch.Tensor, np.ndarray], values_true
             ax.plot(val_x, min_samples, label='sample min', color='orange', linestyle='--')
             ax.plot(val_x, max_samples, label='sample max', color='purple', linestyle='--')
 
-    ax.set_ylim(-10, 10)
+    # ax.set_ylim(-10, 10)
 
 
 def calc_and_plot_samples(model, x: torch.Tensor, values_true: torch.Tensor, n_samples: int, ax = None, mode='value', val_x=None, value_transform=None, var_multiplier=1, use_const_var=False):

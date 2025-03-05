@@ -205,12 +205,14 @@ def calc_contrastive_stats(
     })
     return stats
 
-def compute_latent_metrics(mean: torch.Tensor, ln_var: torch.Tensor) -> Dict[str, float]:
+def compute_latent_metrics(mean: torch.Tensor, ln_var: torch.Tensor, dimensions: List[int]) -> Dict[str, float]:
     """
     Compute metrics for the latent space.
     """
     return {
         'mean_norm': torch.norm(mean, dim=1).mean().item(),
+        'mean_norm_CL': torch.norm(mean[:, dimensions[0]:dimensions[1]], dim=1).mean().item(),
+        'mean_norm_nonCL': torch.norm(mean[:, dimensions[1]:], dim=1).mean().item(),
         'std_mean': ln_var.exp().sqrt().mean().item()
     }
 

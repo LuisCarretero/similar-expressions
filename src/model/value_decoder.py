@@ -3,7 +3,7 @@ import torch.nn as nn
 from omegaconf.dictconfig import DictConfig
 
 from src.utils.training import calc_zslice
-from src.model.components import build_rectengular_mlp, build_residual_mlp
+from src.model.components import RectangularMLP, ResidualMLP
 
 class ValueDecoder(nn.Module):
     def __init__(self, cfg: DictConfig):
@@ -16,9 +16,9 @@ class ValueDecoder(nn.Module):
         
         # Define the layers
         if self.architecture == 'mlp-parameterized':
-            self.lin = build_rectengular_mlp(cfg.value_decoder.depth, cfg.value_decoder.width, self.input_size, self.out_dim)
+            self.lin = RectangularMLP(cfg.value_decoder.depth, cfg.value_decoder.width, self.input_size, self.out_dim)
         elif self.architecture == 'residual-parameterized':
-            self.lin = build_residual_mlp(cfg.value_decoder.depth, cfg.value_decoder.width, self.input_size, self.out_dim)
+            self.lin = ResidualMLP(cfg.value_decoder.depth, cfg.value_decoder.width, self.input_size, self.out_dim)
         else:
             raise ValueError(f'Invalid value for `architecture`: {self.architecture}.'
                              ' Must be in [mlp-parameterized, residual-parameterized]')

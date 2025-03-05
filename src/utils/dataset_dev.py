@@ -41,7 +41,24 @@ def load_wandb_model(
     cfg = OmegaConf.merge(fallback_cfg, cfg)
     
     # Load the Lightning checkpoint
-    vae_model = LitGVAE.load_from_checkpoint(model_fname, cfg=cfg, priors=get_empty_priors(), map_location=device)
+    if True:  # Quickfix while transitioning to new model architecture
+        checkpoint = torch.load(model_fname, map_location=device)
+        # Rename keys to match new model structure
+        new_state_dict = {}
+        for k, v in checkpoint['state_dict'].items():
+            if 'encoder.mlp' in k or 'decoder.lin' in k:
+                parts = k.split('.')
+                new_key = f"{parts[0]}.mlp.net.{'.'.join(parts[2:])}"
+                new_state_dict[new_key] = v
+            else:
+                new_state_dict[k] = v
+        checkpoint['state_dict'] = new_state_dict
+        print(checkpoint['state_dict'].keys())
+        
+        vae_model = LitGVAE(cfg=cfg, priors=get_empty_priors()).to(device)
+        vae_model.load_state_dict(checkpoint['state_dict'])
+    else:
+        LitGVAE.load_from_checkpoint(model_fname, cfg=cfg, priors=get_empty_priors(), map_location=device)
     vae_model.eval()
 
     summary = ModelSummary(vae_model, max_depth=1)
