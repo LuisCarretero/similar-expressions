@@ -9,7 +9,7 @@ def single_forward():
     batch_size = 2  
 
     print('Loading config...')
-    cfg_path = 'src/model/config.yaml'
+    cfg_path = 'src/train/config.yaml'
     cfg = load_config(cfg_path)
 
     print('Initialising model...')
@@ -34,7 +34,7 @@ def single_training_step():
     batch_size = 2  
 
     print('Loading config...')
-    cfg_path = 'src/model/config.yaml'
+    cfg_path = 'src/train/config.yaml'
     cfg = load_config(cfg_path)
 
     print('Initialising model...')
@@ -58,7 +58,7 @@ def single_forward_backward():
     batch_size = 2  
 
     print('Loading config...')
-    cfg_path = 'src/model/config.yaml'
+    cfg_path = 'src/train/config.yaml'
     cfg = load_config(cfg_path)
 
     print('Initialising model...')
@@ -97,7 +97,7 @@ def single_forward_backward():
 
 def check_dataloader():
     print('Loading config...')
-    cfg_path = 'src/model/config.yaml'
+    cfg_path = 'src/train/config.yaml'
     cfg = load_config(cfg_path)
     cfg.training.dataset_len_limit = 1000
 
