@@ -29,20 +29,19 @@ def load_wandb_model(
     fallback_cfg_path: str = '/src/train/config.yaml'
 ) -> Tuple[LitGVAE, DictConfig]:
     
-    # Load model
     with wandb.restore(name, run_path=f"luis-carretero-eth-zurich/{project}/runs/{run}", root=wandb_cache_path, replace=replace) as io:
-        name = io.name
+        model_fname = io.name
 
     # Read the model parameters from the WandB config.yaml file
     with wandb.restore('config.yaml', run_path=f"luis-carretero-eth-zurich/{project}/runs/{run}", root=wandb_cache_path, replace=True) as config_file:
         cfg_dict = yaml.safe_load(config_file)
 
     cfg = OmegaConf.create({k: dict_lit2num(v['value']) for k, v in list(cfg_dict.items()) if k not in ['wandb_version', '_wandb']})
-    fallback_cfg = OmegaConf.load(fallback_cfg_path)  # FIXME: Combine into one method with load_config?
+    fallback_cfg = OmegaConf.load(fallback_cfg_path)
     cfg = OmegaConf.merge(fallback_cfg, cfg)
     
     # Load the Lightning checkpoint
-    vae_model = LitGVAE.load_from_checkpoint(name, cfg=cfg, priors=get_empty_priors(), map_location=device)
+    vae_model = LitGVAE.load_from_checkpoint(model_fname, cfg=cfg, priors=get_empty_priors(), map_location=device)
     vae_model.eval()
 
     summary = ModelSummary(vae_model, max_depth=1)

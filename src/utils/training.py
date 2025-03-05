@@ -28,7 +28,6 @@ def criterion_factory(cfg: DictConfig, priors: Dict) -> Callable:
     Factory function to create the criterion for the VAE.
     """
     AE_WEIGHT = cfg.training.loss.ae_weight
-    
     KL_WEIGHT = cfg.training.loss.kl_weight
     SYNTAX_WEIGHT = cfg.training.loss.syntax_weight
     ctx = cfg.training.loss.contrastive
@@ -119,9 +118,9 @@ def contrastive_loss_total(u: torch.Tensor, y_val: torch.Tensor, similarity_thre
     values_dist = torch.mean((y_val.unsqueeze(1) - y_val.unsqueeze(0))**2, dim=2)
     similarity_mask = values_dist < similarity_threshold
 
-    # TODO: Rm implicit sqrt in pairwise_distance. Can use squared L2 throughout.
     u_dist_L2 = F.pairwise_distance(u.unsqueeze(1), u.unsqueeze(0), p=2)  # L2 distance
-    loss_contrastive = torch.mean(similarity_mask * u_dist_L2**2 + (~similarity_mask) * (torch.clamp(contrastive_scale - u_dist_L2, min=0))**2)/torch.mean(u_dist_L2**2)
+    u_dist_squared = u_dist_L2**2
+    loss_contrastive = torch.mean(similarity_mask * u_dist_squared + (~similarity_mask) * (torch.clamp(contrastive_scale - u_dist_L2, min=0))**2)/torch.mean(u_dist_squared)
 
     stats = calc_contrastive_stats(similarity_mask, u_dist_L2)
     return loss_contrastive, stats
@@ -255,7 +254,6 @@ class MiscCallback(Callback):
 
     def on_train_end(self, trainer, pl_module):
         if isinstance(trainer.logger, WandbLogger) and trainer.is_global_zero:
-            # FIXME: Quickfix to make sure last checkpoint is saved.
             for file in os.listdir(trainer.logger.experiment.dir):
                 if file.endswith('.ckpt'):
                     trainer.logger.experiment.save(os.path.join(trainer.logger.experiment.dir, file),
