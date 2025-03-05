@@ -3,7 +3,7 @@ from omegaconf import OmegaConf
 from omegaconf.dictconfig import DictConfig
 
 
-def load_config(file_path: str, use_fallback: bool = False, fallback_cfg_path: str = 'config.yaml') -> DictConfig:
+def load_config(file_path: str, use_fallback: bool = False, fallback_cfg_path: str = 'src/train/config.yaml') -> DictConfig:
     # TODO: Add error handling, fallback values, etc.
     cfg = OmegaConf.load(file_path)
 

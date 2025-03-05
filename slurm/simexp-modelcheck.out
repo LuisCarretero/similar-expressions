@@ -1,0 +1,25 @@
+Running in directory: /home/lc865/workspace/similar-expressions
+Executing command: srun python -m src.dev.modelcheck
+Loading config...
+Initialising model...
+Creating dataloader...
+Getting batch...
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/mhome/damtp/q/lc865/workspace/similar-expressions/src/dev/modelcheck.py", line 116, in <module>
+    single_training_step()
+  File "/mhome/damtp/q/lc865/workspace/similar-expressions/src/dev/modelcheck.py", line 55, in single_training_step
+    gvae.training_step(batch, 0)
+  File "/mhome/damtp/q/lc865/workspace/similar-expressions/src/model/model.py", line 107, in training_step
+    step_metrics = {f'train/{k}': v for k, v in {**partial_losses, **latent_metrics, 'syntax_accuracy': syntax_accuracy, 'lr': self.lr_schedulers().get_last_lr()[0]}.items()}
+                                                                                                                               ^^^^^^^^^^^^^^^^^^^^
+  File "/cephfs/store/gr-mc2473/lc865/misc/condaforge/envs/ml/lib/python3.12/site-packages/lightning/pytorch/core/module.py", line 200, in lr_schedulers
+    if not self.trainer.lr_scheduler_configs:
+           ^^^^^^^^^^^^
+  File "/cephfs/store/gr-mc2473/lc865/misc/condaforge/envs/ml/lib/python3.12/site-packages/lightning/pytorch/core/module.py", line 218, in trainer
+    raise RuntimeError(f"{self.__class__.__qualname__} is not attached to a `Trainer`.")
+RuntimeError: LitGVAE is not attached to a `Trainer`.
+x.shape = torch.Size([2, 15, 12])
+Running training step...
+srun: error: sw-ada01: task 0: Exited with exit code 1

@@ -23,10 +23,10 @@ model:
 
 training:
   batch_size: 512
-  epochs: 100
+  epochs: 10
   valid_split: 0.1
-  dataset_name: dataset_250110_2
-  dataset_len_limit: null
+  dataset_name: dataset_250302_1
+  dataset_len_limit: 100_000
   wandb_settings:
     project: simexp-03 
   mode: autoencoding  # value_prediction, autoencoding, mixed, encoding

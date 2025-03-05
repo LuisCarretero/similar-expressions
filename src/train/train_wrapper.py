@@ -8,7 +8,7 @@ def exec_single_run():
     assert len(wandb.config.keys()) > 0, "Wandb config is empty. Script needs to be called via wandb agent."
 
     # Load default config
-    cfg = load_config('src/model/config.yaml')
+    cfg = load_config('src/train/config.yaml')
 
     # Update default config with sweep parameters (partial config with parameters that are sweeped over)
     update_cfg(cfg, wandb.config)
