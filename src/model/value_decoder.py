@@ -1,3 +1,4 @@
+import torch
 import torch.nn as nn
 from omegaconf.dictconfig import DictConfig
 
@@ -14,29 +15,15 @@ class ValueDecoder(nn.Module):
         self.architecture = cfg.value_decoder.architecture
         
         # Define the layers
-        if self.architecture == 'mlp-small':
-            self.lin = nn.Sequential(
-                nn.Linear(self.input_size, 256), nn.ReLU(),
-                nn.Linear(256, 256), nn.ReLU(),
-                nn.Linear(256, self.out_dim)
-            )
-        elif self.architecture == 'mlp-medium':
-            self.lin = nn.Sequential(
-                nn.Linear(self.input_size, 256), nn.ReLU(),
-                nn.Linear(256, 256), nn.ReLU(),
-                nn.Linear(256, 512), nn.ReLU(),
-                nn.Linear(512, 512), nn.ReLU(),
-                nn.Linear(512, self.out_dim)
-            )
-        elif self.architecture == 'mlp-parameterized':
+        if self.architecture == 'mlp-parameterized':
             self.lin = build_rectengular_mlp(cfg.value_decoder.depth, cfg.value_decoder.width, self.input_size, self.out_dim)
         elif self.architecture == 'residual-parameterized':
             self.lin = build_residual_mlp(cfg.value_decoder.depth, cfg.value_decoder.width, self.input_size, self.out_dim)
         else:
             raise ValueError(f'Invalid value for `architecture`: {self.architecture}.'
-                             ' Must be in [small, medium, large]')
+                             ' Must be in [mlp-parameterized, residual-parameterized]')
     
-    def forward(self, z):
+    def forward(self, z: torch.Tensor) -> torch.Tensor:
         # Get relevant part of latent space
         u = z[:, self.z_slice[0]:self.z_slice[1]]
 
