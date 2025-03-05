@@ -124,11 +124,11 @@ def contrastive_loss_total(u: torch.Tensor, y_val: torch.Tensor, similarity_thre
     values_dist = torch.mean((y_val.unsqueeze(1) - y_val.unsqueeze(0))**2, dim=2)
     similarity_mask = values_dist < similarity_threshold
 
-    u_dist = F.pairwise_distance(u.unsqueeze(1), u.unsqueeze(0), p=2)  # L2 distance
-    loss_contrastive = torch.mean(similarity_mask * u_dist**2 + (~similarity_mask) * (torch.clamp(contrastive_scale - u_dist, min=0))**2)
+    u_dist_L2 = F.pairwise_distance(u.unsqueeze(1), u.unsqueeze(0), p=2)  # L2 distance
+    loss_contrastive = torch.mean(similarity_mask * u_dist_L2**2 + (~similarity_mask) * (torch.clamp(contrastive_scale - u_dist_L2, min=0))**2)
     # TODO: Make this invariant under absolute u scaling: /torch.mean(u**2)**2
 
-    stats = calc_stats_contrastive(u, similarity_mask, u_dist)
+    stats = calc_contrastive_stats(similarity_mask, u_dist_L2)
     return loss_contrastive, stats
     
 def contrastive_loss_piecewise(u: torch.Tensor, y_val: torch.Tensor, similarity_threshold: float, contrastive_scale: float, dimensions: List[int]) -> torch.Tensor:
@@ -141,36 +141,64 @@ def contrastive_loss_piecewise(u: torch.Tensor, y_val: torch.Tensor, similarity_
     similarity_mask = values_dist < similarity_threshold
     
     # Each distance only along one dimension so L2 reduces to scalar difference
-    u_dist = u.unsqueeze(1) - u.unsqueeze(0)  # [batch_size, batch_size, udim]
+    u_dist = torch.abs(u.unsqueeze(1) - u.unsqueeze(0))  # [batch_size, batch_size, udim]
     u_dist_L2 = torch.norm(u_dist, p=2, dim=-1)
     loss_contrastive_intervals = torch.mean(similarity_mask * u_dist**2 + (~similarity_mask) * (torch.clamp(contrastive_scale - u_dist, min=0))**2, dim=(0, 1))
     loss_contrastive = torch.mean(loss_contrastive_intervals)  # Mean over intervals
     
-    stats = calc_stats_contrastive(u, similarity_mask, u_dist_L2)
-    stats['loss_contrastive_intervals'] = loss_contrastive_intervals.item()
+    stats = calc_contrastive_stats(similarity_mask, u_dist_L2, u_dist, loss_contrastive_intervals)
     
     return loss_contrastive, stats
 
-def calc_stats_contrastive(u: torch.Tensor, similarity_mask: torch.Tensor, u_dist: torch.Tensor) -> Dict[str, float]:
-    # Stats for debug
-    sim_notsame = similarity_mask & (True^torch.eye(similarity_mask.shape[0], device=similarity_mask.device, dtype=torch.bool))
-    u_dist_simnotsame = u_dist[sim_notsame]
+def calc_contrastive_stats(
+    similarity_mask: torch.Tensor, 
+    u_dist_L2: torch.Tensor, 
+    u_dist: torch.Tensor = None, 
+    loss_contrastive_intervals: torch.Tensor = None,
+    interval_stats_cnt: int = 4
+) -> Dict[str, float]:
+    stats = {}
+
+    if u_dist is not None:  # Pairwise distance for each dimension seperately
+        is_simnotsame = similarity_mask & \
+            (True^torch.eye(similarity_mask.shape[0], device=similarity_mask.device, dtype=torch.bool)).unsqueeze(-1)
+        u_dist_simnotsame = u_dist[is_simnotsame][::int(is_simnotsame.numel()/1e5)]  # Only using about 1e5 elements to reduce resources
+
+        # Stats per dimension. 
+        for i in torch.linspace(0, 25, interval_stats_cnt, dtype=int):
+            u_dist_sim = (u_dist[:, :, i][is_simnotsame[:, :, i]]).mean()
+            u_dist_dissim = (u_dist[:, :, i][~is_simnotsame[:, :, i]]).mean()
+            u_dist_ratio = u_dist_dissim / u_dist_sim
+            stats.update({f'u_dist_sim_{i}': u_dist_sim.item(), 
+                          f'u_dist_dissim_{i}': u_dist_dissim.item(), 
+                          f'u_dist_ratio_{i}': u_dist_ratio.item()})
+    else:
+        is_simnotsame = similarity_mask & \
+            (True^torch.eye(similarity_mask.shape[0], device=similarity_mask.device, dtype=torch.bool))
+        u_dist_simnotsame = u_dist_L2[is_simnotsame][::int(is_simnotsame.numel()/1e5)]  # Only using about 1e5 elements to reduce resources
+
+    if loss_contrastive_intervals is not None:
+        for i in torch.linspace(0, 25, interval_stats_cnt, dtype=int):
+            stats.update({f'loss_contrastive_intervals_{i}': loss_contrastive_intervals[i].item()})
+
     mean_dist_sim = torch.mean(u_dist_simnotsame)
     if u_dist_simnotsame.numel() > 0:
         mean_dist_top_quartile_sim = torch.quantile(u_dist_simnotsame, 0.75)
         mean_dist_bottom_quartile_sim = torch.quantile(u_dist_simnotsame, 0.25)
     else:
-        mean_dist_top_quartile_sim = torch.tensor(float('nan'), device=u.device)
-        mean_dist_bottom_quartile_sim = torch.tensor(float('nan'), device=u.device)
+        mean_dist_top_quartile_sim = torch.tensor(float('nan'))
+        mean_dist_bottom_quartile_sim = torch.tensor(float('nan'))
     mean_dist_dissim = torch.mean(u_dist[~similarity_mask])
-    
-    return {
-        'mean_dist_sim': mean_dist_sim.item(),
-        'mean_dist_dissim': mean_dist_dissim.item(),
-        'mean_dist_top_quartile_sim': mean_dist_top_quartile_sim.item(),
-        'mean_dist_bottom_quartile_sim': mean_dist_bottom_quartile_sim.item(),
-        'dist_ratio': mean_dist_dissim.item() / mean_dist_sim.item()
-    }
+
+    stats.update({
+        'L2_dist_sim': mean_dist_sim.item(),
+        'L2_dist_dissim': mean_dist_dissim.item(),
+        'L2_dist_ratio': (mean_dist_dissim / mean_dist_sim).item(),
+        'L2_dist_top_quartile_sim': mean_dist_top_quartile_sim.item(),
+        'L2_dist_bottom_quartile_sim': mean_dist_bottom_quartile_sim.item(),
+        'sim_ratio': (is_simnotsame.sum()/is_simnotsame.numel()).item(),
+    })
+    return stats
 
 def compute_latent_metrics(mean: torch.Tensor, ln_var: torch.Tensor) -> Dict[str, float]:
     """
