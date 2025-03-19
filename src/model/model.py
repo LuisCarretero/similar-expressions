@@ -108,7 +108,7 @@ class LitGVAE(L.LightningModule):
         loss, partial_losses = self.criterion(logits, values, y_syntax, y_consts, y_values, kl, alpha, z)
 
         # Compute metrics   
-        latent_metrics = compute_latent_metrics(mean, ln_var, self.cfg.training.contrastive.dimensions)
+        latent_metrics = compute_latent_metrics(mean, ln_var, self.cfg.training.loss.contrastive.dimensions)
         syntax_accuracy = calc_syntax_accuracy(logits, y_syntax)
 
         # Merge and sum up metrics
@@ -130,7 +130,7 @@ class LitGVAE(L.LightningModule):
         loss, partial_losses = self.criterion(logits, values, y_syntax, y_consts, y_values, kl, alpha, z)
 
         # Compute metrics   
-        latent_metrics = compute_latent_metrics(mean, ln_var)
+        latent_metrics = compute_latent_metrics(mean, ln_var, self.cfg.training.loss.contrastive.dimensions)
         syntax_accuracy = calc_syntax_accuracy(logits, y_syntax)
 
         # Merge and sum up metrics
