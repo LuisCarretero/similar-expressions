@@ -9,10 +9,12 @@ import torch
 from omegaconf import OmegaConf
 
 from src.model.model import LitGVAE
-from src.model.util import load_config, set_wandb_cache_dir, create_callbacks
-from src.model.data_util import create_dataloader, calc_priors_and_means, summarize_dataloaders
+from src.utils.dataset import create_dataloader, calc_priors_and_means, summarize_dataloaders
+from src.utils.training import set_wandb_cache_dir, create_callbacks
+from src.utils.config import load_config
 
 seed_everything(42, workers=True, verbose=False)
+
 
 def train_model(cfg, data_path, overwrite_device_count=None, overwrite_strategy=None):
     # Set wandb logging dir
@@ -70,11 +72,6 @@ def train_model(cfg, data_path, overwrite_device_count=None, overwrite_strategy=
 
 
 if __name__ == '__main__':
-    data_path = ['/cephfs/store/gr-mc2473/lc865/workspace/data', '/Users/luis/Desktop/Cranmer2024/Workplace/smallMutations/similar-expressions/data'][0]
-
-    cfg = load_config('src/model/config.yaml')
-    train_model(cfg, data_path)  # dataset_241008_1, dataset_240910_1, dataset_240822_1, dataset_241204_2
-
-
-
-
+    data_path = '/cephfs/store/gr-mc2473/lc865/workspace/data'
+    cfg = load_config('src/train/config.yaml')
+    train_model(cfg, data_path)

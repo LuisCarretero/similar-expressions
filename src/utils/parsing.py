@@ -1,14 +1,17 @@
 import torch
+import numpy as np
 from nltk import Nonterminal
 from nltk.grammar import Production
-
 from torch.distributions import Categorical
 from typing import List, Tuple, Literal
 import sympy as sp
 from sympy.utilities.lambdify import lambdify
 
-from src.model.grammar import get_mask, S, GCFG
-from src.model.util import Stack
+from src.utils.grammar import get_mask, NT, GCFG
+
+CUSTOM_FUNCTIONS = {
+    'zero_sqrt': lambda x: np.sqrt(np.maximum(x, 0)),  # Safe sqrt that returns 0 for negative inputs
+}
 
 OPERATOR_ARITY = {
     # Elementary functions
@@ -19,6 +22,7 @@ OPERATOR_ARITY = {
     "POW": 2,
     "INV": 1,
     "SQRT": 1,
+    "ZERO_SQRT": 1,  # Custom safe sqrt
     "EXP": 1,
     "LN": 1,
     "ABS": 1,
@@ -29,9 +33,9 @@ OPERATOR_ARITY = {
     "TAN": 1,
 
     # Trigonometric Inverses
-    "asin": 1,
-    "acos": 1,
-    "atan": 1,
+    "ASIN": 1,
+    "ACOS": 1,
+    "ATAN": 1,
 
     # Hyperbolic Functions
     "SINH": 1,
@@ -39,11 +43,14 @@ OPERATOR_ARITY = {
     "TANH": 1,
     "COTH": 1,
 }
+
 OPERATORS = OPERATOR_ARITY.keys()
 UNARY_OP_TOKENS  = [k for k, v in OPERATOR_ARITY.items() if v == 1]
 
-def prods_to_prefix(prods, to_string=False):
-    """Takes a list of productions and a list of constants and returns a string representation of the equation."""
+def prods_to_prefix(prods, to_string=False, require_no_nonterminals=True):
+    """
+    Takes a list of productions and a list of constants and returns a string representation of the equation.
+    """
     seq = [prods[0].lhs()]  # Start with LHS of first rule (always nonterminal start)
     for prod in prods:
         if str(prod.lhs()) == 'Nothing':  # Padding rule. Reached end.
@@ -52,6 +59,7 @@ def prods_to_prefix(prods, to_string=False):
             if s == prod.lhs():
                 seq = seq[:ix] + list(prod.rhs()) + seq[ix+1:]  # Replace LHS with RHS
                 break
+
     if to_string:
         try:
             return ' '.join(seq)
@@ -59,10 +67,21 @@ def prods_to_prefix(prods, to_string=False):
             print(f'Error. Could not create equation from {seq = }; {prods = }')
             return ''
     else:
+        if require_no_nonterminals:
+            assert not any(isinstance(s, Nonterminal) for s in seq), f'Found nonterminals in sequence: {seq}'
         return seq
 
-def logits_to_prods(logits, start_symbol: Nonterminal = S, sample=False, max_length=15, insert_const=True, const_token='CON', replace_const: Literal['numerical', 'placeholder', 'nothing', 'numerical_rounded'] = 'numerical', round_const_decimals=2):
-    stack = Stack(start_symbol)
+def logits_to_prods(
+    logits, 
+    start_symbol: Nonterminal = NT, 
+    sample=False, 
+    max_length=15, 
+    insert_const=True, 
+    const_token='CON', 
+    replace_const: Literal['numerical', 'placeholder', 'nothing', 'numerical_rounded'] = 'numerical', 
+    round_const_decimals=2
+) -> List[Production]:
+    stack = [start_symbol]
 
     logits_prods = logits[:, :-1]
     constants = logits[:, -1]
@@ -70,10 +89,10 @@ def logits_to_prods(logits, start_symbol: Nonterminal = S, sample=False, max_len
     prods = []
     t = 0  # "Time step" in sequence
     j = 0  # Index of constant
-    while stack.nonempty:
+    while len(stack) > 0:
         alpha = stack.pop()  # Alpha is notation in paper: current LHS token
-        mask = get_mask(alpha)  # FIXME: Don't use global constants?
-        probs = torch.tensor(mask) * logits_prods[t].exp()
+        mask = get_mask(alpha)
+        probs = mask * logits_prods[t].exp()
         assert (tot := probs.sum()) > 0, f"Sum of probs is 0 at t={t}. Probably due to bad mask or invalid logits?"
         probs = probs / tot
 
@@ -105,7 +124,7 @@ def logits_to_prods(logits, start_symbol: Nonterminal = S, sample=False, max_len
         # add rhs nonterminals to stack in reversed order
         for symbol in reversed(rule.rhs()):
             if isinstance(symbol, Nonterminal):
-                stack.push(symbol)
+                stack.append(symbol)
         t += 1
         if t == max_length:
             break
@@ -196,17 +215,17 @@ def _prefix_to_infix(expr: List[str], variables=None) -> Tuple[str, List[str]]:
         return str(val), expr[1:]
     
 def prefix_to_infix(expr: List[str], variables=['x1']) -> List[str]:
-    p, r = _prefix_to_infix(expr, variables)
-    if len(r) > 0:
-        raise Exception(f'Incorrect prefix expression "{expr}". "{r}" was not parsed.')
-    return p
+    infix_str, remainder = _prefix_to_infix(expr, variables)
+    if len(remainder) > 0:
+        raise Exception(f'Invalid prefix expression "{expr}". Successfully parsed "{infix_str}" but "{remainder}" is still remaining.')
+    return infix_str
 
 def logits_to_infix(logits, sample=False, replace_const='numerical', round_const_decimals=2):
     # FIXME: Add variables, GCFG pass-through
 
     assert len(logits.shape) == 2, "Logits should be 2D, no batch dimension"
     prods = logits_to_prods(logits, sample=sample, replace_const=replace_const, round_const_decimals=round_const_decimals)
-    prefix = prods_to_prefix(prods)
+    prefix = prods_to_prefix(prods, require_no_nonterminals=True)
     infix = prefix_to_infix(prefix, variables=['x1'])
     return infix
 
@@ -217,5 +236,17 @@ def eval_from_logits(logits, val_x):
     infix = logits_to_infix(logits)
     expr = sp.sympify(infix.lower())
 
-    func = lambdify(x1, expr, 'numpy') # returns a numpy-ready function
-    return func(val_x)
+    # Pass custom_functions as third argument
+    # Check for infinity or similar in expression
+    assert not expr.has(sp.zoo), f"Expression {expr} contains infinity"
+    func = lambdify(x1, expr, ('numpy', CUSTOM_FUNCTIONS))
+
+    with np.errstate(all='ignore'):
+        val_y = func(val_x)
+
+    if not isinstance(val_y, np.ndarray):
+        # sp.simpify simplifies expressions which may result in `expr` being a constant. 
+        # In this case calling func() simply returns this constant instead of a full numpy array
+        val_y = np.repeat(val_y, val_x.shape[0])
+
+    return val_y

@@ -23,20 +23,23 @@ model:
 
 training:
   batch_size: 512
-  epochs: 100
+  epochs: 50
   valid_split: 0.1
-  dataset_name: dataset_250110_2
+  dataset_name: dataset_250302_1
   dataset_len_limit: null
   wandb_settings:
     project: simexp-03 
   mode: autoencoding  # value_prediction, autoencoding, mixed, encoding
-  criterion:
+  loss:
     ae_weight: 1
-    kl_weight: 0
-    syntax_weight: 0.5
-    contrastive_weight: 3e-4
-    contrastive_scale: 1
-    similarity_threshold: 0.2
+    kl_weight: 0.1  # beta in beta-VAE
+    syntax_weight: 0.5  # Relative weighting between syntax and constants
+    contrastive:
+      mode: piecewise  # null, total, piecewise
+      dimensions: [0, 25]  # 25 intervals
+      weight: 1
+      scale: 1
+      similarity_threshold: 0.2
   value_transform:
     mapping: null  # [null, arcsinh]
     bias: null  # [null, dataset, sample]
@@ -52,7 +55,7 @@ training:
     scheduler_threshold: 2e-4
     scheduler_min_lr: 0
   early_stopping:
-    enabled: true
+    enabled: false
     min_delta: 0
     patience: 15
   performance_metric: valid/loss

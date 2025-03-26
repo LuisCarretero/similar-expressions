@@ -16,7 +16,7 @@ Scripts/files that need to be configured:
 - `src/model/train.py`: Training script that is called by `train_wrapper.py`. This contains the main training loop.
 
 - `src/sweeps/sweep_cfg.yaml`: Config file containing sweep parameters, schedule (e.g. grid search) and reference to `train_wrapper.py` script.
-- `src/model/config.yaml`: Default config file with non-sweep parameters.
+- `src/train/config.yaml`: Default config file with non-sweep parameters.
 
 """
 

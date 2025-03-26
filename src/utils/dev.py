@@ -7,7 +7,7 @@ from typing import Union
 from tqdm import tqdm
 from omegaconf.dictconfig import DictConfig
 
-from src.model.parsing import logits_to_infix, eval_from_logits
+from src.utils.parsing import logits_to_infix, eval_from_logits
 
 
 def calc_properties_and_partials(y_values: torch.Tensor):
@@ -382,7 +382,7 @@ def plot_sample_distribution(val_x: Union[torch.Tensor, np.ndarray], values_true
             ax.plot(val_x, min_samples, label='sample min', color='orange', linestyle='--')
             ax.plot(val_x, max_samples, label='sample max', color='purple', linestyle='--')
 
-    ax.set_ylim(-1, 1)
+    # ax.set_ylim(-10, 10)
 
 
 def calc_and_plot_samples(model, x: torch.Tensor, values_true: torch.Tensor, n_samples: int, ax = None, mode='value', val_x=None, value_transform=None, var_multiplier=1, use_const_var=False):
@@ -415,13 +415,13 @@ def calc_and_plot_samples(model, x: torch.Tensor, values_true: torch.Tensor, n_s
         
         values_neigh = torch.empty([n_samples, len(val_x)])
         
-        for i in tqdm(range(n_samples), desc='Evaluating neighbourhood, might take a while.'):
-            res_raw = eval_from_logits(logits_neigh[i, ...], val_x.squeeze())
+        for i in tqdm(range(n_samples)):
             try:
+                res_raw = eval_from_logits(logits_neigh[i, ...], val_x.squeeze())
                 res = res_raw.astype(np.float32)
-            except TypeError:
+            except (TypeError, AssertionError):
                 res = np.zeros_like(res_raw, dtype=np.float32)
-                print(f'Warning: Failed to decode logits {i}')
+                # print(f'Warning: Failed to decode logits {i}')
 
             values_neigh[i, ...] = value_transform(torch.tensor(res).unsqueeze(0)).squeeze()
         

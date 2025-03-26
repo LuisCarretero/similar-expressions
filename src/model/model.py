@@ -8,8 +8,8 @@ from torch.distributions import Normal
 from src.model.encoder import Encoder
 from src.model.decoder import Decoder
 from src.model.value_decoder import ValueDecoder
-from src.model.grammar import calc_grammar_mask, GRAMMAR_STR, create_masks_and_allowed_prod_idx
-from src.model.util import criterion_factory, AnnealKLSigmoid, compute_latent_metrics, calc_syntax_accuracy
+from src.utils.training import criterion_factory, AnnealKLSigmoid, compute_latent_metrics, calc_syntax_accuracy
+from src.utils.grammar import calc_grammar_mask, GRAMMAR_STR, create_masks_and_allowed_prod_idx
 
 
 class LitGVAE(L.LightningModule):
@@ -76,23 +76,23 @@ class LitGVAE(L.LightningModule):
         
         return mean, ln_var, z, logits, values
     
-    def __call__(self, x: torch.Tensor, sample_eps: float, sample_count: int):
-        """
-        Comment this out when creating ONNX model. Causes error when not commenting out during training.
-        Used for final ONNX inference version.
+    # def __call__(self, x: torch.Tensor, sample_eps: float, sample_count: int):
+    #     """
+    #     Comment this out when creating ONNX model. Causes error when not commenting out during training.
+    #     Used for final ONNX inference version.
 
-        shapes
-        x: [batch_cnt, seq_len, token_cnt]
+    #     shapes
+    #     x: [batch_cnt, seq_len, token_cnt]
 
-        """
-        mean, ln_var = self.encoder(x)
-        mean = mean.repeat_interleave(sample_count, dim=0)
-        # ln_var = ln_var.repeat_interleave(sample_count, dim=0)
+    #     """
+    #     mean, ln_var = self.encoder(x)
+    #     mean = mean.repeat_interleave(sample_count, dim=0)
+    #     # ln_var = ln_var.repeat_interleave(sample_count, dim=0)
 
-        self.sampling_eps = sample_eps
-        z = self.sample(mean, torch.zeros_like(ln_var))  # Treating sampling radius as pure hyperparam
-        logits = self.decoder(z)
-        return logits
+    #     self.sampling_eps = sample_eps
+    #     z = self.sample(mean, torch.zeros_like(ln_var))  # Treating sampling radius as pure hyperparam
+    #     logits = self.decoder(z)
+    #     return logits
     
     def training_step(self, batch, batch_idx):
         x, y_syntax, y_consts, y_values = batch
@@ -108,7 +108,7 @@ class LitGVAE(L.LightningModule):
         loss, partial_losses = self.criterion(logits, values, y_syntax, y_consts, y_values, kl, alpha, z)
 
         # Compute metrics   
-        latent_metrics = compute_latent_metrics(mean, ln_var)
+        latent_metrics = compute_latent_metrics(mean, ln_var, self.cfg.training.loss.contrastive.dimensions)
         syntax_accuracy = calc_syntax_accuracy(logits, y_syntax)
 
         # Merge and sum up metrics
@@ -130,7 +130,7 @@ class LitGVAE(L.LightningModule):
         loss, partial_losses = self.criterion(logits, values, y_syntax, y_consts, y_values, kl, alpha, z)
 
         # Compute metrics   
-        latent_metrics = compute_latent_metrics(mean, ln_var)
+        latent_metrics = compute_latent_metrics(mean, ln_var, self.cfg.training.loss.contrastive.dimensions)
         syntax_accuracy = calc_syntax_accuracy(logits, y_syntax)
 
         # Merge and sum up metrics

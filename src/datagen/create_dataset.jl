@@ -25,23 +25,23 @@ seq_len = 15
 save_transformed = true
 N = 60_000_000  # 20M -> 7.3M
 datapath = "/cephfs/store/gr-mc2473/lc865/workspace/data"
-name = "dataset_250110_2"
+name = "dataset_250302_1"
 max_procs = 41  # Number of workers + 1
 
-eval_x = reshape(collect(range(-10, 10, length=100)), (1, 100))
+eval_x = reshape(collect(range(0, 10, length=100)), (1, 100))
 filter_settings = FilterSettings(
-    max_abs_value=1e5,  # Used on original values, arcsinh(1e5) ~ 12
-    max_1st_deriv=2e2,  # Used on transformed values (everything afterwards)
-    max_2nd_deriv=2e2,
-    max_3rd_deriv=2e2,
-    max_4th_deriv=2e2,
-    min_range=1e-11,  # spacing of float64 for O(1) is 1e-16
+    max_abs_value=1e10,  # Used on original values, arcsinh(1e5) ~ 12
+    max_1st_deriv=1e10,  # Used on transformed values (everything afterwards)
+    max_2nd_deriv=1e10,
+    max_3rd_deriv=1e10,
+    max_4th_deriv=1e10,
+    min_range=0.0,  # spacing of float64 for O(1) is 1e-16
     filter_unique_skeletons=false,
     filter_unique_expressions=true,
     unique_expression_const_tol=3,  # digits of precision for considering two expressions to be the same
 )
 value_transform_settings = ValueTransformSettings(
-    mapping="arcsinh",
+    mapping=nothing,
     bias=nothing,
     scale=nothing
 )

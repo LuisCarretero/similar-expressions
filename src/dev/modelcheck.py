@@ -1,16 +1,15 @@
-from src.model.util import load_config
-from src.model.model import LitGVAE
-from src.model.data_util import get_empty_priors, create_dataloader
-
 from torch import randn
 import torch
+
+from src.utils.dataset import load_config, get_empty_priors, create_dataloader
+from src.model.model import LitGVAE
 
 
 def single_forward():
     batch_size = 2  
 
     print('Loading config...')
-    cfg_path = 'src/model/config.yaml'
+    cfg_path = 'src/train/config.yaml'
     cfg = load_config(cfg_path)
 
     print('Initialising model...')
@@ -35,7 +34,7 @@ def single_training_step():
     batch_size = 2  
 
     print('Loading config...')
-    cfg_path = 'src/model/config.yaml'
+    cfg_path = 'src/train/config.yaml'
     cfg = load_config(cfg_path)
 
     print('Initialising model...')
@@ -59,7 +58,7 @@ def single_forward_backward():
     batch_size = 2  
 
     print('Loading config...')
-    cfg_path = 'src/model/config.yaml'
+    cfg_path = 'src/train/config.yaml'
     cfg = load_config(cfg_path)
 
     print('Initialising model...')
@@ -98,7 +97,7 @@ def single_forward_backward():
 
 def check_dataloader():
     print('Loading config...')
-    cfg_path = 'src/model/config.yaml'
+    cfg_path = 'src/train/config.yaml'
     cfg = load_config(cfg_path)
     cfg.training.dataset_len_limit = 1000
 
