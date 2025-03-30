@@ -1,21 +1,15 @@
+# Similar Expressions Generator
 
-## Generative model to create algebraic expressions with similar semantics to use with Symbolic Regression
+A generative model project for creating algebraic expressions with similar semantics, primarily focused on symbolic regression applications.
 
+## Project Structure
+- `datagen/`: Data generation utilities
+- `dev/`: Development and testing code
+- `model/`: Core model implementation
+- `ONNX_conversion/`: ONNX model conversion utilities
+- `SR_benchmarking/`: Symbolic Regression benchmarking tools
+- `train/`: Training scripts and configurations
+- `utils/`: Helper utilities and common functions
 
-
-### Specification
-- Start univariate
-- Loss function: Based on evaluation of the expression uniform distribution of values over some range (will later add an actual dataset and noise)
-- Model architecture: Copy the grammar-vae architecture for now.
-
-
-### TODO
-- Create a dataset of expressions (with similar semantics)
-- Create max seq length (calc from tree size). Use padding token
-- 
-
-
-
-### Ideas
-- Use Numpy expand and similar to create equivalent expressions
-- Use methods from https://arxiv.org/pdf/1912.01412 to create better datasets
+## Project Overview
+This project implements a generative model to create algebraic expressions that maintain similar semantic meaning while having different syntactic structures. The generative model is based on grammar-VAE architecture principles.
