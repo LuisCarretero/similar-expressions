@@ -2,7 +2,7 @@ using Revise
 using SymbolicRegression
 using DynamicExpressions: parse_expression, Expression
 using SymbolicRegression.NeuralMutationsModule: zero_sqrt
-using SymbolicRegression.LoggerModule: init_logger, close_global_logger!
+using SymbolicRegression.NeuralLoggingModule: init_logger, close_global_logger!
 
 # ----- Create options
 
@@ -55,14 +55,14 @@ X = (rand(2, 1000) .- 0.5) .* 20
 y = X[1, :] .^ 3 .- 2 + 2 * cos.(X[2, :]) + sin.(X[1, :] .* X[2, :]) ./ 3
 
 # I.6.2b,3,f,exp(-((theta-theta1)/sigma)**2/2)/(sqrt(2*pi)*sigma),3,sigma,1,3,theta,1,3,theta1,1,3
-X = rand(3, 1000) .* 10
-X[1:2, :] .= (X[1:2, :] .- 5)
-y = 1 ./ (sqrt(2 * pi) .* X[3, :]) .* exp.(-((X[1, :] .- X[2, :]) ./ X[3, :]) .^ 2 / 2)
+# X = rand(3, 1000) .* 10
+# X[1:2, :] .= (X[1:2, :] .- 5)
+# y = 1 ./ (sqrt(2 * pi) .* X[3, :]) .* exp.(-((X[1, :] .- X[2, :]) ./ X[3, :]) .^ 2 / 2)
 
 init_logger("/Users/luis/Desktop/Cranmer2024/Workplace/smallMutations/similar-expressions/src/dev/SR_loss_logging/logs")
 
 hall_of_fame = equation_search(
-    X, y, niterations=4, options=options,
+    X, y, niterations=1, options=options,
     parallelism=:multithreading
 );
 
