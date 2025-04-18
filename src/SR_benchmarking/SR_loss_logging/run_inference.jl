@@ -28,8 +28,8 @@ options = Options(
         max_resamples=127,
         sample_batchsize=32,
         sample_logits=false,
-        log_subtree_strings=true,
-        subtree_max_features=2
+        log_subtree_strings=false,
+        subtree_max_features=1
     ),
     mutation_weights=MutationWeights(
         mutate_constant = 0.0353,
@@ -62,7 +62,7 @@ y = X[1, :] .^ 3 .- 2 + 2 * cos.(X[2, :]) + sin.(X[1, :] .* X[2, :]) ./ 3
 init_logger("/Users/luis/Desktop/Cranmer2024/Workplace/smallMutations/similar-expressions/src/dev/SR_loss_logging/logs")
 
 hall_of_fame = equation_search(
-    X, y, niterations=1, options=options,
+    X, y, niterations=4, options=options,
     parallelism=:multithreading
 );
 
