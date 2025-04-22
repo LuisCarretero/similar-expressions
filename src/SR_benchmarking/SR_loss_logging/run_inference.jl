@@ -59,7 +59,7 @@ y = X[1, :] .^ 3 .- 2 + 2 * cos.(X[2, :]) + sin.(X[1, :] .* X[2, :]) ./ 3
 # X[1:2, :] .= (X[1:2, :] .- 5)
 # y = 1 ./ (sqrt(2 * pi) .* X[3, :]) .* exp.(-((X[1, :] .- X[2, :]) ./ X[3, :]) .^ 2 / 2)
 
-init_logger("/Users/luis/Desktop/Cranmer2024/Workplace/smallMutations/similar-expressions/src/dev/SR_loss_logging/logs")
+init_logger("/Users/luis/Desktop/Cranmer2024/Workplace/smallMutations/similar-expressions/src/SR_benchmarking/SR_loss_logging/logs")
 
 hall_of_fame = equation_search(
     X, y, niterations=4, options=options,
