@@ -15,7 +15,7 @@ options = Options(
         subtree_min_nodes=8,
         subtree_max_nodes=14,
         # model_path="/Users/luis/Desktop/Cranmer2024/Workplace/smallMutations/similar-expressions/src/dev/ONNX/onnx-models/model-$model_id.onnx",
-        model_path="/home/lc865/workspace/similar-expressions/src/dev/ONNX/onnx-models/model-$model_id.onnx",
+        model_path="/cephfs/home/lc865/workspace/similar-expressions/src/ONNX_conversion/onnx-models/model-$model_id.onnx",
         device="cuda",
         verbose=true,
         max_tree_size_diff=7,
@@ -46,7 +46,6 @@ options = Options(
         neural_mutate_tree = 0.0
     ),
 )
-
 
 ex = parse_expression(:((x1*x1 * x2 * 3) + cos(x2)*x1*2), operators=options.operators, variable_names=["x1", "x2"])
 # ex = parse_expression(:(y1*y1+y1-exp(y1)*cos(y1)+1.0), operators=options.operators, variable_names=["y1", "y2", "y3", "y4", "y5"])
@@ -196,3 +195,67 @@ for i in 1:100000
     raw_out = model(input)
     x_out = raw_out["276"][1, :, :]
 end
+
+"""
+
+# Settings depot paths for julia and juliaup
+export JULIA_DEPOT_PATH=/cephfs/store/gr-mc2473/lc865/misc/juliaup && export JULIAUP_DEPOT_PATH=/cephfs/store/gr-mc2473/lc865/misc/juliaup
+
+# Actual juliaup install (with default julia install)
+curl -fsSL https://install.julialang.org | sh
+customize installation -> /cephfs/store/gr-mc2473/lc865/misc/juliaup
+
+juliaup link 1.10 /cephfs/store/gr-mc2473/lc865/misc/juliaup/juliaup/julia_backup/julia-1.10.7+0.x64.linux.gnu/bin/julia
+juliaup link 1.11 /cephfs/store/gr-mc2473/lc865/misc/juliaup/juliaup/julia_backup/julia-1.11.2+0.x64.linux.gnu/bin/julia
+
+export JULIA_PROJECT=/cephfs/store/gr-mc2473/lc865/misc/juliaup/julia_packages/environments/v1.10
+
+# Permanent export
+echo 'export JULIA_DEPOT_PATH=/cephfs/store/gr-mc2473/lc865/misc/juliaup/julia_packages' >> ~/.bashrc
+echo 'export JULIAUP_DEPOT_PATH=/cephfs/store/gr-mc2473/lc865/misc/juliaup' >> ~/.bashrc
+echo 'export JULIA_PROJECT=/cephfs/store/gr-mc2473/lc865/misc/juliaup/julia_packages/environments/v1.10' >> ~/.bashrc
+
+
+## Settings up Julia env with CUDA and cuDNN --------------------
+
+dev /home/lc865/workspace/similar-expressions/SymbolicRegression
+import CUDA, cuDNN
+-> ] add CUDA cuDNN
+# Will throw some AtomixCUDAExt error but this can be ignored. The error should not appear once the steps below are followed
+
+# Run this to test model
+import CUDA
+CUDA.set_runtime_version!(v"12.6")
+
+import CUDA, cuDNN
+import ONNXRunTime as ORT
+
+model_id = "e51hcsb9-old"
+model_path="/home/lc865/workspace/similar-expressions/src/dev/ONNX/onnx-models/model-$model_id.onnx"
+model = ORT.load_inference(model_path, execution_provider=:cuda)
+
+x = rand(Float32, 15, 12)
+input = Dict("onnx::Flatten_0" => reshape(x, (1, size(x)...)), "sample_eps" => [0.01])
+output = model(input)
+
+] add Revise DynamicExpressions
+
+## Juliacall setup --------------------
+
+# export JULIA_EXECUTABLE=/cephfs/store/gr-mc2473/lc865/misc/juliaup/juliaup/julia_backup/julia-1.10.7+0.x64.linux.gnu/bin/julia
+# export PYTHON_JULIACALL_BINDIR=/cephfs/store/gr-mc2473/lc865/misc/juliaup/juliaup/julia-1.11.3+0.x64.linux.gnu/bin
+# export PYTHON_JULIACALL_BINDIR=/cephfs/store/gr-mc2473/lc865/misc/juliaup/juliaup/julia-1.10.7+0.x64.linux.gnu/bin
+
+Turns out that PYTHON_JULIACALL_BINDIR is not needed once JULIA_DEPOT_PATH and JULIAUP_DEPOT_PATH are specified. 
+Need to adjust "/cephfs/store/gr-mc2473/lc865/misc/condaforge/envs/ml/lib/python3.12/site-packages/juliacall/juliapkg.json" -> julia version and it will then automatically pick the correct one. There's also "/cephfs/store/gr-mc2473/lc865/misc/condaforge/envs/ml/lib/python3.12/site-packages/juliapkg/juliapkg.json" (I think that's the file name) which I also changed to 1.10.7 but this shouldn't have had an impact.
+
+pip install juliacall==0.9.23
+
+Somehow not able to change julia project from "/cephfs/store/gr-mc2473/lc865/misc/condaforge/envs/ml/julia_env". Will have to manually change to env of choice using jl.seval('using Pkg; Pkg.activate("/cephfs/store/gr-mc2473/lc865/misc/juliaup/julia_packages/environments/v1.10")').
+
+# Add conda to PATH
+export PATH="/cephfs/store/gr-mc2473/lc865/misc/condaforge/bin:$PATH"
+
+srun --gpus=1 -p lovelace --pty bash
+
+"""
