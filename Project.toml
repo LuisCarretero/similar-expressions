@@ -1,4 +1,9 @@
 [deps]
+CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 DynamicExpressions = "a40a106e-89c9-4ca8-8020-a735e8728b6b"
 Revise = "295af30f-e4ad-537b-8983-00126c2a3abe"
 SymbolicRegression = "8254be44-1295-4e6a-a16d-46603ac705cb"
+cuDNN = "02a925ec-e4fe-4b08-9a7e-0d78e3d38ccd"
+
+[extras]
+CUDA_Runtime_jll = "76a88914-d11a-5bdc-97e0-2f5a05c973a2"

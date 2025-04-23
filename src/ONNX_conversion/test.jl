@@ -58,6 +58,31 @@ stats = SymbolicRegression.NeuralMutationsModule.get_mutation_stats()
 dump(stats)
 
 
+######
+
+using Revise
+using SymbolicRegression
+using DynamicExpressions: parse_expression
+using SymbolicRegression.NeuralMutationsModule: zero_sqrt
+
+model_id = "e51hcsb9"
+options = Options(
+    binary_operators=[+, *, /, -],
+    unary_operators=[sin, cos, exp, zero_sqrt],
+    neural_options=NeuralOptions(
+        active=true,
+        model_path="/cephfs/home/lc865/workspace/similar-expressions/src/ONNX_conversion/onnx-models/model-$model_id.onnx",
+        device="cuda"
+    ),
+    mutation_weights=MutationWeights(neural_mutate_tree=1.0)
+)
+
+ex = parse_expression(:(x1*x1 + sin(x1)), operators=options.operators, variable_names=["x1"])
+SymbolicRegression.NeuralMutationsModule.neural_mutate_tree(ex, options)
+
+######
+
+
 SymbolicRegression.NeuralMutationsModule.reset_mutation_stats!()
 # Sample multiple
 ex_out = nothing
@@ -67,7 +92,9 @@ function mutate_multiple(ex, options, n)
     end
 end
 
-mutate_multiple(ex, options, 100)
+mutate_multiple(ex, options, 1000)
+stats = SymbolicRegression.NeuralMutationsModule.get_mutation_stats()
+dump(stats)
 
 
 # SymbolicRegression.NeuralMutationsModule.reset_mutation_stats!()
@@ -208,7 +235,7 @@ customize installation -> /cephfs/store/gr-mc2473/lc865/misc/juliaup
 juliaup link 1.10 /cephfs/store/gr-mc2473/lc865/misc/juliaup/juliaup/julia_backup/julia-1.10.7+0.x64.linux.gnu/bin/julia
 juliaup link 1.11 /cephfs/store/gr-mc2473/lc865/misc/juliaup/juliaup/julia_backup/julia-1.11.2+0.x64.linux.gnu/bin/julia
 
-export JULIA_PROJECT=/cephfs/store/gr-mc2473/lc865/misc/juliaup/julia_packages/environments/v1.10
+export JULIA_PROJECT=/cephfs/home/lc865/workspace/similar-expressions
 
 # Permanent export
 echo 'export JULIA_DEPOT_PATH=/cephfs/store/gr-mc2473/lc865/misc/juliaup/julia_packages' >> ~/.bashrc
