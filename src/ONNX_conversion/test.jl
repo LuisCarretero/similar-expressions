@@ -83,7 +83,7 @@ SymbolicRegression.NeuralMutationsModule.neural_mutate_tree(ex, options)
 ######
 
 
-SymbolicRegression.NeuralMutationsModule.reset_mutation_stats!()
+
 # Sample multiple
 ex_out = nothing
 function mutate_multiple(ex, options, n)
@@ -92,7 +92,8 @@ function mutate_multiple(ex, options, n)
     end
 end
 
-mutate_multiple(ex, options, 1000)
+SymbolicRegression.NeuralMutationsModule.reset_mutation_stats!()
+mutate_multiple(ex, options, 100)
 stats = SymbolicRegression.NeuralMutationsModule.get_mutation_stats()
 dump(stats)
 

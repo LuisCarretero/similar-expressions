@@ -1,3 +1,7 @@
+"""
+Dry run script to test the SR inference pipeline.
+"""
+
 using Revise
 using SymbolicRegression
 using DynamicExpressions: parse_expression, Expression

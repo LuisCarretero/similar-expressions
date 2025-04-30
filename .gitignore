@@ -11,3 +11,4 @@ onnx-models
 outputs
 .vscode
 julia-installer.sh
+pyjuliapkg
