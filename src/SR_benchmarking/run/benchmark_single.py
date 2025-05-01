@@ -76,7 +76,7 @@ def run_benchmark(n_runs=5):
         end
         return sum( (1000 .* (prediction .- dataset.y) ) .^ 2) / dataset.n
     end
-    """   
+    """
     early_stopping_condition = 1e-8
     model = PySRRegressor(
         niterations=40,
