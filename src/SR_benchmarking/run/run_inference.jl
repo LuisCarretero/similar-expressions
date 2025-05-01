@@ -6,7 +6,7 @@ using Revise
 using SymbolicRegression
 using DynamicExpressions: parse_expression, Expression
 using SymbolicRegression.NeuralMutationsModule: zero_sqrt
-using SymbolicRegression.NeuralLoggingModule: init_logger, close_global_logger!
+using SymbolicRegression.MutationLoggingModule: init_logger, close_global_logger!
 
 # ----- Create options
 
@@ -20,9 +20,9 @@ options = Options(
         sampling_eps=0.02,
         subtree_min_nodes=8,
         subtree_max_nodes=14,
-        model_path="/Users/luis/Desktop/Cranmer2024/Workplace/smallMutations/similar-expressions/src/ONNX_conversion/onnx-models/model-$model_id.onnx",
+        model_path="/cephfs/home/lc865/workspace/similar-expressions/onnx-models/model-$model_id.onnx",
         # model_path="/home/lc865/workspace/similar-expressions/src/dev/ONNX/onnx-models/model-$model_id.onnx",
-        device="cpu",  # "cuda"
+        device="cuda",  # "cuda"
         verbose=true,
         max_tree_size_diff=7,
         require_tree_size_similarity=true,
@@ -49,7 +49,7 @@ options = Options(
         optimize = 0.0,
         form_connection = 0.5,
         break_connection = 0.1,
-        neural_mutate_tree = 1.0
+        neural_mutate_tree = 0.0
     ),
 )
 # ----- Create data and run SR
@@ -63,7 +63,7 @@ y = X[1, :] .^ 3 .- 2 + 2 * cos.(X[2, :]) + sin.(X[1, :] .* X[2, :]) ./ 3
 # X[1:2, :] .= (X[1:2, :] .- 5)
 # y = 1 ./ (sqrt(2 * pi) .* X[3, :]) .* exp.(-((X[1, :] .- X[2, :]) ./ X[3, :]) .^ 2 / 2)
 
-init_logger("/Users/luis/Desktop/Cranmer2024/Workplace/smallMutations/similar-expressions/src/SR_benchmarking/SR_loss_logging/logs")
+init_logger("/cephfs/store/gr-mc2473/lc865/workspace/benchmark_data/round2")
 
 hall_of_fame = equation_search(
     X, y, niterations=4, options=options,

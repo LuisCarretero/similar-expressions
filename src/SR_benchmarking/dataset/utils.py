@@ -110,6 +110,12 @@ def load_datasets(
     fpath: str = None, 
     forbid_ops: Iterable[str] = None
 ) -> List[SyntheticDataset]:
+
+    if isinstance(equation_indices, int):
+        equation_indices = [equation_indices]
+    elif not isinstance(equation_indices, Iterable):
+        raise ValueError(f"Invalid equation_indices: {equation_indices}")
+
     if which == "synthetic":
         if equation_indices is None:
             equation_indices = range(0, 41)

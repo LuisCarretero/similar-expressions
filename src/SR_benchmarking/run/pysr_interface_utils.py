@@ -3,6 +3,7 @@ import numpy as np
 from typing import Dict, Union
 from numbers import Number
 
+
 def get_neural_mutation_stats() -> Dict[str, Union[Number, np.ndarray]]:
     """
     Get the mutation stats from the neural mutation module.
@@ -32,13 +33,21 @@ def summarize_stats_dict(stats: Dict[str, Union[Number, np.ndarray]]) -> Dict[st
     for k, v in stats.items():
         if isinstance(v, np.ndarray):
             try:
-                summary.update({
-                    f'{k}_mean': v.mean(),
-                    f'{k}_std': v.std(),
-                    f'{k}_ninvalid': len(v) - np.isfinite(v).sum()
-                })
+                if len(v) > 0:
+                    tmp = {
+                        f'{k}_mean': float(v.mean()),
+                        f'{k}_std': float(v.std()),
+                        f'{k}_ninvalid': int(len(v) - np.isfinite(v).sum())
+                    }
+                else:
+                    tmp = {
+                        f'{k}_mean': float('nan'),
+                        f'{k}_std': float('nan'),
+                        f'{k}_ninvalid': 0
+                    }
             except Exception as e:
                 print(f"Error summarizing key {k}: {e}")
+            summary.update(tmp)
         elif isinstance(v, Number):
             summary[k] = v
         else:  # String?
@@ -51,7 +60,7 @@ def print_summary_stats(stats: Dict[str, Union[Number, np.ndarray]]) -> None:
     for k, v in summary.items():
         print(f"{k}: {v}")
 
-def init_mutation_logger(log_dir: str) -> None:
+def init_mutation_logger(log_dir: str, prefix: str = 'mutations_') -> None:
     """
     Initialize the mutation logger which logs various statistics about each mutation
     happening during the course of the model fitting. Data is stored in memory and 
@@ -61,11 +70,11 @@ def init_mutation_logger(log_dir: str) -> None:
 
     Todo: Turn this into a context manager/object.
     """
-    pysr.julia_import.SymbolicRegression.NeuralLoggingModule.init_logger(log_dir)
+    pysr.julia_import.SymbolicRegression.MutationLoggingModule.init_logger(log_dir, prefix)
 
 def close_mutation_logger() -> None:
     """
     Close the mutation logger. Flushes any remaining data to the csv file. No data 
     will be logged after this function is called.
     """
-    pysr.julia_import.SymbolicRegression.NeuralLoggingModule.close_global_logger_b()
+    pysr.julia_import.SymbolicRegression.MutationLoggingModule.close_global_logger_b()

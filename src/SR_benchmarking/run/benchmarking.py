@@ -1,20 +1,21 @@
 from pysr import PySRRegressor, TensorBoardLoggerSpec
 import sys
 sys.path.append("/home/lc865/workspace/similar-expressions/src/sr_inference_benchmarking")
-from dataset import utils as dataset_utils
-from tqdm import trange
+
 import os
-from dataclasses import dataclass, asdict, field
+from dataclasses import dataclass, asdict
 from typing import Iterable
-from pysr_interface_utils import (
+import json
+
+from dataset import utils as dataset_utils
+from run.pysr_interface_utils import (
     init_mutation_logger, 
     close_mutation_logger, 
     get_neural_mutation_stats, 
     reset_neural_mutation_stats,
-    summarize_stats_dict,
-    print_summary_stats
+    summarize_stats_dict
 )
-import json
+
 
 # Model-specific settings
 
@@ -58,6 +59,10 @@ class ModelSettings:
     niterations: int = 40
     loss_function: str | None = None  # None for default loss
     early_stopping_condition: float = 0.0  # Loss threshold to stop training. Use =0.0 to deactivate
+    verbosity: int = 1
+    precision: int = 64
+    batching: bool = True
+    batch_size: int = 50
 
 # Run-specific settings
 
@@ -109,18 +114,14 @@ def init_pysr_model(
     logger_spec = TensorBoardLoggerSpec(
         log_dir='logs/run',  # Will be replaced during runs
         log_interval=10,  # Log every 10 iterations
+        overwrite=True
     )
 
     model = PySRRegressor(
         binary_operators=["+", "*", "-", "/"],
         unary_operators=["cos", "exp", "sin", "zero_sqrt(x) = x >= 0 ? sqrt(x) : zero(x)"],
         extra_sympy_mappings={"zero_sqrt": lambda x: x},  # TODO: Not using Sympy rn. Fix this.
-        precision=64,
-        verbosity=0,
-        batching=True,
-        batch_size=50,
         # Above settings should stay fixed.
-
         early_stop_condition=f"f(loss, complexity) = (loss < {model_settings.early_stopping_condition:e})",
         neural_options=neural_options_dict,
         logger_spec=logger_spec,
@@ -152,14 +153,14 @@ def run_single(
             which=dataset_settings.dataset_name,
             num_samples=dataset_settings.num_samples,
             noise=dataset_settings.noise,
-            equation_indices=dataset_settings.eq_idx,
+            equation_indices=[dataset_settings.eq_idx],
             forbid_ops=dataset_settings.forbid_ops,
-        )
+        )[0]
 
     # Setup logging directories
     model.logger_spec.log_dir = log_dir
     model.output_directory = log_dir
-    init_mutation_logger(log_dir)
+    init_mutation_logger(log_dir, prefix='mutations_')
     reset_neural_mutation_stats()
 
     # Run the model
@@ -177,24 +178,24 @@ def run_single(
 if __name__ == '__main__':
 
     model_settings = ModelSettings(
-        niterations=40,
+        niterations=10,
         early_stopping_condition=0.0
     )
 
     neural_options = NeuralOptions(
-        active=True,
+        active=False,
         model_path='/cephfs/home/lc865/workspace/similar-expressions/onnx-models/model-e51hcsb9.onnx',
         sampling_eps=0.05,
         subtree_min_nodes=3,
         subtree_max_nodes=10,
-        device='cuda',
+        device='cpu',
         verbose=False,
         max_resamples=100,
         sample_batchsize=32,
         max_tree_size_diff=5,
         require_tree_size_similarity=True
     )
-    mutation_weights = MutationWeights(weight_neural_mutate_tree=1.0)
+    mutation_weights = MutationWeights(weight_neural_mutate_tree=0.0)
 
     model = init_pysr_model(
         model_settings=model_settings,
@@ -208,7 +209,7 @@ if __name__ == '__main__':
         noise=0.0001,
         eq_idx=10
     )
-    log_dir = '/cephfs/store/gr-mc2473/lc865/workspace/benchmark_data/round2'
+    log_dir = '/cephfs/store/gr-mc2473/lc865/workspace/benchmark_data/round2/test1'
 
     run_single(
         model=model, 

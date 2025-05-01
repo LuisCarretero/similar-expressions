@@ -4,7 +4,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=16
-#SBATCH --mem-per-cpu=32G
+#SBATCH --mem-per-cpu=16G
 #SBATCH --time=24:00:00
 #SBATCH --partition=lovelace
 #SBATCH --output=/cephfs/store/gr-mc2473/lc865/workspace/benchmark_data/round1/%x-%j.out
