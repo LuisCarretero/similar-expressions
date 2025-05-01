@@ -60,7 +60,7 @@ def print_summary_stats(stats: Dict[str, Union[Number, np.ndarray]]) -> None:
     for k, v in summary.items():
         print(f"{k}: {v}")
 
-def init_mutation_logger(log_dir: str, prefix: str = 'mutations_') -> None:
+def init_mutation_logger(log_dir: str, prefix: str = 'mutations') -> None:
     """
     Initialize the mutation logger which logs various statistics about each mutation
     happening during the course of the model fitting. Data is stored in memory and 

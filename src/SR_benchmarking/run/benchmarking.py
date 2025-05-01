@@ -1,12 +1,9 @@
-from pysr import PySRRegressor, TensorBoardLoggerSpec
-import sys
-sys.path.append("/home/lc865/workspace/similar-expressions/src/sr_inference_benchmarking")
-
 import os
 from dataclasses import dataclass, asdict
 from typing import Iterable
 import json
 
+from pysr import PySRRegressor, TensorBoardLoggerSpec
 from dataset import utils as dataset_utils
 from run.pysr_interface_utils import (
     init_mutation_logger, 
@@ -113,8 +110,8 @@ def init_pysr_model(
 
     logger_spec = TensorBoardLoggerSpec(
         log_dir='logs/run',  # Will be replaced during runs
-        log_interval=10,  # Log every 10 iterations
-        overwrite=True
+        log_interval=1,  # Log every 10 iterations
+        overwrite='append'
     )
 
     model = PySRRegressor(
@@ -160,7 +157,8 @@ def run_single(
     # Setup logging directories
     model.logger_spec.log_dir = log_dir
     model.output_directory = log_dir
-    init_mutation_logger(log_dir, prefix='mutations_')
+    # log_dir = '/cephfs/store/gr-mc2473/lc865/workspace/benchmark_data/round2'
+    init_mutation_logger(log_dir, prefix='mutations')
     reset_neural_mutation_stats()
 
     # Run the model
@@ -178,24 +176,24 @@ def run_single(
 if __name__ == '__main__':
 
     model_settings = ModelSettings(
-        niterations=10,
+        niterations=4,
         early_stopping_condition=0.0
     )
 
     neural_options = NeuralOptions(
-        active=False,
+        active=True,
         model_path='/cephfs/home/lc865/workspace/similar-expressions/onnx-models/model-e51hcsb9.onnx',
         sampling_eps=0.05,
         subtree_min_nodes=3,
         subtree_max_nodes=10,
-        device='cpu',
+        device='cuda',
         verbose=False,
         max_resamples=100,
         sample_batchsize=32,
         max_tree_size_diff=5,
         require_tree_size_similarity=True
     )
-    mutation_weights = MutationWeights(weight_neural_mutate_tree=0.0)
+    mutation_weights = MutationWeights(weight_neural_mutate_tree=1.0)
 
     model = init_pysr_model(
         model_settings=model_settings,
@@ -209,7 +207,8 @@ if __name__ == '__main__':
         noise=0.0001,
         eq_idx=10
     )
-    log_dir = '/cephfs/store/gr-mc2473/lc865/workspace/benchmark_data/round2/test1'
+    log_dir = '/cephfs/store/gr-mc2473/lc865/workspace/benchmark_data/round2/test10'
+    os.makedirs(log_dir, exist_ok=False)
 
     run_single(
         model=model, 
