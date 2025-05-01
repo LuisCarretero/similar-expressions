@@ -1,10 +1,11 @@
-import dataset_utils
 from pysr import PySRRegressor, TensorBoardLoggerSpec
-from pysr_interface_utils import print_summary_stats, reset_mutation_stats, get_mutation_stats
 import os
 from tqdm import trange
 import time
 from omegaconf import OmegaConf
+
+from dataset import utils as dataset_utils
+from pysr_interface_utils import print_summary_stats, reset_mutation_stats, get_neural_mutation_stats
 
 def setup_model(cfg, use_neural=False):
     neural_options = dict(cfg.symbolic_regression.neural_options)
@@ -68,7 +69,7 @@ def run_benchmark(cfg, model, dataset, start_time, log_postfix):
         model.logger_spec.log_dir = run_log_dir
         reset_mutation_stats()
         model.fit(X, y)
-        print_summary_stats(get_mutation_stats())
+        print_summary_stats(get_neural_mutation_stats())
         
 def main(cfg):
     start_time = time.time()

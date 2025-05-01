@@ -5,6 +5,7 @@ import csv
 import os
 import pandas as pd
 
+
 @dataclass
 class SyntheticDataset:
     idx: int
@@ -17,7 +18,7 @@ class SyntheticDataset:
         return f'SyntheticDataset(idx={self.idx}, equation="{self.equation}", X={self.X.shape}, y={self.y.shape}, var_order={self.var_order})'
 
 
-# useful constants. Required for sample_equation -> eval(lambda ...) to work.
+# Useful constants. Required for sample_equation -> eval(lambda ...) to work.
 pi = np.pi
 cos = np.cos
 sin = np.sin
@@ -68,7 +69,10 @@ def sample_equation(equation: str, bounds: Dict[str, Tuple[str, Tuple[float, flo
 
     return X, y, var_order
 
-def sample_datasets(equations: List[Tuple[int, Tuple[str, Dict[str, Tuple[str, List[float]]]]]], num_samples: int, noise: float, add_extra_vars: bool) -> List[SyntheticDataset]:
+def sample_datasets(
+    equations: List[Tuple[int, Tuple[str, Dict[str, Tuple[str, List[float]]]]]], 
+    num_samples: int, noise: float, add_extra_vars: bool
+) -> List[SyntheticDataset]:
     """
     Dataset: [(idx, (equation, X, Y, var_order))]
     """
@@ -97,7 +101,15 @@ def sample(method: str, b: Tuple[float, float], num_samples: int):
     else:
         print("Invalid method")
 
-def load_datasets(which: str, num_samples: int, noise: float, equation_indices: Iterable[int] = None, add_extra_vars: bool = False, fpath: str = None, forbid_ops: Iterable[str] = None):
+def load_datasets(
+    which: str, # ['synthetic', 'feynman', 'pysr-difficult']
+    num_samples: int, 
+    noise: float, 
+    equation_indices: Iterable[int] = None, 
+    add_extra_vars: bool = False, 
+    fpath: str = None, 
+    forbid_ops: Iterable[str] = None
+) -> List[SyntheticDataset]:
     if which == "synthetic":
         if equation_indices is None:
             equation_indices = range(0, 41)
@@ -125,7 +137,9 @@ def load_datasets(which: str, num_samples: int, noise: float, equation_indices: 
 
     return sample_datasets(equations, num_samples, noise, add_extra_vars)
 
-def load_synthetic_equations(fpath: str, idx: Iterable[int], forbid_ops: Iterable[str] = None):
+def load_synthetic_equations(
+    fpath: str, idx: Iterable[int], forbid_ops: Iterable[str] | None = None
+) -> List[Tuple[int, Tuple[str, Dict[str, Tuple[str, List[float]]]]]]:
     EXPRESSIONS_RAW = pd.read_csv(fpath)['equation'].to_list()
     variable_distr = {f'y{j}': ('uniform', (1, 10)) for j in range(1, 6)}
     return [
@@ -134,7 +148,9 @@ def load_synthetic_equations(fpath: str, idx: Iterable[int], forbid_ops: Iterabl
         if forbid_ops is None or all(op not in EXPRESSIONS_RAW[i] for op in forbid_ops)
     ]
 
-def load_pysr_equations(fpath: str, idx: Iterable[int], forbid_ops: Iterable[str] = None):
+def load_pysr_equations(
+    fpath: str, idx: Iterable[int], forbid_ops: Iterable[str] | None = None
+) -> List[Tuple[int, Tuple[str, Dict[str, Tuple[str, List[float]]]]]]:
     EXPRESSIONS_RAW = pd.read_csv(fpath)['true_equation'].to_list()
     variable_distr = {f'x{j}': ('uniform', (1, 10)) for j in range(1, 6)}
     return [
@@ -143,9 +159,11 @@ def load_pysr_equations(fpath: str, idx: Iterable[int], forbid_ops: Iterable[str
         if forbid_ops is None or all(op not in EXPRESSIONS_RAW[i] for op in forbid_ops)
     ]
 
-def load_feynman_equations(fpath: str, skip_equations: Iterable[int] = None):
+def load_feynman_equations(
+    fpath: str, skip_equations: Iterable[int] = None
+) -> List[Tuple[int, Tuple[str, Dict[str, Tuple[str, List[float]]]]]]:
     """
-    From LaSR codebase.
+    From LaSR codebase. TODO: Rework and use Pandas instead of CSV.
     """
     dataset = []
     skip_equations = set() if skip_equations is None else set(skip_equations)
@@ -176,7 +194,9 @@ def load_feynman_equations(fpath: str, skip_equations: Iterable[int] = None):
     dataset.sort()
     return dataset
 
-def create_dataset_from_expression(expr: str, num_samples: int, noise: float):
+def create_dataset_from_expression(
+    expr: str, num_samples: int, noise: float
+) -> SyntheticDataset:
     eq_str = f'y = {expr}'
 
     # Extract variables x0-x9 from expression
