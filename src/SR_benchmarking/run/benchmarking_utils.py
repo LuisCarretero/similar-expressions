@@ -1,5 +1,5 @@
 import os
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, field
 from typing import Iterable
 import json
 
@@ -89,13 +89,22 @@ def create_LaSR_custom_loss():
     """
     return custom_loss
 
+# Dataclass to store package and it's hyperparams
+@dataclass
+class PackagedModel:
+    model: PySRRegressor
+    neural_options: NeuralOptions
+    mutation_weights: MutationWeights
+    model_settings: ModelSettings
+    model_args: dict = field(default_factory=dict)
+
 
 def init_pysr_model(
     model_settings: ModelSettings = ModelSettings(),
     mutation_weights: MutationWeights = MutationWeights(),
     neural_options: NeuralOptions = NeuralOptions(),
     model_args: dict = {}  # Additional arguments to pass to the model constructor. Only for quick debug/dev.
-) -> PySRRegressor:
+) -> PackagedModel:
     """
     Initialize the PySRRegressor model with the given configuration. Model can then be used to fit datasets 
     multiple times without having to re-initialize.
@@ -127,11 +136,37 @@ def init_pysr_model(
         **model_args
     )
 
-    return model
+    return PackagedModel(
+        model=model,
+        neural_options=neural_options,
+        mutation_weights=mutation_weights,
+        model_settings=model_settings,
+        model_args=model_args
+    )
 
+def save_run_metadata(
+    packaged_model: PackagedModel,
+    dataset_settings: DatasetSettings,
+    log_dir: str,
+) -> None:
+    """
+    Save the run metadata to the log directory.
+    """
 
+    metadata = {
+        'model_settings': asdict(packaged_model.model_settings),
+        'neural_options': asdict(packaged_model.neural_options),
+        'mutation_weights': asdict(packaged_model.mutation_weights),
+        'model_args': packaged_model.model_args,
+        'dataset_settings': asdict(dataset_settings),
+    }
+
+    # Save the model settings
+    with open(os.path.join(log_dir, 'run_metadata.json'), 'w') as f:
+        json.dump(metadata, f, indent=4)
+    
 def run_single(
-    model: PySRRegressor,
+    packaged_model: PackagedModel,
     dataset_settings: DatasetSettings,
     log_dir: str,
 ) -> None:
@@ -154,7 +189,11 @@ def run_single(
             forbid_ops=dataset_settings.forbid_ops,
         )[0]
 
+    model = packaged_model.model
+
     # Setup logging directories
+    os.makedirs(log_dir, exist_ok=False)
+    save_run_metadata(packaged_model, dataset_settings, log_dir)
     model.logger_spec.log_dir = log_dir
     model.output_directory = log_dir
     # log_dir = '/cephfs/store/gr-mc2473/lc865/workspace/benchmark_data/round2'
