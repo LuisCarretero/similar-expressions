@@ -174,6 +174,7 @@ def run_single(
     
 
 if __name__ == '__main__':
+    from pathlib import Path
 
     model_settings = ModelSettings(
         niterations=4,
@@ -207,7 +208,7 @@ if __name__ == '__main__':
         noise=0.0001,
         eq_idx=10
     )
-    log_dir = '/cephfs/store/gr-mc2473/lc865/workspace/benchmark_data/round2/test10'
+    log_dir = Path(__file__).parent / 'logs'
     os.makedirs(log_dir, exist_ok=False)
 
     run_single(
