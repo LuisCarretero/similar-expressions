@@ -12,8 +12,10 @@ def load_mutations_data(path_logdir: str) -> pd.DataFrame:
     Loads the mutations data from the given log directory and returns a dataframe of the mutations data.
     Each line in the dataframe corresponds to a single mutation executed during the SR run.
     """
-    fpath = next(Path(path_logdir).glob('mutations*.csv'))
-    return pd.read_csv(fpath)
+    fpath = list(Path(path_logdir).glob('mutations*.csv'))
+    if len(fpath) == 0:
+        raise FileNotFoundError(f"No mutations data found in {path_logdir}")
+    return pd.read_csv(fpath[0])
 
 def load_neural_stats(path_logdir: str) -> dict:
     """
