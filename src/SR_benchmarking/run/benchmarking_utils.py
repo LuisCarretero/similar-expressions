@@ -1,6 +1,6 @@
 import os
 from dataclasses import dataclass, asdict, field
-from typing import Iterable
+from typing import Iterable, Literal
 import json
 
 from pysr import PySRRegressor, TensorBoardLoggerSpec
@@ -37,7 +37,7 @@ class NeuralOptions:
     subtree_max_features: int = 10
 
 @dataclass
-class MutationWeights:
+class MutationWeights:  # TODO: Rm weight_ prefix
     weight_add_node: float = 2.47
     weight_insert_node: float = 0.0112
     weight_delete_node: float = 0.870
@@ -58,19 +58,19 @@ class ModelSettings:
     early_stopping_condition: float = 0.0  # Loss threshold to stop training. Use =0.0 to deactivate
     verbosity: int = 1
     precision: int = 64
-    batching: bool = True
+    batching: bool = False
     batch_size: int = 50
 
 # Run-specific settings
 
 @dataclass
 class DatasetSettings:
-    dataset_name: str = 'feynman'  # ['synthetic', 'feynman', 'pysr-difficult', 'custom']
+    dataset_name: Literal['synthetic', 'feynman', 'pysr-difficult', 'custom'] = 'feynman'
     num_samples: int = 2000
     noise: float = 0.0001
     eq_idx: int = 10
-    forbid_ops: Iterable[str] = None
-    custom_expr: str = None  # If dataset_name == 'custom', this is the expression to use.
+    forbid_ops: Iterable[str] | None = None
+    custom_expr: str | None = None  # If dataset_name == 'custom', this is the expression to use.
 
 
 def create_LaSR_custom_loss():
