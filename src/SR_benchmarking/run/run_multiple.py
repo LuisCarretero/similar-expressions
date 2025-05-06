@@ -17,6 +17,7 @@ def main(
     equations: List[int], 
     dataset: str, 
     log_dir: str,
+    niterations: int = 10,
     pysr_verbosity: int = 0,
 ) -> None:
     """
@@ -26,7 +27,7 @@ def main(
 
     # Model settings
     model_settings = ModelSettings(
-        niterations=10,
+        niterations=niterations,
         verbosity=pysr_verbosity,
     )
     neural_options = NeuralOptions(
@@ -61,12 +62,15 @@ def main(
             num_samples=2000,
             noise=1e-4,
         )
-
-        run_single(
-            model, 
-            dataset_settings,
-            log_dir=str(Path(log_dir) / f'{dataset}_eq{eq_idx}')
-        )
+        try:
+            run_single(
+                model, 
+                dataset_settings,
+                log_dir=str(Path(log_dir) / f'{dataset}_eq{eq_idx}')
+            )
+        except Exception as e:
+            print(f'[ERROR] Error running equation {eq_idx} from dataset {dataset}: {e}')
+            continue
 
 def str_to_list(s: str) -> List[int]:
     """
@@ -84,6 +88,7 @@ if __name__ == '__main__':
     parser.add_argument('--dataset', type=str, required=True)
     parser.add_argument('--log_dir', type=str, default='/cephfs/store/gr-mc2473/lc865/workspace/benchmark_data/variance_tests')
     parser.add_argument('--pysr_verbosity', type=int, default=0)
+    parser.add_argument('--niterations', type=int, default=10)
     args = parser.parse_args()
 
     main(
@@ -91,4 +96,5 @@ if __name__ == '__main__':
         dataset=args.dataset, 
         log_dir=args.log_dir,
         pysr_verbosity=args.pysr_verbosity,
+        niterations=args.niterations,
     )

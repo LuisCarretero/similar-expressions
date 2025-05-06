@@ -15,6 +15,8 @@ def load_mutations_data(path_logdir: str) -> pd.DataFrame:
     fpath = list(Path(path_logdir).glob('mutations*.csv'))
     if len(fpath) == 0:
         raise FileNotFoundError(f"No mutations data found in {path_logdir}")
+    if len(fpath) > 1:
+        print(f"Found multiple mutations data files in {path_logdir}, using the first one: {fpath[0]}")
     return pd.read_csv(fpath[0])
 
 def load_neural_stats(path_logdir: str) -> dict:
@@ -23,6 +25,8 @@ def load_neural_stats(path_logdir: str) -> dict:
     Note that these stats are summaries of the neural mutation process and not temporally resolved.
     """
     fpath = os.path.join(path_logdir, 'neural_stats.json')
+    if not os.path.exists(fpath):
+        raise FileNotFoundError(f"No neural stats found in {path_logdir}")
     with open(fpath, 'r') as f:
         dct = json.load(f)
     return dct
@@ -51,7 +55,7 @@ def load_tensorboard_data(log_dir: str) -> tuple[pd.DataFrame, pd.DataFrame]:
     df_scalars = scalar_events_to_df(event_tags['scalars'][0])
     for scalar_tag in event_tags['scalars'][1:]:
         new_df = scalar_events_to_df(scalar_tag)
-        df_scalars = pd.merge(df_scalars, new_df, on=['wall_time', 'step'], how='outer')
+        df_scalars = pd.merge(df_scalars, new_df, on=['timestamp', 'step'], how='outer')
 
     assert len(df_scalars) == df_scalars.step.nunique() == df_scalars.timestamp.nunique(), "Merged dataframe has duplicate times/steps"
     df_scalars['step'] = df_scalars['step'].astype(int)
@@ -73,7 +77,7 @@ def load_tensorboard_data(log_dir: str) -> tuple[pd.DataFrame, pd.DataFrame]:
         else:
             tag = '_'.join(tag.split('complexity=')[-1].split('/')[::-1])
 
-        return pd.DataFrame(tensors, columns=['wall_time', 'step', tag])
+        return pd.DataFrame(tensors, columns=['timestamp', 'step', tag])
 
     df_exprs = expr_tensor_events_to_df(event_tags['tensors'][0])
     for tensor_tag in event_tags['tensors'][1:]:

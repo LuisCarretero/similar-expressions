@@ -1,7 +1,8 @@
 import os
 from dataclasses import dataclass, asdict, field
-from typing import Iterable, Literal
+from typing import Iterable, Literal, Dict, Any
 import json
+import wandb
 
 from pysr import PySRRegressor, TensorBoardLoggerSpec
 from dataset import utils as dataset_utils
@@ -12,6 +13,7 @@ from run.pysr_interface_utils import (
     reset_neural_mutation_stats,
     summarize_stats_dict
 )
+from analysis.utils import load_tensorboard_data, load_mutations_data, load_neural_stats
 
 
 # Model-specific settings
@@ -148,7 +150,7 @@ def save_run_metadata(
     packaged_model: PackagedModel,
     dataset_settings: DatasetSettings,
     log_dir: str,
-) -> None:
+) -> Dict[str, Any]:
     """
     Save the run metadata to the log directory.
     """
@@ -164,15 +166,56 @@ def save_run_metadata(
     # Save the model settings
     with open(os.path.join(log_dir, 'run_metadata.json'), 'w') as f:
         json.dump(metadata, f, indent=4)
+
+    return metadata
+
+def log_run_data_to_wandb(
+    wandb_run,
+    log_dir: str,
+) -> None:
+    # General logs
+    df_scalars, _ = load_tensorboard_data(log_dir)
+
+    def get_prefixed_key(k: str) -> str:
+        if k.startswith('loss'):
+            return f'complexity_losses/{k}'
+        return k
+
+    for _, row in df_scalars.iterrows():
+        row = row.to_dict()
+        step = int(row['step'])
+        values = {get_prefixed_key(k): v for k, v in row.items() if k != 'step'}
+        wandb_run.log(values, step=step, commit=False)
+    wandb_run.log({}, commit=True)
+
+    # Mutation stats
+    df = load_mutations_data(log_dir)
+    df['loss_ratio'] = df['loss_after'] / df['loss_before']
+    for cat, mean in df[['mutation_type', 'TED']].groupby('mutation_type').TED.mean().round(2).items():
+        wandb_run.summary[f"mutation_stats/TED/{cat}"] = mean
+
+    category_col, value_col = 'mutation_type', 'loss_ratio'
+    threshold = 2
+    perc_loss_df = df[['mutation_type', 'loss_ratio']].groupby('mutation_type').apply(lambda x: (x < threshold).mean() * 100).round(1)['loss_ratio']
+    for cat, mean in perc_loss_df.items():
+        wandb_run.summary[f"mutation_stats/perc_<{threshold}/{cat}"] = mean
+
+    # Neural stats
+    MUTATE_KEYS = ['total_samples', 'tree_build_failures', 'tree_comparison_failures', 'encoding_failures', 'decoding_failures', 'expr_similarity_failures', 'orig_tree_eval_failures', 'new_tree_eval_failures', 'skeleton_not_novel', 'multivariate_decoding_attempts']
+
+    neural_stats = load_neural_stats(log_dir)
+    count_stats = {k: v for k, v in neural_stats.items() if k.split('_')[-1] not in ['mean', 'std', 'ninvalid']}
+    for k, v in count_stats.items():
+        group = "mutate" if k in MUTATE_KEYS else "sampling"
+        wandb_run.summary[f"neural_stats/{group}/{k}"] = float(v)
+
     
 def run_single(
     packaged_model: PackagedModel,
     dataset_settings: DatasetSettings,
     log_dir: str,
+    wandb_logging: bool = False,
 ) -> None:
-    # TODO: Update log dir AND output directory!
-    # output_directory=f'/cephfs/store/gr-mc2473/lc865/workspace/benchmark_data/round1/ckpts/{cfg.run_settings.run_prefix}',
-
     if dataset_settings.dataset_name == 'custom':
         assert dataset_settings.custom_expr is not None, "Custom expression is required for custom dataset."
         dataset = dataset_utils.create_dataset_from_expression(
@@ -193,10 +236,19 @@ def run_single(
 
     # Setup logging directories
     os.makedirs(log_dir, exist_ok=False)
-    save_run_metadata(packaged_model, dataset_settings, log_dir)
     model.logger_spec.log_dir = log_dir
     model.output_directory = log_dir
-    # log_dir = '/cephfs/store/gr-mc2473/lc865/workspace/benchmark_data/round2'
+    
+    # Init WandB run and save metadata
+    metadata = save_run_metadata(packaged_model, dataset_settings, log_dir)
+    if wandb_logging:
+        wandb_run = wandb.init(
+            project='simexp-SR',
+            config=metadata,
+            dir=log_dir,
+        )
+
+    # Reset/Init loggers
     init_mutation_logger(log_dir, prefix='mutations')
     reset_neural_mutation_stats()
 
@@ -210,6 +262,10 @@ def run_single(
     neural_stats = summarize_stats_dict(get_neural_mutation_stats())
     with open(os.path.join(log_dir, 'neural_stats.json'), 'w') as f:
         json.dump(neural_stats, f, indent=4)
+
+    if wandb_logging:
+        log_run_data_to_wandb(wandb_run, log_dir)
+        wandb.finish()
     
 
 if __name__ == '__main__':
