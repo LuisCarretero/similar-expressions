@@ -19,6 +19,7 @@ def main(
     log_dir: str,
     niterations: int = 10,
     pysr_verbosity: int = 0,
+    wandb_logging: bool = True,
 ) -> None:
     """
     Test the benchmarking utils.
@@ -66,7 +67,8 @@ def main(
             run_single(
                 model, 
                 dataset_settings,
-                log_dir=str(Path(log_dir) / f'{dataset}_eq{eq_idx}')
+                log_dir=str(Path(log_dir) / f'{dataset}_eq{eq_idx}'),
+                wandb_logging=wandb_logging,
             )
         except Exception as e:
             print(f'[ERROR] Error running equation {eq_idx} from dataset {dataset}: {e}')
@@ -77,7 +79,7 @@ def str_to_list(s: str) -> List[int]:
     Convert a string to a slice.
     """
     if ':' in s:
-        return list(range(*map(lambda x: int(x) if x else None, s.split(':'))))
+        return list(range(*map(lambda x: int(x.replace('m', '-')) if x else None, s.split(':'))))
     else:
         return [int(s)]
 
@@ -89,6 +91,7 @@ if __name__ == '__main__':
     parser.add_argument('--log_dir', type=str, default='/cephfs/store/gr-mc2473/lc865/workspace/benchmark_data/variance_tests')
     parser.add_argument('--pysr_verbosity', type=int, default=0)
     parser.add_argument('--niterations', type=int, default=10)
+    parser.add_argument('--wandb_logging', type=bool, default=True)
     args = parser.parse_args()
 
     main(
@@ -97,4 +100,7 @@ if __name__ == '__main__':
         log_dir=args.log_dir,
         pysr_verbosity=args.pysr_verbosity,
         niterations=args.niterations,
+        wandb_logging=args.wandb_logging
     )
+
+    # python -m run.run_multiple --equations=1 --dataset=synthetic --log_dir=/cephfs/store/gr-mc2473/lc865/workspace/benchmark_data/test1 --niterations=4 --pysr_verbosity=1

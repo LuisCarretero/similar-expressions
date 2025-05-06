@@ -1,0 +1,42 @@
+program: sweeps/single_run.py
+method: random
+metric:
+  name: mean-pareto_volume
+  goal: maximize
+parameters:
+  mutation_weights.weight_neural_mutate_tree:
+    min: 0.0
+    max: 1.0
+  mutation_weights.weight_mutate_constant:
+    min: 0.0
+    max: 1.0
+  mutation_weights.weight_mutate_operator:
+    min: 0.0
+    max: 1.0
+  mutation_weights.weight_swap_operands:
+    min: 0.0
+    max: 1.0
+  mutation_weights.weight_rotate_tree:
+    min: 0.0
+    max: 1.0
+  mutation_weights.weight_add_node:
+    min: 0.0
+    max: 1.0
+  mutation_weights.weight_insert_node:
+    min: 0.0
+    max: 1.0
+  mutation_weights.weight_delete_node:
+    min: 0.0
+    max: 1.0
+  mutation_weights.weight_simplify:
+    min: 0.0
+    max: 1.0
+  mutation_weights.weight_randomize:
+    min: 0.0
+    max: 1.0
+  mutation_weights.weight_do_nothing:
+    min: 0.0
+    max: 1.0
+  mutation_weights.weight_optimize:
+    min: 0.0
+    max: 1.0

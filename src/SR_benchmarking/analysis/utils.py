@@ -5,6 +5,7 @@ from tensorboard.backend.event_processing.event_accumulator import EventAccumula
 import os
 import json
 from pathlib import Path
+from typing import Tuple, List, Dict, Any
 
 
 def load_mutations_data(path_logdir: str) -> pd.DataFrame:
@@ -88,3 +89,120 @@ def load_tensorboard_data(log_dir: str) -> tuple[pd.DataFrame, pd.DataFrame]:
     df_exprs['timestamp'] = df_exprs['timestamp'].astype(float)
     
     return df_scalars, df_exprs
+
+def get_run_data_for_wandb(
+    log_dir: str,
+) -> Tuple[
+    List[Tuple[int, Dict[str, Any]]],  # step_stats
+    Dict[str, Any]  # summary_stats
+]:
+    """
+    Get the run data from the log directory. This function extracts both step-by-step metrics and summary statistics
+    from a PySR run's log directory. It processes tensorboard scalar data, mutation statistics, and neural network
+    performance metrics, formatting them for easy logging to WandB.
+    Returns:
+        step_stats: List[ Tuple[int, Dict[str, Any]] ] - A list of tuples where each tuple contains:
+            - An integer representing the step/iteration number
+            - A dictionary mapping metric names to their values at that step
+        summary_stats: Dict[str, Any] - A dictionary containing summary statistics for the entire run,
+            including aggregated mutation and neural network performance metrics
+    """
+
+    step_stats = []
+    summary_stats = {}
+
+    # General logs
+    df_scalars, _ = load_tensorboard_data(log_dir)
+
+    def get_prefixed_key(k: str) -> str:
+        if k.startswith('loss'):
+            return f'complexity_losses/{k}'
+        return k
+
+    for _, row in df_scalars.iterrows():
+        row = row.to_dict()
+        step = int(row['step'])
+        values = {get_prefixed_key(k): v for k, v in row.items() if k != 'step'}
+        step_stats.append((step, values))
+
+    # Mutation stats
+    CATEGORY_COL, LOSS_RATIO_THRESHOLD = 'mutation_type', 2
+
+    df = load_mutations_data(log_dir)
+    df['loss_ratio'] = df['loss_after'] / df['loss_before']
+    TED_df = df[[CATEGORY_COL, 'TED']].groupby(CATEGORY_COL).TED.mean().round(2)
+    summary_stats.update({
+        f"mutation_stats/TED/{cat}": mean
+        for cat, mean in TED_df.items()
+    })
+
+    perc_loss_df = df[[CATEGORY_COL, 'loss_ratio']].groupby(CATEGORY_COL).apply(lambda x: (x < LOSS_RATIO_THRESHOLD).mean() * 100).round(1)['loss_ratio']
+    summary_stats.update({
+        f"mutation_stats/perc_<{LOSS_RATIO_THRESHOLD}/{cat}": mean 
+        for cat, mean in perc_loss_df.items()
+    })
+        
+
+    # Neural stats
+    MUTATE_KEYS = [
+        'total_samples', 'tree_build_failures', 'tree_comparison_failures', 'encoding_failures', 'decoding_failures', 
+        'expr_similarity_failures', 'orig_tree_eval_failures', 'new_tree_eval_failures', 'skeleton_not_novel', 
+        'multivariate_decoding_attempts'
+    ]
+
+    neural_stats = load_neural_stats(log_dir)
+    count_stats = {k: v for k, v in neural_stats.items() if k.split('_')[-1] not in ['mean', 'std', 'ninvalid']}
+    get_group = lambda k: "mutate" if k in MUTATE_KEYS else "sampling"
+    summary_stats.update({
+        f"neural_stats/{get_group(k)}/{k}": float(v)
+        for k, v in count_stats.items()
+    })
+
+    return step_stats, summary_stats
+
+def collect_sweep_results(
+    log_dir: str,
+    run_names: List[str],
+    keep_single_runs: bool = False,
+    combined_prefix: str = 'mean/'
+) -> Tuple[
+    List[Tuple[int, Dict[str, Any]]],  # step_stats
+    Dict[str, Any]  # summary_stats
+]:
+    """
+    Collect step and summary stats from multiple runs and combines them. Returns data in the same 
+    format as get_run_data_for_wandb.
+    """
+    step_stats_dfs, summary_stats_series = [], []
+    for run_name in run_names:
+        dirpath = os.path.join(log_dir, run_name)
+        step_stats, summary_stats = get_run_data_for_wandb(dirpath)
+
+        # Step stats
+        df = pd.DataFrame([values for _, values in step_stats], index=[step for step, _ in step_stats])
+        df.columns = [f"{run_name}/{col}" for col in df.columns]
+        step_stats_dfs.append(df)
+
+        # Summary stats
+        s = pd.Series(summary_stats)
+        s.index = [f"{run_name}/{i}" for i in s.index]
+        summary_stats_series.append(s)
+        
+    # Combine step stats
+    step_stats_df = pd.concat(step_stats_dfs, axis=1)
+    unique_col_names = list(set(map(lambda x: '/'.join(x.split('/')[1:]), step_stats_df.columns)))
+    for key in unique_col_names:
+        step_stats_df[f'{combined_prefix}{key}'] = step_stats_df.loc[:, step_stats_df.columns.str.endswith(key)].mean(axis=1)
+
+    # Combine summary stats
+    summary_stats_series = pd.concat(summary_stats_series, axis=0)
+    unique_row_names = list(set(map(lambda x: '/'.join(x.split('/')[1:]), summary_stats_series.index)))
+    for key in unique_row_names:
+        summary_stats_series[f'{combined_prefix}{key}'] = summary_stats_series.loc[summary_stats_series.index.str.endswith(key)].mean()
+
+    # Remove single runs if requested
+    if not keep_single_runs:
+        step_stats_df = step_stats_df.loc[:, step_stats_df.columns.str.startswith(combined_prefix)]
+        summary_stats_series = summary_stats_series.loc[summary_stats_series.index.str.startswith(combined_prefix)]
+
+    return list(step_stats_df.iterrows()), summary_stats_series.to_dict()

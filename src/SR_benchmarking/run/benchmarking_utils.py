@@ -1,6 +1,6 @@
 import os
 from dataclasses import dataclass, asdict, field
-from typing import Iterable, Literal, Dict, Any
+from typing import Iterable, Literal, Dict, Any, Tuple, List
 import json
 import wandb
 
@@ -13,7 +13,7 @@ from run.pysr_interface_utils import (
     reset_neural_mutation_stats,
     summarize_stats_dict
 )
-from analysis.utils import load_tensorboard_data, load_mutations_data, load_neural_stats
+from analysis.utils import get_run_data_for_wandb
 
 
 # Model-specific settings
@@ -168,47 +168,6 @@ def save_run_metadata(
         json.dump(metadata, f, indent=4)
 
     return metadata
-
-def log_run_data_to_wandb(
-    wandb_run,
-    log_dir: str,
-) -> None:
-    # General logs
-    df_scalars, _ = load_tensorboard_data(log_dir)
-
-    def get_prefixed_key(k: str) -> str:
-        if k.startswith('loss'):
-            return f'complexity_losses/{k}'
-        return k
-
-    for _, row in df_scalars.iterrows():
-        row = row.to_dict()
-        step = int(row['step'])
-        values = {get_prefixed_key(k): v for k, v in row.items() if k != 'step'}
-        wandb_run.log(values, step=step, commit=False)
-    wandb_run.log({}, commit=True)
-
-    # Mutation stats
-    df = load_mutations_data(log_dir)
-    df['loss_ratio'] = df['loss_after'] / df['loss_before']
-    for cat, mean in df[['mutation_type', 'TED']].groupby('mutation_type').TED.mean().round(2).items():
-        wandb_run.summary[f"mutation_stats/TED/{cat}"] = mean
-
-    category_col, value_col = 'mutation_type', 'loss_ratio'
-    threshold = 2
-    perc_loss_df = df[['mutation_type', 'loss_ratio']].groupby('mutation_type').apply(lambda x: (x < threshold).mean() * 100).round(1)['loss_ratio']
-    for cat, mean in perc_loss_df.items():
-        wandb_run.summary[f"mutation_stats/perc_<{threshold}/{cat}"] = mean
-
-    # Neural stats
-    MUTATE_KEYS = ['total_samples', 'tree_build_failures', 'tree_comparison_failures', 'encoding_failures', 'decoding_failures', 'expr_similarity_failures', 'orig_tree_eval_failures', 'new_tree_eval_failures', 'skeleton_not_novel', 'multivariate_decoding_attempts']
-
-    neural_stats = load_neural_stats(log_dir)
-    count_stats = {k: v for k, v in neural_stats.items() if k.split('_')[-1] not in ['mean', 'std', 'ninvalid']}
-    for k, v in count_stats.items():
-        group = "mutate" if k in MUTATE_KEYS else "sampling"
-        wandb_run.summary[f"neural_stats/{group}/{k}"] = float(v)
-
     
 def run_single(
     packaged_model: PackagedModel,
@@ -249,24 +208,33 @@ def run_single(
         )
 
     # Reset/Init loggers
+    print(f'[INFO] Initializing mutation logger in {log_dir}')
     init_mutation_logger(log_dir, prefix='mutations')
+    print(f'[INFO] Resetting neural mutation stats')
     reset_neural_mutation_stats()
 
     # Run the model
+    print(f'[INFO] Running model')
     model.fit(dataset.X, dataset.y)
 
     # Close the mutation logger (flushing remaining data to disk)
+    print(f'[INFO] Closing mutation logger')
     close_mutation_logger()
 
     # Get neural mutation stats and save to file
+    print(f'[INFO] Summarizing neural mutation stats')
     neural_stats = summarize_stats_dict(get_neural_mutation_stats())
     with open(os.path.join(log_dir, 'neural_stats.json'), 'w') as f:
         json.dump(neural_stats, f, indent=4)
 
     if wandb_logging:
-        log_run_data_to_wandb(wandb_run, log_dir)
+        step_stats, summary_stats = get_run_data_for_wandb(log_dir)
+        for step, values in step_stats:
+            wandb_run.log(values, step=step, commit=False)
+        wandb_run.log({}, commit=True)
+        wandb_run.summary.update(summary_stats)
         wandb.finish()
-    
+
 
 if __name__ == '__main__':
     from pathlib import Path
