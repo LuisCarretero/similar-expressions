@@ -1,9 +1,10 @@
 # Single sweep run consisting of multiple SR runs on different datasets but with same set of hyperparameters.
 from pathlib import Path
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any, Tuple, Union
 import wandb
 import os
 import sys
+import json
 from pathlib import Path
 
 # Add SR_benchmarking to path if not running in module mode
@@ -29,20 +30,38 @@ def merge_configs(
         neural_options: NeuralOptions, 
         wandb_config: Dict[str, Any]
 ) -> Tuple[ModelSettings, MutationWeights, NeuralOptions]:
-    if (wandb_model_settings := wandb_config.get('model_settings', None)) is not None:
-        model_settings.update(wandb_model_settings)
+    
+    def _set_attr_safely(obj, key, value):
+        if hasattr(obj, key):
+            setattr(obj, key, value)
+        else:
+            raise AttributeError(f"Settings object {type(obj).__name__} has no attribute '{key}'")
+        
+    def _lit2num(x: str) -> Union[float, int, str]:
+        try:
+            tmp = float(x)
+            if tmp.is_integer():
+                tmp = int(tmp)
+        except:
+            tmp = x
+        return tmp
 
-    if (wandb_mutation_weights := wandb_config.get('mutation_weights', None)) is not None:
-        mutation_weights.update(wandb_mutation_weights)
-
-    if (wandb_neural_options := wandb_config.get('neural_options', None)) is not None:
-        neural_options.update(wandb_neural_options)
+    for k, v in wandb_config.items():
+        category, key = k.split('.')
+        if category == 'model_settings':
+            _set_attr_safely(model_settings, key, _lit2num(v))
+        elif category == 'mutation_weights':
+            _set_attr_safely(mutation_weights, key, _lit2num(v))
+        elif category == 'neural_options':
+            _set_attr_safely(neural_options, key, _lit2num(v))
+        else:
+            raise ValueError(f'Unknown category: {category}')
 
     return model_settings, mutation_weights, neural_options
 
 
-def single_sweep_run():
-    LOG_DIR = '/cephfs/store/gr-mc2473/lc865/workspace/benchmark_data/optim_sweep_1'
+def single_sweep_run(log_dir: str, run_prefix: str) -> None:
+    
     
     # Model settings
     model_settings = ModelSettings(
@@ -78,8 +97,9 @@ def single_sweep_run():
     ]
 
     # Init wandb
-    os.makedirs(LOG_DIR, exist_ok=True)
-    wandb_run = wandb.init(dir=LOG_DIR)
+    os.makedirs(log_dir, exist_ok=True)
+    wandb_run = wandb.init(dir=log_dir)
+    
     # Merge above with wandb.config
     model_settings, mutation_weights, neural_options = merge_configs(
         model_settings, 
@@ -96,13 +116,13 @@ def single_sweep_run():
         run_single(
             model, 
             dataset, 
-            log_dir=os.path.join(LOG_DIR, f'{dataset.dataset_name}_eq{dataset.eq_idx}'), 
+            log_dir=os.path.join(log_dir, f'{run_prefix}_{dataset.dataset_name}_eq{dataset.eq_idx}'), 
             wandb_logging=False  # <- Important, to not interfere with batched runs
         )
 
     all_step_stats, all_summary_stats_combined = collect_sweep_results(
-        LOG_DIR,
-        [f'{dataset.dataset_name}_eq{dataset.eq_idx}' for dataset in datasets],
+        log_dir,
+        [f'{run_prefix}_{dataset.dataset_name}_eq{dataset.eq_idx}' for dataset in datasets],
         keep_single_runs=False,
         combined_prefix='mean-'
     )
@@ -114,29 +134,30 @@ def single_sweep_run():
     wandb.finish()
 
 
-# def main():
-#     sweep_configuration = {
-#         "method": "random",
-#         "metric": {"goal": "maximize", "name": "mean-pareto_volume"},
-#         "parameters": {
-#             "mutation_weights.weight_neural_mutate_tree": {"max": 1.0, "min": 0.0},
-#             "mutation_weights.weight_mutate_constant": {"max": 1.0, "min": 0.0},
-#             "mutation_weights.weight_mutate_operator": {"max": 1.0, "min": 0.0},
-#             "mutation_weights.weight_swap_operands": {"max": 1.0, "min": 0.0},
-#             "mutation_weights.weight_rotate_tree": {"max": 1.0, "min": 0.0},
-#             "mutation_weights.weight_add_node": {"max": 1.0, "min": 0.0},
-#             "mutation_weights.weight_insert_node": {"max": 1.0, "min": 0.0},
-#             "mutation_weights.weight_delete_node": {"max": 1.0, "min": 0.0},
-#             "mutation_weights.weight_simplify": {"max": 1.0, "min": 0.0},
-#             "mutation_weights.weight_randomize": {"max": 1.0, "min": 0.0},
-#             "mutation_weights.weight_do_nothing": {"max": 1.0, "min": 0.0},
-#             "mutation_weights.weight_optimize": {"max": 1.0, "min": 0.0},
-#         },
-#     }
+def get_run_prefix(log_dir: str) -> str:
+    """
+    Get a unique file name for the current run by incrementing a counter stored in a JSON file.
+        
+    Returns:
+        A string with the current iteration number
+    """
+    counter_file = os.path.join(log_dir, 'sweep_metadata.json')
 
-#     sweep_id = wandb.sweep(sweep=sweep_configuration, project="simexp-SR")
-#     wandb.agent(sweep_id, function=single_sweep_run, count=4)
+    os.makedirs(os.path.dirname(counter_file), exist_ok=True)
+    if os.path.exists(counter_file):
+        with open(counter_file, 'r') as f:
+            counter = json.load(f).get('counter', 0)
+    else:
+        counter = 0
+    
+    # Save the updated counter
+    with open(counter_file, 'w') as f:
+        json.dump({'counter': int(counter+1)}, f)
+
+    return f'run{int(counter)}'
 
 
 if __name__ == "__main__":
-    single_sweep_run()
+    log_dir = '/cephfs/store/gr-mc2473/lc865/workspace/benchmark_data/optim_sweep_1'
+    run_prefix = get_run_prefix(log_dir)
+    single_sweep_run(log_dir, run_prefix)

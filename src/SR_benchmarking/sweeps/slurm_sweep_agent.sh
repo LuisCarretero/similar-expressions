@@ -20,7 +20,7 @@ cd $workdir
 echo "Running in directory: `pwd`"
 
 # Create the sweep
-python -m wandb sweep sweeps/config.yaml > sweep_output.txt 2>&1
+python -m wandb sweep sweeps/config.yaml --project simexp-SR > sweep_output.txt 2>&1
 cat sweep_output.txt
 echo ""
 
@@ -32,8 +32,6 @@ if [ -z "$SWEEP_ID" ]; then
 fi
 echo "Extracted sweep ID: $SWEEP_ID"
 COUNT=10  # Number of runs to execute
-
-echo "Using sweep ID: $SWEEP_ID"
 
 # Run the wandb agent with the config file
 python -m wandb agent --count $COUNT --project simexp-SR $SWEEP_ID

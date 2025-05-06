@@ -208,21 +208,16 @@ def run_single(
         )
 
     # Reset/Init loggers
-    print(f'[INFO] Initializing mutation logger in {log_dir}')
     init_mutation_logger(log_dir, prefix='mutations')
-    print(f'[INFO] Resetting neural mutation stats')
     reset_neural_mutation_stats()
 
     # Run the model
-    print(f'[INFO] Running model')
     model.fit(dataset.X, dataset.y)
 
     # Close the mutation logger (flushing remaining data to disk)
-    print(f'[INFO] Closing mutation logger')
     close_mutation_logger()
 
     # Get neural mutation stats and save to file
-    print(f'[INFO] Summarizing neural mutation stats')
     neural_stats = summarize_stats_dict(get_neural_mutation_stats())
     with open(os.path.join(log_dir, 'neural_stats.json'), 'w') as f:
         json.dump(neural_stats, f, indent=4)

@@ -205,4 +205,4 @@ def collect_sweep_results(
         step_stats_df = step_stats_df.loc[:, step_stats_df.columns.str.startswith(combined_prefix)]
         summary_stats_series = summary_stats_series.loc[summary_stats_series.index.str.startswith(combined_prefix)]
 
-    return list(step_stats_df.iterrows()), summary_stats_series.to_dict()
+    return [(step, values.to_dict()) for step, values in step_stats_df.iterrows()], summary_stats_series.to_dict()

@@ -12,3 +12,4 @@ outputs
 .vscode
 julia-installer.sh
 pyjuliapkg
+*.out

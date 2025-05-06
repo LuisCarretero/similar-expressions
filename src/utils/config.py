@@ -24,7 +24,7 @@ def update_cfg(default_cfg: DictConfig, partial_cfg: Dict):
             tmp_cfg = tmp_cfg[dir]
         tmp_cfg[path[-1]] = v
 
-def dict_lit2num(d: Dict, verbose=False):
+def dict_lit2num(d: dict, verbose=False) -> dict:
     """
     Convert all literal values in a dictionary to numbers (int or float). Needed as WandB stores all values as strings?
     """
