@@ -5,7 +5,7 @@
 #SBATCH --cpus-per-task=32
 #SBATCH --mem-per-cpu=2G
 #SBATCH --gpus=2
-#SBATCH --time=4:00:00
+#SBATCH --time=12:00:00
 #SBATCH --output=/cephfs/home/lc865/workspace/similar-expressions/src/SR_benchmarking/sweeps/%x-%j.out
 
 # Load environment (activate conda environment)
@@ -31,7 +31,8 @@ if [ -z "$SWEEP_ID" ]; then
     exit 1
 fi
 echo "Extracted sweep ID: $SWEEP_ID"
-COUNT=10  # Number of runs to execute
+
+COUNT=100  # Number of runs to execute
 
 # Run the wandb agent with the config file
 python -m wandb agent --count $COUNT --project simexp-SR $SWEEP_ID

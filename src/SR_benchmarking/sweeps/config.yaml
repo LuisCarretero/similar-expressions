@@ -1,5 +1,5 @@
 program: sweeps/single_run.py
-method: random
+method: bayes
 metric:
   name: mean-pareto_volume
   goal: maximize

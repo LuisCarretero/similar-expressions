@@ -53,6 +53,11 @@ class MutationWeights:  # TODO: Rm weight_ prefix
     weight_optimize: float = 0.0
     weight_neural_mutate_tree: float = 0.0
 
+    def normalize(self):
+        total = sum(asdict(self).values())
+        for key, value in asdict(self).items():
+            setattr(self, key, value / total)
+
 @dataclass
 class ModelSettings:
     niterations: int = 40

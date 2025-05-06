@@ -61,17 +61,30 @@ def merge_configs(
 
 
 def single_sweep_run(log_dir: str, run_prefix: str) -> None:
-    
-    
     # Model settings
     model_settings = ModelSettings(
-        niterations=4,
+        niterations=20,
         verbosity=0,
     )
     neural_options = NeuralOptions(
         active=True,
         model_path='/cephfs/home/lc865/workspace/similar-expressions/onnx-models/model-e51hcsb9.onnx',
         device='cuda',
+
+        sampling_eps=0.05,
+        subtree_min_nodes=3,
+        subtree_max_nodes=10,
+        verbose=False,
+        max_resamples=95,
+        max_tree_size_diff=5,
+        require_tree_size_similarity=True,
+        require_novel_skeleton=True,
+        require_expr_similarity=True,
+        similarity_threshold=0.8,
+        sample_batchsize=32,
+        sample_logits=True,
+        log_subtree_strings=False,
+        subtree_max_features=2
     )
     mutation_weights = MutationWeights(
         weight_neural_mutate_tree=1.0,
@@ -90,7 +103,7 @@ def single_sweep_run(log_dir: str, run_prefix: str) -> None:
 
     # Define datasets
     dataset_name = 'pysr-difficult'
-    eq_indices = list(range(2))
+    eq_indices = list(range(3))
     datasets = [
         DatasetSettings(dataset_name=dataset_name, eq_idx=eq_idx)
         for eq_idx in eq_indices
@@ -99,7 +112,7 @@ def single_sweep_run(log_dir: str, run_prefix: str) -> None:
     # Init wandb
     os.makedirs(log_dir, exist_ok=True)
     wandb_run = wandb.init(dir=log_dir)
-    
+
     # Merge above with wandb.config
     model_settings, mutation_weights, neural_options = merge_configs(
         model_settings, 
@@ -107,6 +120,7 @@ def single_sweep_run(log_dir: str, run_prefix: str) -> None:
         neural_options, 
         wandb.config
     )
+    mutation_weights.normalize()
     
     # Create model
     model = init_pysr_model(model_settings, mutation_weights, neural_options)
