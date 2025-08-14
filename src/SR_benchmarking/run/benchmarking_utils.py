@@ -25,6 +25,7 @@ class NeuralOptions:
     sampling_eps: float = 0.05
     subtree_min_nodes: int = 3
     subtree_max_nodes: int = 10
+    subtree_max_nodes_diff: int = 5
     device: str = "cpu"
     verbose: bool = False
     max_resamples: int = 100
@@ -37,6 +38,16 @@ class NeuralOptions:
     sample_logits: bool = True
     log_subtree_strings: bool = False
     subtree_max_features: int = 10
+
+    def prepare_for_model_init(self):
+        """
+        Prepare neural options for model initialization.
+        If subtree_max_nodes_diff is set, calculate subtree_max_nodes and remove the diff attribute.
+        """
+        # If subtree_max_nodes_diff exists, calculate subtree_max_nodes and remove diff
+        if hasattr(self, 'subtree_max_nodes_diff'):
+            self.subtree_max_nodes = self.subtree_min_nodes + self.subtree_max_nodes_diff
+            delattr(self, 'subtree_max_nodes_diff')
 
 @dataclass
 class MutationWeights:  # TODO: Rm weight_ prefix
@@ -119,6 +130,7 @@ def init_pysr_model(
     # Keys that are not args to PySRRegressor but are in ModelSettings
     model_settings_special_keys = ['early_stopping_condition']
 
+    neural_options.prepare_for_model_init()
     neural_options_dict = asdict(neural_options)
     mutation_weights_dict = asdict(mutation_weights)
     model_settings_dict = asdict(model_settings)

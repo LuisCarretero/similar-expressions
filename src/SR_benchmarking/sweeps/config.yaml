@@ -4,39 +4,66 @@ metric:
   name: mean-pareto_volume
   goal: maximize
 parameters:
-  mutation_weights.weight_neural_mutate_tree:
+  neural_options.sampling_eps:
+    min: 0.01
+    max: 0.1
+  neural_options.subtree_min_nodes:
+    min: 3
+    max: 8
+  neural_options.subtree_max_nodes_diff:
+    min: 2
+    max: 6
+  neural_options.max_resamples:
+    values: [31, 63, 95, 127]
+  neural_options.max_tree_size_diff:
+    min: 0
+    max: 10
+  neural_options.require_tree_size_similarity:
+    values: [True, False]
+  neural_options.require_novel_skeleton:
+    values: [True, False]
+  neural_options.require_expr_similarity:
+    values: [True, False]
+  neural_options.similarity_threshold:
     min: 0.0
-    max: 1.0
-  mutation_weights.weight_mutate_constant:
-    min: 0.0
-    max: 1.0
-  mutation_weights.weight_mutate_operator:
-    min: 0.0
-    max: 1.0
-  mutation_weights.weight_swap_operands:
-    min: 0.0
-    max: 1.0
-  mutation_weights.weight_rotate_tree:
-    min: 0.0
-    max: 1.0
-  mutation_weights.weight_add_node:
-    min: 0.0
-    max: 1.0
-  mutation_weights.weight_insert_node:
-    min: 0.0
-    max: 1.0
-  mutation_weights.weight_delete_node:
-    min: 0.0
-    max: 1.0
-  mutation_weights.weight_simplify:
-    min: 0.0
-    max: 1.0
-  mutation_weights.weight_randomize:
-    min: 0.0
-    max: 1.0
-  mutation_weights.weight_do_nothing:
-    min: 0.0
-    max: 1.0
-  mutation_weights.weight_optimize:
-    min: 0.0
-    max: 1.0
+    max: 2.0
+  neural_options.subtree_max_features:
+    min: 1
+    max: 3
+
+  # mutation_weights.weight_neural_mutate_tree:
+  #   min: 0.0
+  #   max: 1.0
+  # mutation_weights.weight_mutate_constant:
+  #   min: 0.0
+  #   max: 1.0
+  # mutation_weights.weight_mutate_operator:
+  #   min: 0.0
+  #   max: 1.0
+  # mutation_weights.weight_swap_operands:
+  #   min: 0.0
+  #   max: 1.0
+  # mutation_weights.weight_rotate_tree:
+  #   min: 0.0
+  #   max: 1.0
+  # mutation_weights.weight_add_node:
+  #   min: 0.0
+  #   max: 1.0
+  # mutation_weights.weight_insert_node:
+  #   min: 0.0
+  #   max: 1.0
+  # mutation_weights.weight_delete_node:
+  #   min: 0.0
+  #   max: 1.0
+  # mutation_weights.weight_simplify:
+  #   min: 0.0
+  #   max: 1.0
+  # mutation_weights.weight_randomize:
+  #   min: 0.0
+  #   max: 1.0
+  # mutation_weights.weight_do_nothing:
+  #   min: 0.0
+  #   max: 1.0
+  # mutation_weights.weight_optimize:
+  #   min: 0.0
+  #   max: 1.0
