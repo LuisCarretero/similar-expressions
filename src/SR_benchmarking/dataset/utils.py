@@ -1,9 +1,10 @@
 import numpy as np
-from typing import Tuple, Dict, List, Iterable
+from typing import Tuple, Dict, List, Iterable, Literal
 from dataclasses import dataclass
 import csv
 import os
 import pandas as pd
+import re
 
 
 @dataclass
@@ -31,6 +32,44 @@ ln = np.log
 tanh = np.tanh
 sinh = np.sinh
 cosh = np.cosh
+
+
+def make_equation_univariate(equation: str) -> str:
+    """
+    Replace all variables in the equation with 'x' to make it univariate.
+    
+    Handles different variable naming conventions:
+    - x_i variables (e.g., x1, x2, x3, ...) -> x
+    - y_i variables (e.g., y1, y2, y3, ...) -> x  
+    - Feynman variables (any single letter or letter+digit) -> x
+    """
+    # Split equation at '=' to get the expression part
+    if ' = ' in equation:
+        lhs, rhs = equation.split(' = ', 1)
+        expr = rhs
+    else:
+        expr = equation
+        lhs = 'y'
+    
+    # Pattern to match variables: letter followed by optional digits
+    # This will match x1, y2, m, n, etc.
+    variable_pattern = r'\b[a-zA-Z][0-9]*\b'
+    
+    # Find all variables in the expression
+    variables = set(re.findall(variable_pattern, expr))
+    
+    # Remove mathematical functions/constants that shouldn't be replaced
+    math_functions = {'sin', 'cos', 'exp', 'log', 'ln', 'sqrt', 'tanh', 'sinh', 'cosh', 
+                     'arcsin', 'arccos', 'pi', 'e'}
+    variables = variables - math_functions
+    
+    # Replace all variables with 'x'
+    expr_univariate = expr
+    for var in variables:
+        # Use word boundaries to avoid partial replacements
+        expr_univariate = re.sub(r'\b' + re.escape(var) + r'\b', 'x', expr_univariate)
+    
+    return f'{lhs} = {expr_univariate}'
 
 
 def sample_equation(equation: str, bounds: Dict[str, Tuple[str, Tuple[float, float]]], num_samples: int, noise: float, add_extra_vars: bool):
@@ -71,7 +110,7 @@ def sample_equation(equation: str, bounds: Dict[str, Tuple[str, Tuple[float, flo
 
 def sample_datasets(
     equations: List[Tuple[int, Tuple[str, Dict[str, Tuple[str, List[float]]]]]], 
-    num_samples: int, noise: float, add_extra_vars: bool
+    num_samples: int, noise: float, add_extra_vars: bool, univariate: bool = False
 ) -> List[SyntheticDataset]:
     """
     Dataset: [(idx, (equation, X, Y, var_order))]
@@ -79,7 +118,17 @@ def sample_datasets(
     datasets = []
     for (idx, (eq, bounds)) in equations:
         X, Y, var_order = sample_equation(eq, bounds, num_samples, noise, add_extra_vars=add_extra_vars)
-        datasets.append(SyntheticDataset(idx, eq, X, Y, var_order))
+        
+        if univariate:
+            # Convert to univariate by replacing all variables with 'x'
+            eq_univariate = make_equation_univariate(eq)
+            # Create new var_order with only 'x0' -> 'x'
+            var_order_univariate = {'x0': 'x'}
+            # Take only the first column of X (first variable)
+            X_univariate = X[:, :1]
+            datasets.append(SyntheticDataset(idx, eq_univariate, X_univariate, Y, var_order_univariate))
+        else:
+            datasets.append(SyntheticDataset(idx, eq, X, Y, var_order))
     return datasets
 
 def sample(method: str, b: Tuple[float, float], num_samples: int):
@@ -99,16 +148,17 @@ def sample(method: str, b: Tuple[float, float], num_samples: int):
     elif method == "lognormal":  # ln of var is normally distributed
         return np.random.lognormal(mean=b[0], sigma=b[1], size=num_samples)
     else:
-        print("Invalid method")
+        raise ValueError(f"Invalid method: {method}")
 
 def load_datasets(
-    which: str, # ['synthetic', 'feynman', 'pysr-difficult']
+    which: Literal['synthetic', 'feynman', 'pysr-difficult'],
     num_samples: int, 
     noise: float, 
-    equation_indices: Iterable[int] = None, 
+    equation_indices: Iterable[int] | None = None, 
     add_extra_vars: bool = False, 
-    fpath: str = None, 
-    forbid_ops: Iterable[str] = None
+    fpath: str | None = None, 
+    forbid_ops: Iterable[str] | None = None,
+    univariate: bool = False,
 ) -> List[SyntheticDataset]:
 
     if isinstance(equation_indices, int):
@@ -141,10 +191,12 @@ def load_datasets(
     else:
         raise ValueError(f"Invalid dataset type: {which}")
 
-    return sample_datasets(equations, num_samples, noise, add_extra_vars)
+    return sample_datasets(equations, num_samples, noise, add_extra_vars, univariate)
 
 def load_synthetic_equations(
-    fpath: str, idx: Iterable[int], forbid_ops: Iterable[str] | None = None
+    fpath: str, 
+    idx: Iterable[int], 
+    forbid_ops: Iterable[str] | None = None
 ) -> List[Tuple[int, Tuple[str, Dict[str, Tuple[str, List[float]]]]]]:
     EXPRESSIONS_RAW = pd.read_csv(fpath)['equation'].to_list()
     variable_distr = {f'y{j}': ('uniform', (1, 10)) for j in range(1, 6)}
@@ -155,7 +207,9 @@ def load_synthetic_equations(
     ]
 
 def load_pysr_equations(
-    fpath: str, idx: Iterable[int], forbid_ops: Iterable[str] | None = None
+    fpath: str, 
+    idx: Iterable[int], 
+    forbid_ops: Iterable[str] | None = None,
 ) -> List[Tuple[int, Tuple[str, Dict[str, Tuple[str, List[float]]]]]]:
     EXPRESSIONS_RAW = pd.read_csv(fpath)['true_equation'].to_list()
     variable_distr = {f'x{j}': ('uniform', (1, 10)) for j in range(1, 6)}
@@ -166,7 +220,8 @@ def load_pysr_equations(
     ]
 
 def load_feynman_equations(
-    fpath: str, skip_equations: Iterable[int] = None
+    fpath: str, 
+    skip_equations: Iterable[int] | None = None
 ) -> List[Tuple[int, Tuple[str, Dict[str, Tuple[str, List[float]]]]]]:
     """
     From LaSR codebase. TODO: Rework and use Pandas instead of CSV.
@@ -201,11 +256,24 @@ def load_feynman_equations(
     return dataset
 
 def create_dataset_from_expression(
-    expr: str, num_samples: int, noise: float
+    expr: str, 
+    num_samples: int, 
+    noise: float,
+    univariate: bool = False
 ) -> SyntheticDataset:
     eq_str = f'y = {expr}'
 
     # Extract variables x0-x9 from expression
     variable_distr = {f'x{i}': ('uniform', (1, 10)) for i in range(10) if f'x{i}' in expr}
     X, y, var_order = sample_equation(eq_str, variable_distr, num_samples, noise, add_extra_vars=False)
-    return SyntheticDataset(idx=0, equation=eq_str, X=X, y=y, var_order=var_order)
+    
+    if univariate:
+        # Convert to univariate by replacing all variables with 'x'
+        eq_univariate = make_equation_univariate(eq_str)
+        # Create new var_order with only 'x0' -> 'x'
+        var_order_univariate = {'x0': 'x'}
+        # Take only the first column of X (first variable)
+        X_univariate = X[:, :1]
+        return SyntheticDataset(idx=0, equation=eq_univariate, X=X_univariate, y=y, var_order=var_order_univariate)
+    else:
+        return SyntheticDataset(idx=0, equation=eq_str, X=X, y=y, var_order=var_order)

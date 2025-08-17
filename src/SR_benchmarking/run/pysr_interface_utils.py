@@ -70,6 +70,8 @@ def init_mutation_logger(log_dir: str, prefix: str = 'mutations') -> None:
 
     Todo: Turn this into a context manager/object.
     """
+    assert isinstance(log_dir, str), "log_dir must be a string"
+    assert isinstance(prefix, str), "prefix must be a string"
     pysr.julia_import.SymbolicRegression.MutationLoggingModule.init_logger(log_dir, prefix)
 
 def close_mutation_logger() -> None:

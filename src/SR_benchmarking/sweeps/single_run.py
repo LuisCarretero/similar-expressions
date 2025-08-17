@@ -79,13 +79,13 @@ def single_sweep_run(log_dir: str, run_prefix: str) -> None:
         sampling_eps=0.05,
         subtree_min_nodes=3,
         subtree_max_nodes_diff=8,
-        max_resamples=95,
+        max_resamples=63,
         max_tree_size_diff=5,
         require_tree_size_similarity=True,
         require_novel_skeleton=True,
         require_expr_similarity=True,
         similarity_threshold=0.8,
-        subtree_max_features=2
+        subtree_max_features=1  # Univariate!
     )
     mutation_weights = MutationWeights(
         weight_add_node=0.1610783001322248,
@@ -104,9 +104,9 @@ def single_sweep_run(log_dir: str, run_prefix: str) -> None:
 
     # Define datasets
     dataset_name = 'pysr-difficult'
-    eq_indices = list(range(3))
+    eq_indices = [101, 201, 301, 401, 501]  #
     datasets = [
-        DatasetSettings(dataset_name=dataset_name, eq_idx=eq_idx)
+        DatasetSettings(dataset_name=dataset_name, eq_idx=eq_idx, univariate=True)
         for eq_idx in eq_indices
     ]
 
@@ -173,6 +173,6 @@ def get_run_prefix(log_dir: str) -> str:
 
 
 if __name__ == "__main__":
-    log_dir = '/cephfs/store/gr-mc2473/lc865/workspace/benchmark_data/optim_sweep_1'
+    log_dir = '/cephfs/store/gr-mc2473/lc865/workspace/benchmark_data/univar_sweep_neuralParams'
     run_prefix = get_run_prefix(log_dir)
     single_sweep_run(log_dir, run_prefix)

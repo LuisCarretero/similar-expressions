@@ -52,7 +52,7 @@ def main(
     )
 
     # Create model
-    model = init_pysr_model(model_settings, mutation_weights, neural_options)
+    packaged_model = init_pysr_model(model_settings, mutation_weights, neural_options)
 
     # Run benchmark
     for eq_idx in equations:
@@ -65,7 +65,7 @@ def main(
         )
         try:
             run_single(
-                model, 
+                packaged_model, 
                 dataset_settings,
                 log_dir=str(Path(log_dir) / f'{dataset}_eq{eq_idx}'),
                 wandb_logging=wandb_logging,

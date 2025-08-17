@@ -89,6 +89,7 @@ class DatasetSettings:
     eq_idx: int = 10
     forbid_ops: Iterable[str] | None = None
     custom_expr: str | None = None  # If dataset_name == 'custom', this is the expression to use.
+    univariate: bool = False  # If True, replace all variables with 'x' to make the dataset univariate
 
 
 def create_LaSR_custom_loss():
@@ -198,6 +199,7 @@ def run_single(
             dataset_settings.custom_expr,
             dataset_settings.num_samples,
             dataset_settings.noise,
+            dataset_settings.univariate,
         )
     else:
         dataset = dataset_utils.load_datasets(
@@ -206,6 +208,7 @@ def run_single(
             noise=dataset_settings.noise,
             equation_indices=[dataset_settings.eq_idx],
             forbid_ops=dataset_settings.forbid_ops,
+            univariate=dataset_settings.univariate,
         )[0]
 
     model = packaged_model.model
@@ -267,11 +270,12 @@ if __name__ == '__main__':
         max_resamples=100,
         sample_batchsize=32,
         max_tree_size_diff=5,
-        require_tree_size_similarity=True
+        require_tree_size_similarity=True,
+        subtree_max_features=1
     )
     mutation_weights = MutationWeights(weight_neural_mutate_tree=1.0)
 
-    model = init_pysr_model(
+    packaged_model = init_pysr_model(
         model_settings=model_settings,
         neural_options=neural_options,
         mutation_weights=mutation_weights
@@ -281,13 +285,13 @@ if __name__ == '__main__':
         dataset_name='feynman',
         num_samples=2000,
         noise=0.0001,
-        eq_idx=10
+        eq_idx=10,
+        univariate=True
     )
-    log_dir = Path(__file__).parent / 'logs'
-    os.makedirs(log_dir, exist_ok=False)
+    log_dir = Path(__file__).parent / 'logs' / 'test_univar4'
 
     run_single(
-        model=model, 
+        packaged_model=packaged_model, 
         dataset_settings=dataset_settings, 
-        log_dir=log_dir
+        log_dir=str(log_dir)
     )

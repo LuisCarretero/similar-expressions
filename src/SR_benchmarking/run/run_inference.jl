@@ -49,7 +49,7 @@ options = Options(
         optimize = 0.0,
         form_connection = 0.5,
         break_connection = 0.1,
-        neural_mutate_tree = 0.0
+        neural_mutate_tree = 1.0
     ),
 )
 # ----- Create data and run SR
@@ -63,10 +63,10 @@ y = X[1, :] .^ 3 .- 2 + 2 * cos.(X[2, :]) + sin.(X[1, :] .* X[2, :]) ./ 3
 # X[1:2, :] .= (X[1:2, :] .- 5)
 # y = 1 ./ (sqrt(2 * pi) .* X[3, :]) .* exp.(-((X[1, :] .- X[2, :]) ./ X[3, :]) .^ 2 / 2)
 
-init_logger("/cephfs/store/gr-mc2473/lc865/workspace/benchmark_data/round2")
+init_logger("/cephfs/home/lc865/workspace/similar-expressions/src/SR_benchmarking/run/julia_test_logs")
 
 hall_of_fame = equation_search(
-    X, y, niterations=4, options=options,
+    X, y, niterations=2, options=options,
     parallelism=:multithreading
 );
 
