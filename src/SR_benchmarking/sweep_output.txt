@@ -1,4 +1,0 @@
-wandb: Creating sweep from: sweeps/config.yaml
-wandb: Creating sweep with ID: dt9v7gc4
-wandb: View sweep at: https://wandb.ai/luis-carretero-eth-zurich/simexp-SR/sweeps/dt9v7gc4
-wandb: Run sweep agent with: wandb agent luis-carretero-eth-zurich/simexp-SR/dt9v7gc4
