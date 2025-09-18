@@ -288,6 +288,8 @@ if __name__ == '__main__':
     parser.add_argument('--pysr_verbosity', type=int, help='Override Pysr verbosity from config')
     parser.add_argument('--niterations', type=int, help='Override number of iterations from config')
     parser.add_argument('--wandb_logging', type=bool, default=True, help='Enable WandB logging')
+    parser.add_argument('--node_id', type=int, help='Node ID for distributed runs (0-indexed)')
+    parser.add_argument('--total_nodes', type=int, help='Total number of nodes for distributed runs')
     args = parser.parse_args()
 
     # Load config for defaults
@@ -309,6 +311,11 @@ if __name__ == '__main__':
         # Load equations and dataset from config if not provided
         equations = cfg.dataset.equation_indices if args.equations is None else args.equations
         dataset_name = cfg.dataset.name if args.dataset is None else args.dataset
+
+        # Distribute equations across nodes if distributed mode is enabled
+        if args.node_id is not None and args.total_nodes is not None:
+            equations = equations[args.node_id::args.total_nodes]
+            print(f'[INFO] Node {args.node_id}/{args.total_nodes}: Running {len(equations)} equations: {equations}')
 
         run_equations_separate(
             equations=equations, 
