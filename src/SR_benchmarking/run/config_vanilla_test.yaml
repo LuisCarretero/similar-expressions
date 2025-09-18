@@ -6,8 +6,6 @@ run_settings:
   log_dir: /cephfs/store/gr-mc2473/lc865/workspace/benchmark_data/sept-test
   wandb_logging: true
 
-  run_prefix: feynmanMultivariate
-
 dataset:
   name: pysr-difficult
   num_samples: 2000  # Same settings as full1_

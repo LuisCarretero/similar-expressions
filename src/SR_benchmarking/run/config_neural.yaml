@@ -3,10 +3,8 @@ run_settings:
   n_runs: 6
   max_iter: 20
   early_stopping_condition: 1e-8
-  log_dir: /cephfs/store/gr-mc2473/lc865/workspace/benchmark_data/sept-baseline-3-neural
+  log_dir: /cephfs/store/gr-mc2473/lc865/workspace/benchmark_data/sept-test2-neural
   wandb_logging: true
-
-  run_prefix: feynmanMultivariate
 
 dataset:
   name: pysr-difficult

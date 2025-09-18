@@ -168,9 +168,15 @@ def run_equations(
 
             # Init wandb for this equation
             os.makedirs(log_dir, exist_ok=True)
+
+            # Generate descriptive run name
+            experiment_name = log_dir.split('/')[-1]
+            run_name = f"{experiment_name}_{dataset_name}_eq{eq_idx}"
+
             wandb_run = wandb.init(
                 dir=log_dir,
                 project='simexp-SR',
+                name=run_name,
                 config=cfg
             )
 
@@ -262,20 +268,36 @@ def run_equations(
                 print(f'[ERROR] Error running equation {eq_idx} from dataset {dataset_name}: {e}')
                 continue
 
-def str_to_list(s: str) -> List[int]:
+def parse_equations(s: str) -> List[int]:
+    """Parse equation string into list of integers.
+
+    Supports:
+    - Single: "102" -> [102]
+    - List: "102,202,302" -> [102, 202, 302]
+    - Range: "102:105" -> [102, 103, 104]
+    - Step: "102:110:2" -> [102, 104, 106, 108]
+    - Mixed: "102,200:203" -> [102, 200, 201, 202]
     """
-    Convert a string to a slice.
-    """
-    if ':' in s:
-        return list(range(*map(lambda x: int(x.replace('m', '-')) if x else None, s.split(':'))))
-    else:
-        return [int(s)]
+    if not s:
+        return []
+
+    result = []
+    for segment in s.split(','):
+        segment = segment.strip()
+        if ':' in segment:
+            # Range: reuse existing logic
+            result.extend(list(range(*map(lambda x: int(x.replace('m', '-')) if x else None, segment.split(':')))))
+        else:
+            # Single number
+            result.append(int(segment.replace('m', '-')))
+
+    return result
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Run SR experiments using config file')
     parser.add_argument('--config', type=str, required=True, help='Path to YAML config file')
-    parser.add_argument('--equations', type=str_to_list, help='Equation indices to run (e.g., "1,2,3" or "1:10"). If not provided, uses config defaults.')
+    parser.add_argument('--equations', type=str, help='Equation indices to run (e.g., "102", "102,202,302", "102:105", "102:110:2"). If not provided, uses config defaults.')
     parser.add_argument('--dataset', type=str, help='Dataset name to use. If not provided, uses config defaults.')
     parser.add_argument('--pooled', action='store_true', help='Run equations with pooled/aggregated results instead of separate runs')
     parser.add_argument('--log_dir', type=str, help='Override log directory from config')
@@ -285,6 +307,10 @@ if __name__ == '__main__':
     parser.add_argument('--node_id', type=int, help='Node ID for distributed runs (0-indexed)')
     parser.add_argument('--total_nodes', type=int, help='Total number of nodes for distributed runs')
     args = parser.parse_args()
+
+    # Parse equations string if provided
+    if args.equations is not None:
+        args.equations = parse_equations(args.equations)
 
     # Load config and apply CLI overrides in one step
     cfg, model_settings, neural_options, mutation_weights, log_dir, dataset_name, equations = load_config_with_overrides(args.config, args)
@@ -306,7 +332,7 @@ if __name__ == '__main__':
     )
 
     # Examples:
-    # Individual runs (separate logging): python -m run.run_multiple --config=run/config.yaml --equations=1:5 --dataset=feynman --niterations=10 --pysr_verbosity=1
+    # Individual runs (separate logging): python -m run.run_multiple --config=run/config.yaml --equations="102,202:205" --dataset=feynman --niterations=10 --pysr_verbosity=1
     # Individual runs with config defaults: python -m run.run_multiple --config=run/config.yaml
     # Pooled runs (aggregated logging): python -m run.run_multiple --config=run/config.yaml --pooled
     
