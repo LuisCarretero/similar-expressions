@@ -1,18 +1,18 @@
 run_settings:
-  n_runs: 6
+  verbosity: 0
+  n_runs: 2
   max_iter: 10  # Reduced for testing
   early_stopping_condition: 1e-8
   log_dir: /cephfs/store/gr-mc2473/lc865/workspace/benchmark_data/sept-test
+  wandb_logging: true
 
   run_prefix: feynmanMultivariate
-  do_vanilla: true
-  do_neural: false
 
 dataset:
   name: pysr-difficult
   num_samples: 2000  # Same settings as full1_
   noise: 0
-  equation_indices: [102]  # Single equation for testing
+  equation_indices: [102, 202]  # Two equations for minimal testing
   forbid_ops: []
   univariate: true
 

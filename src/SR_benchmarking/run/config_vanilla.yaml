@@ -1,12 +1,12 @@
 run_settings:
+  verbosity: 0
   n_runs: 6
   max_iter: 20
   early_stopping_condition: 1e-8
   log_dir: /cephfs/store/gr-mc2473/lc865/workspace/benchmark_data/sept-baseline-3-vanilla
+  wandb_logging: true
 
   run_prefix: feynmanMultivariate
-  do_vanilla: true
-  do_neural: false
 
 dataset:
   name: pysr-difficult
@@ -39,7 +39,7 @@ symbolic_regression:
     sample_logits: true
     max_resamples: 127
     sample_batchsize: 32
-    subtree_max_features: 2
+    subtree_max_features: 1
 
   mutation_weights:
     weight_add_node: 2.47

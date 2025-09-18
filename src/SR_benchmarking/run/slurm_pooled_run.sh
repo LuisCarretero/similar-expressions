@@ -21,7 +21,7 @@ echo "Running in directory: `pwd`"
 
 # Run neural mode first (with neural mutations enabled)
 echo "Starting neural pooled run..."
-python -m run.run_multiple --config=run/config.yaml --pooled
+python -m run.run_multiple --config=run/config_neural.yaml --pooled
 
 echo "Neural run completed. Starting vanilla pooled run..."
 

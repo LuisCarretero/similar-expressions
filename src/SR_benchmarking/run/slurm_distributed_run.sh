@@ -6,7 +6,7 @@
 #SBATCH --mem-per-cpu=2G
 #SBATCH --gpus=1
 #SBATCH --time=12:00:00
-#SBATCH --output=/cephfs/home/lc865/workspace/similar-expressions/src/SR_benchmarking/run/%x-%A_%a.out
+#SBATCH --output=/cephfs/home/lc865/workspace/similar-expressions/src/SR_benchmarking/run/logs/%x-%A_%a.out
 
 # Load environment (activate conda environment)
 source /cephfs/store/gr-mc2473/lc865/misc/condaforge/etc/profile.d/conda.sh
@@ -25,11 +25,11 @@ TOTAL_NODES=2
 
 # Run neural mode first (with neural mutations enabled)
 # echo "Starting neural distributed run on node $SLURM_ARRAY_TASK_ID..."
-# python -m run.run_multiple --config=run/config.yaml --node_id=$SLURM_ARRAY_TASK_ID --total_nodes=$TOTAL_NODES
+# python -m run.run_multiple --config=run/config_neural.yaml --node_id=$SLURM_ARRAY_TASK_ID --total_nodes=$TOTAL_NODES
 
 # echo "Neural run completed. Starting vanilla distributed run on node $SLURM_ARRAY_TASK_ID..."
 
 # Run vanilla mode (with neural mutations disabled)
-python -m run.run_multiple --config=run/config_vanilla_test.yaml --node_id=$SLURM_ARRAY_TASK_ID --total_nodes=$TOTAL_NODES
+python -m run.run_multiple --config=run/config_vanilla_test.yaml --pooled --node_id=$SLURM_ARRAY_TASK_ID --total_nodes=$TOTAL_NODES
 
 echo "Vanilla distributed run completed on node $SLURM_ARRAY_TASK_ID."
