@@ -167,7 +167,7 @@ def run_equations(
 
     # Filter out completed equations
     completed_equations = [eq for eq in equations if is_equation_completed(eq, dataset_name, log_dir, pooled)]
-    remaining_equations = list(set(equations) - set(completed_equations))
+    remaining_equations = sorted(list(set(equations) - set(completed_equations)))
 
     # Print informative messages and early return if nothing to do
     if completed_equations:
