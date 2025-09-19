@@ -3,7 +3,6 @@ import argparse
 from typing import List, Tuple, Dict, Any, Union
 import wandb
 import os
-import json
 
 from omegaconf import OmegaConf
 from run.benchmarking_utils import (
@@ -84,7 +83,8 @@ def load_config_with_overrides(config_path: str, args) -> Tuple[Any, ModelSettin
     # Config value overrides
     log_dir = args.log_dir if hasattr(args, 'log_dir') and args.log_dir is not None else cfg.run_settings.log_dir
     dataset_name = args.dataset if hasattr(args, 'dataset') and args.dataset is not None else cfg.dataset.name
-    equations = args.equations if hasattr(args, 'equations') and args.equations is not None else cfg.dataset.equation_indices
+    equations_raw = args.equations if hasattr(args, 'equations') and args.equations is not None else cfg.dataset.equation_indices
+    equations = parse_equations(equations_raw) if isinstance(equations_raw, str) else equations_raw
 
     return cfg, model_settings, neural_options, mutation_weights, log_dir, dataset_name, equations
 
@@ -136,7 +136,8 @@ def apply_cli_overrides(cfg, model_settings, args):
     # Config value overrides
     log_dir = args.log_dir if hasattr(args, 'log_dir') and args.log_dir is not None else cfg.run_settings.log_dir
     dataset_name = args.dataset if hasattr(args, 'dataset') and args.dataset is not None else cfg.dataset.name
-    equations = args.equations if hasattr(args, 'equations') and args.equations is not None else cfg.dataset.equation_indices
+    equations_raw = args.equations if hasattr(args, 'equations') and args.equations is not None else cfg.dataset.equation_indices
+    equations = parse_equations(equations_raw) if isinstance(equations_raw, str) else equations_raw
 
     return log_dir, dataset_name, equations
 
@@ -199,8 +200,8 @@ def run_equations(
                 eq_idx=eq_idx,
                 num_samples=cfg.dataset.num_samples,
                 noise=cfg.dataset.noise,
-                forbid_ops=OmegaConf.to_container(cfg.dataset.forbid_ops, resolve=True),
-                univariate=cfg.dataset.univariate
+                remove_op_equations=OmegaConf.to_container(cfg.dataset.remove_op_equations, resolve=True),
+                replace_univariate=cfg.dataset.replace_univariate
             )
 
             # Create fresh model settings for each run
@@ -236,7 +237,8 @@ def run_equations(
                         model,
                         dataset_settings,
                         log_dir=run_dir,
-                        wandb_logging=False  # <- Important, to not interfere with batched runs
+                        wandb_logging=False,  # <- Important, to not interfere with batched runs
+                        enable_mutation_logging=cfg.run_settings.enable_mutation_logging
                     )
                 except Exception as e:
                     print(f'[ERROR] Error running equation {eq_idx}, run {run_i}: {e}')
@@ -278,8 +280,8 @@ def run_equations(
                 eq_idx=eq_idx,
                 num_samples=dataset_cfg.num_samples,
                 noise=dataset_cfg.noise,
-                forbid_ops=OmegaConf.to_container(dataset_cfg.forbid_ops, resolve=True),
-                univariate=dataset_cfg.univariate
+                remove_op_equations=OmegaConf.to_container(dataset_cfg.remove_op_equations, resolve=True),
+                replace_univariate=dataset_cfg.replace_univariate
             )
             try:
                 run_single(
@@ -287,6 +289,7 @@ def run_equations(
                     dataset_settings,
                     log_dir=str(Path(log_dir) / f'{dataset_name}_eq{eq_idx}'),
                     wandb_logging=wandb_logging,
+                    enable_mutation_logging=cfg.run_settings.enable_mutation_logging
                 )
             except Exception as e:
                 print(f'[ERROR] Error running equation {eq_idx} from dataset {dataset_name}: {e}')

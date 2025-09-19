@@ -1,3 +1,7 @@
+"""
+Dataset utilities. Some of the code is from the LaSR codebase.
+"""
+
 import numpy as np
 from typing import Tuple, Dict, List, Iterable, Literal
 from dataclasses import dataclass
@@ -109,8 +113,8 @@ def sample_equation(equation: str, bounds: Dict[str, Tuple[str, Tuple[float, flo
     return X, y, var_order
 
 def sample_datasets(
-    equations: List[Tuple[int, Tuple[str, Dict[str, Tuple[str, List[float]]]]]], 
-    num_samples: int, noise: float, add_extra_vars: bool, univariate: bool = False
+    equations: List[Tuple[int, Tuple[str, Dict[str, Tuple[str, List[float]]]]]],
+    num_samples: int, noise: float, add_extra_vars: bool, replace_univariate: bool = False
 ) -> List[SyntheticDataset]:
     """
     Dataset: [(idx, (equation, X, Y, var_order))]
@@ -119,7 +123,7 @@ def sample_datasets(
     for (idx, (eq, bounds)) in equations:
         X, Y, var_order = sample_equation(eq, bounds, num_samples, noise, add_extra_vars=add_extra_vars)
         
-        if univariate:
+        if replace_univariate:
             # Convert to univariate by replacing all variables with 'x'
             eq_univariate = make_equation_univariate(eq)
             # Create new var_order with only 'x0' -> 'x'
@@ -151,14 +155,14 @@ def sample(method: str, b: Tuple[float, float], num_samples: int):
         raise ValueError(f"Invalid method: {method}")
 
 def load_datasets(
-    which: Literal['synthetic', 'feynman', 'pysr-difficult'],
-    num_samples: int, 
-    noise: float, 
-    equation_indices: Iterable[int] | None = None, 
-    add_extra_vars: bool = False, 
-    fpath: str | None = None, 
-    forbid_ops: Iterable[str] | None = None,
-    univariate: bool = False,
+    which: Literal['synthetic', 'feynman', 'pysr-difficult', 'pysr-univariate'],
+    num_samples: int,
+    noise: float,
+    equation_indices: Iterable[int] | None = None,
+    add_extra_vars: bool = False,
+    fpath: str | None = None,
+    remove_op_equations: Iterable[str] | None = None,
+    replace_univariate: bool = False,
 ) -> List[SyntheticDataset]:
 
     if isinstance(equation_indices, int):
@@ -174,7 +178,7 @@ def load_datasets(
                 raise ValueError("Synthetic dataset numbering starts at 0 and goes up to 40.")
         if fpath is None:
             fpath = os.path.join(os.path.dirname(__file__), 'LaSR-SyntheticEquations.csv')
-        equations = load_synthetic_equations(fpath, equation_indices, forbid_ops)
+        equations = load_synthetic_equations(fpath, equation_indices, remove_op_equations)
     elif which == "feynman":
         if fpath is None:
             fpath = os.path.join(os.path.dirname(__file__), 'LaSR-FeynmanEquations.csv')
@@ -187,36 +191,55 @@ def load_datasets(
             fpath = os.path.join(os.path.dirname(__file__), 'PySR-difficultEquations.csv')
         if max(equation_indices) > 3360 or min(equation_indices) < -3360:
             raise ValueError("PySR-difficult dataset numbering starts at 0 and goes up to 3360.")
-        equations = load_pysr_equations(fpath, equation_indices, forbid_ops)
+        equations = load_pysr_equations(fpath, equation_indices, remove_op_equations)
+    elif which == "pysr-univariate":
+        if fpath is None:
+            fpath = os.path.join(os.path.dirname(__file__), 'PySR-univariate.csv')
+        if max(equation_indices) > 2016 or min(equation_indices) < 0:
+            raise ValueError("PySR-univariate dataset numbering starts at 0 and goes up to 2016.")
+        equations = load_pysr_univariate_equations(fpath, equation_indices, remove_op_equations)
     else:
         raise ValueError(f"Invalid dataset type: {which}")
 
-    return sample_datasets(equations, num_samples, noise, add_extra_vars, univariate)
+    return sample_datasets(equations, num_samples, noise, add_extra_vars, replace_univariate)
 
 def load_synthetic_equations(
-    fpath: str, 
-    idx: Iterable[int], 
-    forbid_ops: Iterable[str] | None = None
+    fpath: str,
+    idx: Iterable[int],
+    remove_op_equations: Iterable[str] | None = None
 ) -> List[Tuple[int, Tuple[str, Dict[str, Tuple[str, List[float]]]]]]:
     EXPRESSIONS_RAW = pd.read_csv(fpath)['equation'].to_list()
     variable_distr = {f'y{j}': ('uniform', (1, 10)) for j in range(1, 6)}
     return [
-        (i, (f'y = {EXPRESSIONS_RAW[i]}', variable_distr)) 
-        for i in sorted(idx) 
-        if forbid_ops is None or all(op not in EXPRESSIONS_RAW[i] for op in forbid_ops)
+        (i, (f'y = {EXPRESSIONS_RAW[i]}', variable_distr))
+        for i in sorted(idx)
+        if remove_op_equations is None or all(op not in EXPRESSIONS_RAW[i] for op in remove_op_equations)
     ]
 
 def load_pysr_equations(
-    fpath: str, 
-    idx: Iterable[int], 
-    forbid_ops: Iterable[str] | None = None,
+    fpath: str,
+    idx: Iterable[int],
+    remove_op_equations: Iterable[str] | None = None,
 ) -> List[Tuple[int, Tuple[str, Dict[str, Tuple[str, List[float]]]]]]:
     EXPRESSIONS_RAW = pd.read_csv(fpath)['true_equation'].to_list()
     variable_distr = {f'x{j}': ('uniform', (1, 10)) for j in range(1, 6)}
     return [
-        (i, (f'y = {EXPRESSIONS_RAW[i]}', variable_distr)) 
-        for i in sorted(idx) 
-        if forbid_ops is None or all(op not in EXPRESSIONS_RAW[i] for op in forbid_ops)
+        (i, (f'y = {EXPRESSIONS_RAW[i]}', variable_distr))
+        for i in sorted(idx)
+        if remove_op_equations is None or all(op not in EXPRESSIONS_RAW[i] for op in remove_op_equations)
+    ]
+
+def load_pysr_univariate_equations(
+    fpath: str,
+    idx: Iterable[int],
+    remove_op_equations: Iterable[str] | None = None,
+) -> List[Tuple[int, Tuple[str, Dict[str, Tuple[str, List[float]]]]]]:
+    EXPRESSIONS_RAW = pd.read_csv(fpath)['true_equation'].to_list()
+    variable_distr = {'x': ('uniform', (1, 10))}  # Univariate: only 'x' variable
+    return [
+        (i, (EXPRESSIONS_RAW[i], variable_distr))  # Equations already include 'y = '
+        for i in sorted(idx)
+        if remove_op_equations is None or all(op not in EXPRESSIONS_RAW[i] for op in remove_op_equations)
     ]
 
 def load_feynman_equations(
@@ -256,10 +279,10 @@ def load_feynman_equations(
     return dataset
 
 def create_dataset_from_expression(
-    expr: str, 
-    num_samples: int, 
+    expr: str,
+    num_samples: int,
     noise: float,
-    univariate: bool = False
+    replace_univariate: bool = False
 ) -> SyntheticDataset:
     eq_str = f'y = {expr}'
 
@@ -267,7 +290,7 @@ def create_dataset_from_expression(
     variable_distr = {f'x{i}': ('uniform', (1, 10)) for i in range(10) if f'x{i}' in expr}
     X, y, var_order = sample_equation(eq_str, variable_distr, num_samples, noise, add_extra_vars=False)
     
-    if univariate:
+    if replace_univariate:
         # Convert to univariate by replacing all variables with 'x'
         eq_univariate = make_equation_univariate(eq_str)
         # Create new var_order with only 'x0' -> 'x'

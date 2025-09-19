@@ -1,9 +1,9 @@
 import os
 from dataclasses import dataclass, asdict, field
-from typing import Iterable, Literal, Dict, Any, Tuple, List
+from typing import Iterable, Literal, Dict, Any
 import json
 import wandb
-from omegaconf import OmegaConf
+from omegaconf import OmegaConf, DictConfig
 
 from pysr import PySRRegressor, TensorBoardLoggerSpec
 from dataset import utils as dataset_utils
@@ -87,13 +87,13 @@ class ModelSettings:
 
 @dataclass
 class DatasetSettings:
-    dataset_name: Literal['synthetic', 'feynman', 'pysr-difficult', 'custom'] = 'feynman'
+    dataset_name: Literal['synthetic', 'feynman', 'pysr-difficult', 'pysr-univariate', 'custom'] = 'feynman'
     num_samples: int = 2000
     noise: float = 0.0001
     eq_idx: int = 10
-    forbid_ops: Iterable[str] | None = None
+    remove_op_equations: Iterable[str] | None = None
     custom_expr: str | None = None  # If dataset_name == 'custom', this is the expression to use.
-    univariate: bool = False  # If True, replace all variables with 'x' to make the dataset univariate
+    replace_univariate: bool = False  # If True, replace all variables with 'x' to make the dataset univariate
 
 
 def create_LaSR_custom_loss():
@@ -205,6 +205,7 @@ def run_single(
     dataset_settings: DatasetSettings,
     log_dir: str,
     wandb_logging: bool = False,
+    enable_mutation_logging: bool = True,
 ) -> None:
     if dataset_settings.dataset_name == 'custom':
         assert dataset_settings.custom_expr is not None, "Custom expression is required for custom dataset."
@@ -212,7 +213,7 @@ def run_single(
             dataset_settings.custom_expr,
             dataset_settings.num_samples,
             dataset_settings.noise,
-            dataset_settings.univariate,
+            dataset_settings.replace_univariate,
         )
     else:
         dataset = dataset_utils.load_datasets(
@@ -220,8 +221,8 @@ def run_single(
             num_samples=dataset_settings.num_samples,
             noise=dataset_settings.noise,
             equation_indices=[dataset_settings.eq_idx],
-            forbid_ops=dataset_settings.forbid_ops,
-            univariate=dataset_settings.univariate,
+            remove_op_equations=dataset_settings.remove_op_equations,
+            replace_univariate=dataset_settings.replace_univariate,
         )[0]
 
     model = packaged_model.model
@@ -241,14 +242,16 @@ def run_single(
         )
 
     # Reset/Init loggers
-    init_mutation_logger(log_dir, prefix='mutations')
-    reset_neural_mutation_stats()
+    if enable_mutation_logging:
+        init_mutation_logger(log_dir, prefix='mutations')
+        reset_neural_mutation_stats()
 
     # Run the model
     model.fit(dataset.X, dataset.y)
 
     # Close the mutation logger (flushing remaining data to disk)
-    close_mutation_logger()
+    if enable_mutation_logging:
+        close_mutation_logger()
 
     # Get neural mutation stats and save to file
     neural_stats = summarize_stats_dict(get_neural_mutation_stats())
