@@ -1,13 +1,11 @@
 [deps]
-DynamicExpressions = "a40a106e-89c9-4ca8-8020-a735e8728b6b"
 OpenSSL_jll = "458c3c95-2e84-50aa-8efc-19380b2a3a95"
 PythonCall = "6099a3de-0909-46bc-b1f4-468b9a2dfc0d"
-Revise = "295af30f-e4ad-537b-8983-00126c2a3abe"
 Serialization = "9e88b42a-f829-5b0c-bbe9-9e923198166b"
 SymbolicRegression = "8254be44-1295-4e6a-a16d-46603ac705cb"
 TensorBoardLogger = "899adc3e-224a-11e9-021f-63837185c80f"
 
 [compat]
-OpenSSL_jll = "3.0.0 - 3.4"
+OpenSSL_jll = "3.0.0 - 3.5"
 PythonCall = "=0.9.26"
 Serialization = "^1"

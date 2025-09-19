@@ -1,22 +1,28 @@
 run_settings:
-  verbosity: 0
   n_runs: 2
-  max_iter: 10  # Reduced for testing
-  early_stopping_condition: 1e-8
-  log_dir: /cephfs/store/gr-mc2473/lc865/workspace/benchmark_data/sept-test
+  log_dir: /cephfs/store/gr-mc2473/lc865/workspace/benchmark_data/sept-test-2
   wandb_logging: true
+
+model_settings:
+  niterations: 20  # Reduced for testing
+  loss_function: none
+  early_stopping_condition: 1e-8
+  verbosity: 0
+  precision: 64
+  batching: false
+  batch_size: 50
 
 dataset:
   name: pysr-difficult
   num_samples: 2000  # Same settings as full1_
-  noise: 0
-  equation_indices: [102, 202, 302, 402]  # Two equations for minimal testing
+  noise: 1e-4
+  equation_indices: [502, 602, 702, 802]  # Two equations for minimal testing
   forbid_ops: []
   univariate: true
 
 symbolic_regression:
   neural_options:
-    active: false  # Disabled for vanilla mode
+    active: true
     model_path: /cephfs/home/lc865/workspace/similar-expressions/onnx-models/model-e51hcsb9.onnx
     sampling_eps: 0.02
     subtree_min_nodes: 2
@@ -27,12 +33,12 @@ symbolic_regression:
     require_tree_size_similarity: true
     require_novel_skeleton: true
     require_expr_similarity: true
-    similarity_threshold: 0.2  # Using double actual similarity_threshold to speed up computation
+    similarity_threshold: 0.2
     log_subtree_strings: false
     sample_logits: true
     max_resamples: 127
     sample_batchsize: 32
-    subtree_max_features: 2
+    subtree_max_features: 1
 
   mutation_weights:
     weight_add_node: 2.47
@@ -46,4 +52,4 @@ symbolic_regression:
     weight_randomize: 0.000502
     weight_simplify: 0.00209
     weight_optimize: 0.0
-    weight_neural_mutate_tree: 0.0  # Disabled for vanilla mode
+    weight_neural_mutate_tree: 1.0

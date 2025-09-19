@@ -1,16 +1,22 @@
 run_settings:
-  verbosity: 0
   n_runs: 2
-  max_iter: 20
-  early_stopping_condition: 1e-8
   log_dir: /cephfs/store/gr-mc2473/lc865/workspace/benchmark_data/sept-test2-vanilla
   wandb_logging: true
+
+model_settings:
+  niterations: 20
+  loss_function: none
+  early_stopping_condition: 1e-8
+  verbosity: 0
+  precision: 64
+  batching: false
+  batch_size: 50
 
 dataset:
   name: pysr-difficult
   num_samples: 2000  # Same settings as full1_
-  noise: 0
-  equation_indices: "100:3000:600"
+  noise: 1e-4
+  equation_indices: "100, 200, 300, 400"
   forbid_ops: [log]
   univariate: true
 

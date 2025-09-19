@@ -32,9 +32,13 @@ def load_config_with_overrides(config_path: str, args) -> Tuple[Any, ModelSettin
 
     # Create dataclass instances from config sections
     model_settings = ModelSettings(
-        niterations=cfg.run_settings.max_iter,
-        early_stopping_condition=cfg.run_settings.early_stopping_condition,
-        verbosity=cfg.run_settings.verbosity
+        niterations=cfg.model_settings.niterations,
+        loss_function=cfg.model_settings.loss_function,
+        early_stopping_condition=cfg.model_settings.early_stopping_condition,
+        verbosity=cfg.model_settings.verbosity,
+        precision=cfg.model_settings.precision,
+        batching=cfg.model_settings.batching,
+        batch_size=cfg.model_settings.batch_size
     )
 
     # Create neural options from config
@@ -192,13 +196,16 @@ def run_equations(
                 dir=log_dir,
                 project='simexp-SR',
                 name=run_name,
-                config=cfg
+                config=OmegaConf.to_container(cfg, resolve=True)
             )
 
             # Create dataset settings
             dataset_settings = DatasetSettings(
                 dataset_name=dataset_name,
                 eq_idx=eq_idx,
+                num_samples=cfg.dataset.num_samples,
+                noise=cfg.dataset.noise,
+                forbid_ops=OmegaConf.to_container(cfg.dataset.forbid_ops, resolve=True),
                 univariate=cfg.dataset.univariate
             )
 
@@ -208,14 +215,15 @@ def run_equations(
                 early_stopping_condition=model_settings.early_stopping_condition,
                 verbosity=model_settings.verbosity
             )
-
-            # Merge with wandb.config <- This is needed for WandB sweeps
-            model_settings, mutation_weights, neural_options = merge_configs(
-                model_settings,
-                mutation_weights,
-                neural_options,
-                wandb.config
-            )
+            # If we want to run sweeps, update this code. I think in that case we don't pass cfg to wandb.init
+            # print('WandB config:', wandb.config)
+            # # Merge with wandb.config <- This is needed for WandB sweeps
+            # model_settings, mutation_weights, neural_options = merge_configs(
+            #     model_settings,
+            #     mutation_weights,
+            #     neural_options,
+            #     wandb.config
+            # )
             mutation_weights.normalize()
 
             # Create model for this run
@@ -238,22 +246,28 @@ def run_equations(
                     )
                 except Exception as e:
                     print(f'[ERROR] Error running equation {eq_idx}, run {run_i}: {e}')
-                    continue
+                    raise e
+                    # continue
 
             # Aggregate results across all runs for this equation
-            all_step_stats, all_summary_stats_combined = collect_sweep_results(
-                log_dir,
-                run_dirs,
-                keep_single_runs=False,
-                combined_prefix='mean-'
-            )
+            try:
+                all_step_stats, all_summary_stats_combined = collect_sweep_results(
+                    log_dir,
+                    run_dirs,
+                    keep_single_runs=False,
+                    combined_prefix='mean-'
+                )
 
-            # Log to WandB
-            for step, values in all_step_stats:
-                wandb_run.log(values, step=step, commit=False)
-            wandb_run.log({}, commit=True)
-            wandb_run.summary.update(all_summary_stats_combined)
-            wandb.finish()
+                # Log to WandB
+                for step, values in all_step_stats:
+                    wandb_run.log(values, step=step, commit=False)
+                wandb_run.log({}, commit=True)
+                wandb_run.summary.update(all_summary_stats_combined)
+            except Exception as e:
+                print(f'[ERROR] Error collecting results for equation {eq_idx}: {e}')
+                continue
+            finally:
+                wandb.finish()
 
     else:
         # Separate mode: individual WandB runs
@@ -270,7 +284,8 @@ def run_equations(
                 eq_idx=eq_idx,
                 num_samples=dataset_cfg.num_samples,
                 noise=dataset_cfg.noise,
-                forbid_ops=OmegaConf.to_container(getattr(dataset_cfg, 'forbid_ops', None))
+                forbid_ops=OmegaConf.to_container(dataset_cfg.forbid_ops, resolve=True),
+                univariate=dataset_cfg.univariate
             )
             try:
                 run_single(
@@ -337,20 +352,13 @@ def is_equation_completed(eq_idx: int, dataset_name: str, log_dir: str, pooled: 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Run SR experiments using config file')
     parser.add_argument('--config', type=str, required=True, help='Path to YAML config file')
-    parser.add_argument('--equations', type=str, help='Equation indices to run (e.g., "102", "102,202,302", "102:105", "102:110:2"). If not provided, uses config defaults.')
-    parser.add_argument('--dataset', type=str, help='Dataset name to use. If not provided, uses config defaults.')
-    parser.add_argument('--pooled', action='store_true', help='Run equations with pooled/aggregated results instead of separate runs')
-    parser.add_argument('--log_dir', type=str, help='Override log directory from config')
-    parser.add_argument('--pysr_verbosity', type=int, help='Override Pysr verbosity from config')
-    parser.add_argument('--niterations', type=int, help='Override number of iterations from config')
-    parser.add_argument('--wandb_logging', type=bool, default=True, help='Enable WandB logging')
     parser.add_argument('--node_id', type=int, help='Node ID for distributed runs (0-indexed)')
     parser.add_argument('--total_nodes', type=int, help='Total number of nodes for distributed runs')
-    args = parser.parse_args()
+    parser.add_argument('--pooled', action='store_true', help='Run equations with pooled/aggregated results instead of separate runs')
 
-    # Parse equations string if provided
-    if args.equations is not None:
-        args.equations = parse_equations(args.equations)
+    parser.add_argument('--log_dir', type=str, help='Override log directory from config')
+    parser.add_argument('--niterations', type=int, help='Override number of iterations from config')
+    args = parser.parse_args()
 
     # Load config and apply CLI overrides in one step
     cfg, model_settings, neural_options, mutation_weights, log_dir, dataset_name, equations = load_config_with_overrides(args.config, args)

@@ -3,6 +3,7 @@ from dataclasses import dataclass, asdict, field
 from typing import Iterable, Literal, Dict, Any, Tuple, List
 import json
 import wandb
+from omegaconf import OmegaConf
 
 from pysr import PySRRegressor, TensorBoardLoggerSpec
 from dataset import utils as dataset_utils
@@ -47,7 +48,10 @@ class NeuralOptions:
         # If subtree_max_nodes_diff exists, calculate subtree_max_nodes and remove diff
         if hasattr(self, 'subtree_max_nodes_diff'):
             self.subtree_max_nodes = self.subtree_min_nodes + self.subtree_max_nodes_diff
-            delattr(self, 'subtree_max_nodes_diff')
+            try:
+                delattr(self, 'subtree_max_nodes_diff')
+            except AttributeError:
+                pass
 
 @dataclass
 class MutationWeights:  # TODO: Rm weight_ prefix
@@ -108,7 +112,7 @@ def create_LaSR_custom_loss():
     """
     return custom_loss
 
-# Dataclass to store package and it's hyperparams
+# Dataclass to store package and its hyperparams
 @dataclass
 class PackagedModel:
     model: PySRRegressor
@@ -181,7 +185,7 @@ def save_run_metadata(
         'dataset_settings': asdict(dataset_settings),
     }
 
-    # Save the model settings
+    # Save the model settings (convert OmegaConf objects to regular Python objects)
     with open(os.path.join(log_dir, 'run_metadata.json'), 'w') as f:
         json.dump(metadata, f, indent=4)
 
