@@ -242,8 +242,7 @@ def run_equations(
                     )
                 except Exception as e:
                     print(f'[ERROR] Error running equation {eq_idx}, run {run_i}: {e}')
-                    raise e
-                    # continue
+                    continue
 
             # Aggregate results across all runs for this equation
             try:
