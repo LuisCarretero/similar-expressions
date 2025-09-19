@@ -1,0 +1,7 @@
+matplotlib==3.10.6
+numpy==2.3.3
+omegaconf==2.3.0
+pandas==2.3.2
+tensorboard==2.18.0
+tqdm==4.66.5
+wandb==0.22.0

@@ -1,17 +1,10 @@
 from pathlib import Path
 import argparse
-import sys
 from typing import List, Tuple, Dict, Any, Union
 import wandb
 import os
 import json
 
-# Add parent directory to path for imports
-parent_dir = str(Path(__file__).parent.parent.parent)
-if parent_dir not in sys.path:
-    sys.path.append(parent_dir)
-
-from utils.config import load_config
 from omegaconf import OmegaConf
 from run.benchmarking_utils import (
     NeuralOptions,
@@ -19,7 +12,8 @@ from run.benchmarking_utils import (
     ModelSettings,
     DatasetSettings,
     init_pysr_model,
-    run_single
+    run_single,
+    load_config
 )
 from analysis.utils import collect_sweep_results
 

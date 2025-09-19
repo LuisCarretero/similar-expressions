@@ -11,18 +11,19 @@ using SymbolicRegression.MutationLoggingModule: init_logger, close_global_logger
 # ----- Create options
 
 model_id = "e51hcsb9"
+model_path = joinpath(@__DIR__, "../../../onnx-models/model-$model_id.onnx")
+
 options = Options(
     binary_operators=[+, *, /, -],
     unary_operators=[sin, cos, exp, zero_sqrt],
     populations=40,
     neural_options=NeuralOptions(
-        active=true,  # If not active, will still be called according to MutationWeights.neural_mutate_tree rate but will return the original tree
+        active=true,
         sampling_eps=0.02,
         subtree_min_nodes=8,
         subtree_max_nodes=14,
-        model_path="/cephfs/home/lc865/workspace/similar-expressions/onnx-models/model-$model_id.onnx",
-        # model_path="/home/lc865/workspace/similar-expressions/src/dev/ONNX/onnx-models/model-$model_id.onnx",
-        device="cuda",  # "cuda"
+        model_path=model_path,
+        device="cuda",
         verbose=true,
         max_tree_size_diff=7,
         require_tree_size_similarity=true,
@@ -55,15 +56,10 @@ options = Options(
 # ----- Create data and run SR
 
 X = (rand(2, 1000) .- 0.5) .* 20
-# y = 2 * cos.(X[2, :]) + X[1, :] .^ 2 .- 2
 y = X[1, :] .^ 3 .- 2 + 2 * cos.(X[2, :]) + sin.(X[1, :] .* X[2, :]) ./ 3
 
-# I.6.2b,3,f,exp(-((theta-theta1)/sigma)**2/2)/(sqrt(2*pi)*sigma),3,sigma,1,3,theta,1,3,theta1,1,3
-# X = rand(3, 1000) .* 10
-# X[1:2, :] .= (X[1:2, :] .- 5)
-# y = 1 ./ (sqrt(2 * pi) .* X[3, :]) .* exp.(-((X[1, :] .- X[2, :]) ./ X[3, :]) .^ 2 / 2)
-
-init_logger("/cephfs/home/lc865/workspace/similar-expressions/src/SR_benchmarking/run/julia_test_logs")
+log_path = joinpath(@__DIR__, "julia_test_logs")
+init_logger(log_path)
 
 hall_of_fame = equation_search(
     X, y, niterations=2, options=options,
