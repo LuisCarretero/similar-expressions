@@ -161,6 +161,21 @@ def run_equations(
     """
     wandb_logging = cfg.run_settings.wandb_logging
 
+    # Filter out completed equations
+    completed_equations = [eq for eq in equations if is_equation_completed(eq, dataset_name, log_dir, pooled)]
+    remaining_equations = list(set(equations) - set(completed_equations))
+
+    # Print informative messages and early return if nothing to do
+    if completed_equations:
+        print(f'[INFO] Skipping {len(completed_equations)} completed equations: {completed_equations}')
+    
+    if not remaining_equations:
+        print('[INFO] All equations already completed, nothing to run')
+        return
+    
+    print(f'[INFO] Running {len(remaining_equations)} remaining equations: {remaining_equations}')
+    equations = remaining_equations
+
     if pooled:
         # Pooled mode: pool multiple runs per equation
         for eq_idx in equations:
@@ -292,6 +307,31 @@ def parse_equations(s: str) -> List[int]:
             result.append(int(segment.replace('m', '-')))
 
     return result
+
+
+def is_equation_completed(eq_idx: int, dataset_name: str, log_dir: str, pooled: bool) -> bool:
+    """Check if an equation has already been completed by checking directory existence.
+
+    Args:
+        eq_idx: Equation index to check
+        dataset_name: Dataset name
+        log_dir: Base log directory
+        pooled: Whether running in pooled mode
+
+    Returns:
+        True if any directory exists for this equation (indicating it was started)
+    """
+    if pooled:
+        # For pooled mode, check if any run directory exists for this equation
+        # Format: {log_dir}/{dataset_name}_eq{eq_idx}_run{run_i}
+        run_i = 0
+        run_dir = os.path.join(log_dir, f'{dataset_name}_eq{eq_idx}_run{run_i}')
+        return os.path.exists(run_dir)
+    else:
+        # For separate mode, check if equation directory exists
+        # Format: {log_dir}/{dataset_name}_eq{eq_idx}
+        eq_dir = os.path.join(log_dir, f'{dataset_name}_eq{eq_idx}')
+        return os.path.exists(eq_dir)
 
 
 if __name__ == '__main__':

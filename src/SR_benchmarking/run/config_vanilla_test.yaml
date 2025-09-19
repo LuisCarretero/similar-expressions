@@ -10,7 +10,7 @@ dataset:
   name: pysr-difficult
   num_samples: 2000  # Same settings as full1_
   noise: 0
-  equation_indices: [102, 202]  # Two equations for minimal testing
+  equation_indices: [102, 202, 302, 402]  # Two equations for minimal testing
   forbid_ops: []
   univariate: true
 
