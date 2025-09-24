@@ -5,7 +5,7 @@ import wandb
 import os
 
 from omegaconf import OmegaConf
-from run.benchmarking_utils import (
+from run.utils import (
     NeuralOptions,
     MutationWeights,
     ModelSettings,
@@ -17,7 +17,7 @@ from run.benchmarking_utils import (
 from analysis.utils import collect_sweep_results
 
 
-def load_config_with_overrides(config_path: str, args) -> Tuple[Any, ModelSettings, NeuralOptions, MutationWeights, str, str, List[int]]:
+def _load_config_with_overrides(config_path: str, args) -> Tuple[Any, ModelSettings, NeuralOptions, MutationWeights, str, str, List[int]]:
     """
     Load config file, convert to dataclass instances, and apply CLI overrides.
     """
@@ -84,12 +84,12 @@ def load_config_with_overrides(config_path: str, args) -> Tuple[Any, ModelSettin
     log_dir = args.log_dir if hasattr(args, 'log_dir') and args.log_dir is not None else cfg.run_settings.log_dir
     dataset_name = args.dataset if hasattr(args, 'dataset') and args.dataset is not None else cfg.dataset.name
     equations_raw = args.equations if hasattr(args, 'equations') and args.equations is not None else cfg.dataset.equation_indices
-    equations = parse_equations(equations_raw) if isinstance(equations_raw, str) else equations_raw
+    equations = _parse_eq_idx(equations_raw) if isinstance(equations_raw, str) else equations_raw
 
     return cfg, model_settings, neural_options, mutation_weights, log_dir, dataset_name, equations
 
 
-def merge_configs(
+def _merge_configs(
         model_settings: ModelSettings, 
         mutation_weights: MutationWeights, 
         neural_options: NeuralOptions, 
@@ -124,24 +124,6 @@ def merge_configs(
 
     return model_settings, mutation_weights, neural_options
 
-
-def apply_cli_overrides(cfg, model_settings, args):
-    """Apply CLI argument overrides to config objects"""
-    # Model settings overrides
-    if hasattr(args, 'niterations') and args.niterations is not None:
-        model_settings.niterations = args.niterations
-    if hasattr(args, 'pysr_verbosity') and args.pysr_verbosity is not None:
-        model_settings.verbosity = args.pysr_verbosity
-
-    # Config value overrides
-    log_dir = args.log_dir if hasattr(args, 'log_dir') and args.log_dir is not None else cfg.run_settings.log_dir
-    dataset_name = args.dataset if hasattr(args, 'dataset') and args.dataset is not None else cfg.dataset.name
-    equations_raw = args.equations if hasattr(args, 'equations') and args.equations is not None else cfg.dataset.equation_indices
-    equations = parse_equations(equations_raw) if isinstance(equations_raw, str) else equations_raw
-
-    return log_dir, dataset_name, equations
-
-
 def run_equations(
     cfg,
     model_settings,
@@ -161,7 +143,7 @@ def run_equations(
     wandb_logging = cfg.run_settings.wandb_logging
 
     # Filter out completed equations
-    completed_equations = [eq for eq in equations if is_equation_completed(eq, dataset_name, log_dir, pooled)]
+    completed_equations = [eq for eq in equations if _is_equation_completed(eq, dataset_name, log_dir, pooled)]
     remaining_equations = sorted(list(set(equations) - set(completed_equations)))
 
     # Print informative messages and early return if nothing to do
@@ -292,7 +274,7 @@ def run_equations(
                 print(f'[ERROR] Error running equation {eq_idx} from dataset {dataset_name}: {e}')
                 continue
 
-def parse_equations(s: str) -> List[int]:
+def _parse_eq_idx(s: str) -> List[int]:
     """Parse equation string into list of integers.
 
     Supports:
@@ -318,7 +300,7 @@ def parse_equations(s: str) -> List[int]:
     return result
 
 
-def is_equation_completed(eq_idx: int, dataset_name: str, log_dir: str, pooled: bool) -> bool:
+def _is_equation_completed(eq_idx: int, dataset_name: str, log_dir: str, pooled: bool) -> bool:
     """Check if an equation has already been completed by checking directory existence.
 
     Args:
@@ -355,7 +337,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     # Load config and apply CLI overrides in one step
-    cfg, model_settings, neural_options, mutation_weights, log_dir, dataset_name, equations = load_config_with_overrides(args.config, args)
+    cfg, model_settings, neural_options, mutation_weights, log_dir, dataset_name, equations = _load_config_with_overrides(args.config, args)
 
     # Distribute equations across nodes if distributed mode is enabled
     if args.node_id is not None and args.total_nodes is not None:

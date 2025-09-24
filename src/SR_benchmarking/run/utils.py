@@ -94,8 +94,16 @@ class DatasetSettings:
     remove_op_equations: Iterable[str] | None = None
     custom_expr: str | None = None  # If dataset_name == 'custom', this is the expression to use.
 
+# Dataclass to store package and its hyperparams
+@dataclass
+class PackagedModel:
+    model: PySRRegressor
+    neural_options: NeuralOptions
+    mutation_weights: MutationWeights
+    model_settings: ModelSettings
+    model_args: dict = field(default_factory=dict)
 
-def create_LaSR_custom_loss():
+def _create_LaSR_custom_loss():
     custom_loss = """
     function eval_loss(tree, dataset::Dataset{T,L}, options, idx)::L where {T,L}
         X = isnothing(idx) ? dataset.X : dataset.X[:, idx]
@@ -110,15 +118,6 @@ def create_LaSR_custom_loss():
     end
     """
     return custom_loss
-
-# Dataclass to store package and its hyperparams
-@dataclass
-class PackagedModel:
-    model: PySRRegressor
-    neural_options: NeuralOptions
-    mutation_weights: MutationWeights
-    model_settings: ModelSettings
-    model_args: dict = field(default_factory=dict)
 
 def load_config(file_path: str, use_fallback: bool = False, fallback_cfg_path: str = 'src/train/config.yaml') -> DictConfig:
     # TODO: Add error handling, fallback values, etc.
