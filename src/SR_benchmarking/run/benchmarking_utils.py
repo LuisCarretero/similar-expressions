@@ -87,13 +87,12 @@ class ModelSettings:
 
 @dataclass
 class DatasetSettings:
-    dataset_name: Literal['synthetic', 'feynman', 'pysr-difficult', 'pysr-univariate', 'custom'] = 'feynman'
-    num_samples: int = 2000
+    dataset_name: Literal['synthetic', 'feynman', 'pysr-difficult', 'pysr-univariate', 'custom']
+    num_samples: int
     noise: float = 0.0001
     eq_idx: int = 10
     remove_op_equations: Iterable[str] | None = None
     custom_expr: str | None = None  # If dataset_name == 'custom', this is the expression to use.
-    replace_univariate: bool = False  # If True, replace all variables with 'x' to make the dataset univariate
 
 
 def create_LaSR_custom_loss():
@@ -213,7 +212,6 @@ def run_single(
             dataset_settings.custom_expr,
             dataset_settings.num_samples,
             dataset_settings.noise,
-            dataset_settings.replace_univariate,
         )
     else:
         dataset = dataset_utils.load_datasets(
@@ -222,7 +220,6 @@ def run_single(
             noise=dataset_settings.noise,
             equation_indices=[dataset_settings.eq_idx],
             remove_op_equations=dataset_settings.remove_op_equations,
-            replace_univariate=dataset_settings.replace_univariate,
         )[0]
 
     model = packaged_model.model
@@ -301,8 +298,7 @@ if __name__ == '__main__':
         dataset_name='feynman',
         num_samples=2000,
         noise=0.0001,
-        eq_idx=10,
-        univariate=True
+        eq_idx=10
     )
     log_dir = Path(__file__).parent / 'logs' / 'test_univar4'
 

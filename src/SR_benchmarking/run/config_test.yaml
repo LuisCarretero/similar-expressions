@@ -19,7 +19,6 @@ dataset:
   noise: 1e-4
   equation_indices: [502, 602, 702, 802]  # Two equations for minimal testing
   remove_op_equations: []
-  replace_univariate: true
 
 symbolic_regression:
   neural_options:

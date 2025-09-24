@@ -201,7 +201,6 @@ def run_equations(
                 num_samples=cfg.dataset.num_samples,
                 noise=cfg.dataset.noise,
                 remove_op_equations=OmegaConf.to_container(cfg.dataset.remove_op_equations, resolve=True),
-                replace_univariate=cfg.dataset.replace_univariate
             )
 
             # Create fresh model settings for each run
@@ -279,8 +278,7 @@ def run_equations(
                 eq_idx=eq_idx,
                 num_samples=dataset_cfg.num_samples,
                 noise=dataset_cfg.noise,
-                remove_op_equations=OmegaConf.to_container(dataset_cfg.remove_op_equations, resolve=True),
-                replace_univariate=dataset_cfg.replace_univariate
+                remove_op_equations=OmegaConf.to_container(dataset_cfg.remove_op_equations, resolve=True)
             )
             try:
                 run_single(

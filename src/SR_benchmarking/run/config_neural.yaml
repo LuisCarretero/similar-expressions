@@ -19,7 +19,6 @@ dataset:
   noise: 1e-4
   equation_indices: "0:400"
   remove_op_equations: []
-  replace_univariate: false
 
 symbolic_regression:
   neural_options:

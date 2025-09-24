@@ -5,25 +5,68 @@ Dataset utilities. Some of the code is from the LaSR codebase.
 import numpy as np
 from typing import Tuple, Dict, List, Iterable, Literal
 from dataclasses import dataclass
-import csv
 import os
 import pandas as pd
 import re
 
+# Dataset configuration constants
+DATASET_CONFIGS = {
+    'synthetic': {
+        'filename': 'LaSR-SyntheticEquations.csv',
+        'max_index': 40,  # 0-based: 0-40 (41 equations)
+        'equation_col': 'equation',
+        'equation_format': 'y = {expression}',
+        'extract_vars': True
+    },
+    'feynman': {
+        'filename': 'LaSR-FeynmanEquations.csv',
+        'max_index': 99,  # 0-based: 0-99 (100 equations)
+        'equation_col': 'Formula',
+        'output_col': 'Output',
+        'equation_format': '{output} = {expression}',
+        'extract_vars': False  # Use v1_name/v1_low/v1_high columns
+    },
+    'pysr-difficult': {
+        'filename': 'PySR-difficultEquations.csv',
+        'max_index': 3360,  # 0-based: 0-3359 (3360 equations)
+        'equation_col': 'true_equation',
+        'equation_format': 'y = {expression}',
+        'extract_vars': True
+    },
+    'pysr-univariate': {
+        'filename': 'PySR-univariate.csv',
+        'max_index': 2015,  # 0-based: 0-2015 (2016 equations)
+        'equation_col': 'true_equation',
+        'equation_format': 'y = {expression}',
+        'extract_vars': True
+    }
+}
+
 
 @dataclass
 class SyntheticDataset:
-    idx: int
-    equation: str  # Including 'y = '
+    eq_idx: int
+    equation: str
+    expression: str | None = None
     X: np.ndarray
     y: np.ndarray
     var_order: Dict[str, str]
 
     def __repr__(self):
-        return f'SyntheticDataset(idx={self.idx}, equation="{self.equation}", X={self.X.shape}, y={self.y.shape}, var_order={self.var_order})'
+        return f'SyntheticDataset(eq_idx={self.eq_idx}, equation="{self.equation}", X={self.X.shape}, y={self.y.shape}, var_order={self.var_order})'
 
 
-# Useful constants. Required for sample_equation -> eval(lambda ...) to work.
+@dataclass
+class VariableDistribution:
+    """Represents a variable's sampling distribution and parameters."""
+    method: Literal['uniform', 'normal', 'loguniform', 'lognormal', 'constant']
+    params: Tuple[float, float]  # (min, max) for uniform, (mean, std) for normal, etc.
+
+    def __repr__(self):
+        return f'VariableDistribution(method="{self.method}", params={self.params})'
+
+
+# Operators equired for sample_equation -> eval(lambda ...) to work.
 pi = np.pi
 cos = np.cos
 sin = np.sin
@@ -31,60 +74,27 @@ sqrt = np.sqrt
 exp = np.exp
 arcsin = np.arcsin
 arccos = np.arccos
-log = np.log
-ln = np.log
+ln = log = np.log
 tanh = np.tanh
 sinh = np.sinh
 cosh = np.cosh
 
 
-def make_equation_univariate(equation: str) -> str:
+def sample_equation(
+    equation: str, 
+    var_distributions: Dict[str, VariableDistribution], 
+    num_samples: int, 
+    noise: float, 
+    add_extra_vars: bool
+) -> Tuple[np.ndarray, np.ndarray, Dict[str, str]]:
     """
-    Replace all variables in the equation with 'x' to make it univariate.
-    
-    Handles different variable naming conventions:
-    - x_i variables (e.g., x1, x2, x3, ...) -> x
-    - y_i variables (e.g., y1, y2, y3, ...) -> x  
-    - Feynman variables (any single letter or letter+digit) -> x
-    """
-    # Split equation at '=' to get the expression part
-    if ' = ' in equation:
-        lhs, rhs = equation.split(' = ', 1)
-        expr = rhs
-    else:
-        expr = equation
-        lhs = 'y'
-    
-    # Pattern to match variables: letter followed by optional digits
-    # This will match x1, y2, m, n, etc.
-    variable_pattern = r'\b[a-zA-Z][0-9]*\b'
-    
-    # Find all variables in the expression
-    variables = set(re.findall(variable_pattern, expr))
-    
-    # Remove mathematical functions/constants that shouldn't be replaced
-    math_functions = {'sin', 'cos', 'exp', 'log', 'ln', 'sqrt', 'tanh', 'sinh', 'cosh', 
-                     'arcsin', 'arccos', 'pi', 'e'}
-    variables = variables - math_functions
-    
-    # Replace all variables with 'x'
-    expr_univariate = expr
-    for var in variables:
-        # Use word boundaries to avoid partial replacements
-        expr_univariate = re.sub(r'\b' + re.escape(var) + r'\b', 'x', expr_univariate)
-    
-    return f'{lhs} = {expr_univariate}'
-
-
-def sample_equation(equation: str, bounds: Dict[str, Tuple[str, Tuple[float, float]]], num_samples: int, noise: float, add_extra_vars: bool):
-    """
-    From LaSR codebase.
+    Sample values for variables according to their distributions and evaluate the equation.
+    From LaSR codebase, updated to use VariableDistribution objects.
     """
     out = []
-    for var in bounds:
-        if bounds[var] is None:  # goal
-            continue
-        out.append((var, sample(*bounds[var], num_samples=num_samples)))
+    for var_name, var_dist in var_distributions.items():
+        sampled_values = _sample_from_distribution(var_dist.method, var_dist.params, num_samples=num_samples)
+        out.append((var_name, sampled_values))
 
     expr = equation.split(" = ")[1].replace("^", "**")
     expr_as_func = eval(f"lambda {','.join([x[0] for x in out])}: {expr}")  # TODO: use sympy?
@@ -98,13 +108,12 @@ def sample_equation(equation: str, bounds: Dict[str, Tuple[str, Tuple[float, flo
 
     if add_extra_vars:
         total_vars = len(["x", "y", "z", "k", "j", "l", "m", "n", "p", "a", "b"])
-        extra_vars = {
-            chr(ord("A") + c): ("uniform", (1, 20))
-            for c in range(total_vars - len(bounds) + 1)
-        }
-        for var in extra_vars:
-            out.append((var, sample(*extra_vars[var], num_samples=num_samples)))
-
+        num_extra = total_vars - len(var_distributions) + 1
+        for c in range(num_extra):
+            var_name = chr(ord("A") + c)
+            extra_var_dist = VariableDistribution("uniform", (1, 20))
+            sampled_values = _sample_from_distribution(extra_var_dist.method, extra_var_dist.params, num_samples=num_samples)
+            out.append((var_name, sampled_values))
 
     np.random.shuffle(out)
     var_order = {"x" + str(i): out[i][0] for i in range(len(out))}
@@ -112,195 +121,172 @@ def sample_equation(equation: str, bounds: Dict[str, Tuple[str, Tuple[float, flo
 
     return X, y, var_order
 
-def sample_datasets(
-    equations: List[Tuple[int, Tuple[str, Dict[str, Tuple[str, List[float]]]]]],
-    num_samples: int, noise: float, add_extra_vars: bool, replace_univariate: bool = False
-) -> List[SyntheticDataset]:
-    """
-    Dataset: [(idx, (equation, X, Y, var_order))]
-    """
-    datasets = []
-    for (idx, (eq, bounds)) in equations:
-        X, Y, var_order = sample_equation(eq, bounds, num_samples, noise, add_extra_vars=add_extra_vars)
-        
-        if replace_univariate:
-            # Convert to univariate by replacing all variables with 'x'
-            eq_univariate = make_equation_univariate(eq)
-            # Create new var_order with only 'x0' -> 'x'
-            var_order_univariate = {'x0': 'x'}
-            # Take only the first column of X (first variable)
-            X_univariate = X[:, :1]
-            datasets.append(SyntheticDataset(idx, eq_univariate, X_univariate, Y, var_order_univariate))
-        else:
-            datasets.append(SyntheticDataset(idx, eq, X, Y, var_order))
-    return datasets
-
-def sample(method: str, b: Tuple[float, float], num_samples: int):
+def _sample_from_distribution(
+    distr: Literal['uniform', 'normal', 'loguniform', 'lognormal', 'constant', 'linspace'], 
+    params: Tuple[float, float], 
+    num_samples: int
+) -> np.ndarray:
     """
     Samples x values from specified distribution.
     """
-    if method == "constant":  # const
-        return np.full(num_samples, b)
-    elif method == "uniform":  # (low, high)
-        return np.random.uniform(low=b[0], high=b[1], size=num_samples)
-    elif method == "normal":  # (mean, std)
-        return np.random.normal(loc=b[0], scale=b[1], size=num_samples)
-    elif method == "loguniform":  # logU(a, b) ~ exp(U(log(a), log(b))
+    if distr == "constant":  # const
+        return np.full(num_samples, params)
+    elif distr == "uniform":  # (low, high)
+        return np.random.uniform(low=params[0], high=params[1], size=num_samples)
+    elif distr == "normal":  # (mean, std)
+        return np.random.normal(loc=params[0], scale=params[1], size=num_samples)
+    elif distr == "loguniform":  # logU(a, b) ~ exp(U(log(a), log(b))
         return np.exp(
-            np.random.uniform(low=np.log(b[0]), high=np.log(b[1]), size=num_samples)
+            np.random.uniform(low=np.log(params[0]), high=np.log(params[1]), size=num_samples)
         )
-    elif method == "lognormal":  # ln of var is normally distributed
-        return np.random.lognormal(mean=b[0], sigma=b[1], size=num_samples)
+    elif distr == "lognormal":  # ln of var is normally distributed
+        return np.random.lognormal(mean=params[0], sigma=params[1], size=num_samples)
+    elif distr == "linspace":  # (start, stop)
+        return np.linspace(start=params[0], stop=params[1], num=num_samples)
     else:
-        raise ValueError(f"Invalid method: {method}")
+        raise ValueError(f"Invalid distribution: {distr}")
+
+def _extract_variables_from_equation(equation_text: str) -> Dict[str, VariableDistribution]:
+    """
+    Extract variable names from equation text and create default distributions.
+
+    Args:
+        equation_text: The equation expression (e.g., "x + sin(y) * z")
+
+    Returns:
+        Dictionary of variable names to VariableDistribution objects
+    """
+    # Find all potential variables (letters followed by optional digits)
+    var_pattern = r'\b[a-zA-Z][a-zA-Z0-9_]*\b'
+    potential_vars = set(re.findall(var_pattern, equation_text))
+
+    # Remove mathematical functions and constants
+    math_functions = {
+        'sin', 'cos', 'tan', 'exp', 'log', 'ln', 'sqrt', 'abs',
+        'sinh', 'cosh', 'tanh', 'arcsin', 'arccos', 'arctan',
+        'pi', 'e', 'inf', 'nan'
+    }
+
+    variables = potential_vars - math_functions
+
+    # Create default uniform distributions for all variables
+    DEFAULT_BOUNDS = (1, 10)
+    return {var: VariableDistribution('uniform', DEFAULT_BOUNDS) for var in variables}
+
+def _extract_feynman_variables(row: pd.Series) -> Dict[str, VariableDistribution]:
+    """
+    Extract variables from Feynman dataset row using v1_name/v1_low/v1_high columns.
+
+    Args:
+        row: Pandas Series representing a row from Feynman dataset
+
+    Returns:
+        Dictionary of variable names to VariableDistribution objects
+    """
+    variables = {}
+    for i in range(1, 11):  # v1 through v10
+        name_col = f'v{i}_name'
+        low_col = f'v{i}_low'
+        high_col = f'v{i}_high'
+
+        if pd.notna(row[name_col]):  # Variable exists
+            var_name = row[name_col]
+            var_low = float(row[low_col])
+            var_high = float(row[high_col])
+            variables[var_name] = VariableDistribution("uniform", (var_low, var_high))
+
+    return variables
+
+def _format_equation_text(row: pd.Series, config: dict) -> Tuple[str, str]:
+    """
+    Format equation text according to dataset configuration.
+
+    Args:
+        row: Pandas Series representing a dataset row
+        config: Dataset configuration dictionary
+
+    Returns:
+        Tuple of (formatted equation string, raw expression)
+    """
+    expression = row[config['equation_col']]
+
+    if 'output_col' in config:  # Feynman case
+        output = row[config['output_col']]
+        formatted_equation = config['equation_format'].format(output=output, expression=expression)
+        return formatted_equation, expression
+    else:
+        formatted_equation = config['equation_format'].format(expression=expression)
+        return formatted_equation, expression
 
 def load_datasets(
     which: Literal['synthetic', 'feynman', 'pysr-difficult', 'pysr-univariate'],
     num_samples: int,
     noise: float,
-    equation_indices: Iterable[int] | None = None,
+    equation_indices: Iterable[int] | int | None = None,
     add_extra_vars: bool = False,
     fpath: str | None = None,
     remove_op_equations: Iterable[str] | None = None,
-    replace_univariate: bool = False,
 ) -> List[SyntheticDataset]:
+    """Load datasets and generate synthetic data from equation specifications."""
 
+    # Get dataset configuration
+    config = DATASET_CONFIGS[which]
+
+    # Normalize equation_indices to list
     if isinstance(equation_indices, int):
         equation_indices = [equation_indices]
-    elif not isinstance(equation_indices, Iterable):
+    elif equation_indices is not None and not isinstance(equation_indices, Iterable):
         raise ValueError(f"Invalid equation_indices: {equation_indices}")
 
-    if which == "synthetic":
-        if equation_indices is None:
-            equation_indices = range(0, 41)
+    # Validate equation_indices bounds (0-based for all datasets)
+    if equation_indices is not None:
+        max_allowed = config['max_index']
+        if max(equation_indices) > max_allowed or min(equation_indices) < 0:
+            raise ValueError(f"{which} indices must be 0-{max_allowed}")
+    else:
+        equation_indices = list(range(config['max_index'] + 1))
+
+    # Load CSV file
+    if fpath is None:
+        fpath = os.path.join(os.path.dirname(__file__), config['filename'])
+    df = pd.read_csv(fpath)
+
+    # Filter by equation_indices
+    df = df.iloc[equation_indices]
+
+    # Apply remove_op_equations filter if specified
+    if remove_op_equations is not None:
+        eq_col = config['equation_col']
+        for op in remove_op_equations:
+            df = df[~df[eq_col].str.contains(op, na=False)]
+
+    # Sort by index
+    df = df.sort_index()
+
+    # Create EquationSpecs using unified processing
+    datasets = []
+    for eq_idx, row in df.iterrows():
+        equation, expression = _format_equation_text(row, config)
+
+        if config['extract_vars']:
+            # Extract variables from equation text
+            variables = _extract_variables_from_equation(expression)
         else:
-            if max(equation_indices) > 40 or min(equation_indices) < 0:
-                raise ValueError("Synthetic dataset numbering starts at 0 and goes up to 40.")
-        if fpath is None:
-            fpath = os.path.join(os.path.dirname(__file__), 'LaSR-SyntheticEquations.csv')
-        equations = load_synthetic_equations(fpath, equation_indices, remove_op_equations)
-    elif which == "feynman":
-        if fpath is None:
-            fpath = os.path.join(os.path.dirname(__file__), 'LaSR-FeynmanEquations.csv')
-        if max(equation_indices) > 100 or min(equation_indices) < 1:
-            raise ValueError("Feynman dataset numbering starts at 1 and goes up to 100.")
-        equation_indices = set() if equation_indices is None else set(equation_indices)
-        equations = load_feynman_equations(fpath, skip_equations=set(range(1, 101)) - equation_indices)
-    elif which == "pysr-difficult":
-        if fpath is None:
-            fpath = os.path.join(os.path.dirname(__file__), 'PySR-difficultEquations.csv')
-        if max(equation_indices) > 3360 or min(equation_indices) < -3360:
-            raise ValueError("PySR-difficult dataset numbering starts at 0 and goes up to 3360.")
-        equations = load_pysr_equations(fpath, equation_indices, remove_op_equations)
-    elif which == "pysr-univariate":
-        if fpath is None:
-            fpath = os.path.join(os.path.dirname(__file__), 'PySR-univariate.csv')
-        if max(equation_indices) > 2016 or min(equation_indices) < 0:
-            raise ValueError("PySR-univariate dataset numbering starts at 0 and goes up to 2016.")
-        equations = load_pysr_univariate_equations(fpath, equation_indices, remove_op_equations)
-    else:
-        raise ValueError(f"Invalid dataset type: {which}")
+            # Use Feynman-specific variable extraction
+            variables = _extract_feynman_variables(row)
 
-    return sample_datasets(equations, num_samples, noise, add_extra_vars, replace_univariate)
+        X, Y, var_order = sample_equation(equation, variables, num_samples, noise, add_extra_vars=add_extra_vars)
+        datasets.append(SyntheticDataset(eq_idx, equation, expression, X, Y, var_order))
 
-def load_synthetic_equations(
-    fpath: str,
-    idx: Iterable[int],
-    remove_op_equations: Iterable[str] | None = None
-) -> List[Tuple[int, Tuple[str, Dict[str, Tuple[str, List[float]]]]]]:
-    EXPRESSIONS_RAW = pd.read_csv(fpath)['equation'].to_list()
-    variable_distr = {f'y{j}': ('uniform', (1, 10)) for j in range(1, 6)}
-    return [
-        (i, (f'y = {EXPRESSIONS_RAW[i]}', variable_distr))
-        for i in sorted(idx)
-        if remove_op_equations is None or all(op not in EXPRESSIONS_RAW[i] for op in remove_op_equations)
-    ]
+    return datasets
 
-def load_pysr_equations(
-    fpath: str,
-    idx: Iterable[int],
-    remove_op_equations: Iterable[str] | None = None,
-) -> List[Tuple[int, Tuple[str, Dict[str, Tuple[str, List[float]]]]]]:
-    EXPRESSIONS_RAW = pd.read_csv(fpath)['true_equation'].to_list()
-    variable_distr = {f'x{j}': ('uniform', (1, 10)) for j in range(1, 6)}
-    return [
-        (i, (f'y = {EXPRESSIONS_RAW[i]}', variable_distr))
-        for i in sorted(idx)
-        if remove_op_equations is None or all(op not in EXPRESSIONS_RAW[i] for op in remove_op_equations)
-    ]
-
-def load_pysr_univariate_equations(
-    fpath: str,
-    idx: Iterable[int],
-    remove_op_equations: Iterable[str] | None = None,
-) -> List[Tuple[int, Tuple[str, Dict[str, Tuple[str, List[float]]]]]]:
-    EXPRESSIONS_RAW = pd.read_csv(fpath)['true_equation'].to_list()
-    variable_distr = {'x': ('uniform', (1, 10))}  # Univariate: only 'x' variable
-    return [
-        (i, (EXPRESSIONS_RAW[i], variable_distr))  # Equations already include 'y = '
-        for i in sorted(idx)
-        if remove_op_equations is None or all(op not in EXPRESSIONS_RAW[i] for op in remove_op_equations)
-    ]
-
-def load_feynman_equations(
-    fpath: str, 
-    skip_equations: Iterable[int] | None = None
-) -> List[Tuple[int, Tuple[str, Dict[str, Tuple[str, List[float]]]]]]:
-    """
-    From LaSR codebase. TODO: Rework and use Pandas instead of CSV.
-    """
-    dataset = []
-    skip_equations = set() if skip_equations is None else set(skip_equations)
-    with open(fpath) as file_obj:
-        heading = next(file_obj)
-        reader_obj = csv.reader(file_obj)
-        for row in reader_obj:
-            if row[1] == "":
-                break
-
-            id = int(row[1])
-            if id in skip_equations:
-                continue
-
-            output = row[2]
-            formula = row[3]
-            num_vars = (row.index("") - 5) // 3
-
-            bounds = {output: None}
-            for i in range(num_vars):
-                var_name = row[5 + (3 * i)]
-                var_bounds = (int(row[6 + (3 * i)]), int(row[7 + (3 * i)]))
-                var_sample = "uniform"
-                bounds[var_name] = (var_sample, var_bounds)
-
-            dataset.append((id, (output + " = " + formula, bounds)))
-
-    dataset.sort()
-    return dataset
-
-def create_dataset_from_expression(
-    expr: str,
-    num_samples: int,
-    noise: float,
-    replace_univariate: bool = False
-) -> SyntheticDataset:
+def create_dataset_from_expression(expr: str, num_samples: int, noise: float) -> SyntheticDataset:
     eq_str = f'y = {expr}'
+    variables = {f'x{i}': VariableDistribution('uniform', (1, 10)) for i in range(10) if f'x{i}' in expr}
+    X, y, var_order = sample_equation(eq_str, variables, num_samples, noise, add_extra_vars=False)
+    return SyntheticDataset(eq_idx=0, equation=eq_str, expression=expr, X=X, y=y, var_order=var_order)
 
-    # Extract variables x0-x9 from expression
-    variable_distr = {f'x{i}': ('uniform', (1, 10)) for i in range(10) if f'x{i}' in expr}
-    X, y, var_order = sample_equation(eq_str, variable_distr, num_samples, noise, add_extra_vars=False)
-
-    if replace_univariate:
-        # Convert to univariate by replacing all variables with 'x'
-        eq_univariate = make_equation_univariate(eq_str)
-        # Create new var_order with only 'x0' -> 'x'
-        var_order_univariate = {'x0': 'x'}
-        # Take only the first column of X (first variable)
-        X_univariate = X[:, :1]
-        return SyntheticDataset(idx=0, equation=eq_univariate, X=X_univariate, y=y, var_order=var_order_univariate)
-    else:
-        return SyntheticDataset(idx=0, equation=eq_str, X=X, y=y, var_order=var_order)
-
+# ----------------
 
 def calculate_equation_complexity(equation: str) -> int:
     """
@@ -348,3 +334,40 @@ def calculate_equation_complexity(equation: str) -> int:
     total_complexity = binary_ops + unary_ops + variable_count + constants_count
 
     return total_complexity
+
+def make_equation_univariate(equation: str) -> str:
+    """
+    Replace all variables in the equation with 'x' to make it univariate.
+    
+    Handles different variable naming conventions:
+    - x_i variables (e.g., x1, x2, x3, ...) -> x
+    - y_i variables (e.g., y1, y2, y3, ...) -> x  
+    - Feynman variables (any single letter or letter+digit) -> x
+    """
+    # Split equation at '=' to get the expression part
+    if ' = ' in equation:
+        lhs, rhs = equation.split(' = ', 1)
+        expr = rhs
+    else:
+        expr = equation
+        lhs = 'y'
+    
+    # Pattern to match variables: letter followed by optional digits
+    # This will match x1, y2, m, n, etc.
+    variable_pattern = r'\b[a-zA-Z][0-9]*\b'
+    
+    # Find all variables in the expression
+    variables = set(re.findall(variable_pattern, expr))
+    
+    # Remove mathematical functions/constants that shouldn't be replaced
+    math_functions = {'sin', 'cos', 'exp', 'log', 'ln', 'sqrt', 'tanh', 'sinh', 'cosh', 
+                     'arcsin', 'arccos', 'pi', 'e'}
+    variables = variables - math_functions
+    
+    # Replace all variables with 'x'
+    expr_univariate = expr
+    for var in variables:
+        # Use word boundaries to avoid partial replacements
+        expr_univariate = re.sub(r'\b' + re.escape(var) + r'\b', 'x', expr_univariate)
+    
+    return f'{lhs} = {expr_univariate}'

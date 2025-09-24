@@ -30,11 +30,7 @@ def evaluate_equation_on_grid(equation: str, a: float = 0, b: float = 10, num_po
         If evaluation fails, returns (empty_array, error_message)
     """
     try:
-        # Extract expression part after "y = "
-        if " = " in equation:
-            expr = equation.split(" = ", 1)[1].strip()
-        else:
-            expr = equation.strip()
+        expr = equation.strip()
 
         # Replace ^ with ** for Python evaluation (following utils.py pattern)
         expr = expr.replace("^", "**")
