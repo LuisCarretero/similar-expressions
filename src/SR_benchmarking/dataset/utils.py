@@ -289,7 +289,7 @@ def create_dataset_from_expression(
     # Extract variables x0-x9 from expression
     variable_distr = {f'x{i}': ('uniform', (1, 10)) for i in range(10) if f'x{i}' in expr}
     X, y, var_order = sample_equation(eq_str, variable_distr, num_samples, noise, add_extra_vars=False)
-    
+
     if replace_univariate:
         # Convert to univariate by replacing all variables with 'x'
         eq_univariate = make_equation_univariate(eq_str)
@@ -300,3 +300,51 @@ def create_dataset_from_expression(
         return SyntheticDataset(idx=0, equation=eq_univariate, X=X_univariate, y=y, var_order=var_order_univariate)
     else:
         return SyntheticDataset(idx=0, equation=eq_str, X=X, y=y, var_order=var_order)
+
+
+def calculate_equation_complexity(equation: str) -> int:
+    """
+    Calculate the complexity of an equation by counting nodes in the unsimplified equation tree.
+    Complexity = number of operators + number of constants + number of variables
+
+    Args:
+        equation: Mathematical equation as a string
+
+    Returns:
+        Integer representing the complexity (total number of nodes)
+    """
+    # Clean the equation string
+    equation = equation.strip()
+
+    # First, replace variables with placeholders to avoid confusion with numbers
+    # Find all variables and replace them temporarily
+    variables = re.findall(r'\bx\d+\b', equation)
+    temp_equation = equation
+    for i, var in enumerate(set(variables)):
+        temp_equation = temp_equation.replace(var, f'VAR{i}')
+
+    # Find and replace negative constants first
+    constants_with_neg = re.findall(r'(?<![a-zA-Z\d])-\d*\.?\d+(?:[eE][+-]?\d+)?(?![a-zA-Z])', temp_equation)
+
+    # Replace each negative constant with a placeholder to avoid double counting
+    for i, const in enumerate(constants_with_neg):
+        temp_equation = temp_equation.replace(const, f'NEGCONST{i}', 1)  # Replace only first occurrence
+
+    # Now find positive constants in the modified equation
+    constants_pos = re.findall(r'(?<![a-zA-Z\d])\d*\.?\d+(?:[eE][+-]?\d+)?(?![a-zA-Z])', temp_equation)
+
+    # Count binary operators: +, -, *, / (after removing negative number signs)
+    binary_ops = len(re.findall(r'[+\-*/]', temp_equation))
+
+    # Count unary functions: exp, cos, sqrt, log
+    unary_ops = len(re.findall(r'\b(exp|cos|sqrt|log)\b', equation))
+
+    # Count all variable occurrences (each usage counts as a node)
+    variable_count = len(variables)
+
+    # Count constants (positive and negative)
+    constants_count = len(constants_with_neg) + len(constants_pos)
+
+    total_complexity = binary_ops + unary_ops + variable_count + constants_count
+
+    return total_complexity
