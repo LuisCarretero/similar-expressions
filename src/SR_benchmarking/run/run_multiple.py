@@ -199,7 +199,7 @@ def run_equations(
                 dataset_name=dataset_name,
                 eq_idx=eq_idx,
                 num_samples=cfg.dataset.num_samples,
-                noise=cfg.dataset.noise,
+                rel_noise_magn=cfg.dataset.noise,
                 remove_op_equations=OmegaConf.to_container(cfg.dataset.remove_op_equations, resolve=True),
             )
 
@@ -277,7 +277,7 @@ def run_equations(
                 dataset_name=dataset_name,
                 eq_idx=eq_idx,
                 num_samples=dataset_cfg.num_samples,
-                noise=dataset_cfg.noise,
+                rel_noise_magn=dataset_cfg.noise,
                 remove_op_equations=OmegaConf.to_container(dataset_cfg.remove_op_equations, resolve=True)
             )
             try:

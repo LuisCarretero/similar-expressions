@@ -89,7 +89,7 @@ class ModelSettings:
 class DatasetSettings:
     dataset_name: Literal['synthetic', 'feynman', 'pysr-difficult', 'pysr-univariate', 'custom']
     num_samples: int
-    noise: float = 0.0001
+    rel_noise_magn: float = 0.0001
     eq_idx: int = 10
     remove_op_equations: Iterable[str] | None = None
     custom_expr: str | None = None  # If dataset_name == 'custom', this is the expression to use.
@@ -211,13 +211,13 @@ def run_single(
         dataset = dataset_utils.create_dataset_from_expression(
             dataset_settings.custom_expr,
             dataset_settings.num_samples,
-            dataset_settings.noise,
+            dataset_settings.rel_noise_magn,
         )
     else:
         dataset = dataset_utils.load_datasets(
             which=dataset_settings.dataset_name,
             num_samples=dataset_settings.num_samples,
-            noise=dataset_settings.noise,
+            rel_noise_magn=dataset_settings.rel_noise_magn,
             equation_indices=[dataset_settings.eq_idx],
             remove_op_equations=dataset_settings.remove_op_equations,
         )[0]
@@ -297,7 +297,7 @@ if __name__ == '__main__':
     dataset_settings = DatasetSettings(
         dataset_name='feynman',
         num_samples=2000,
-        noise=0.0001,
+        rel_noise_magn=0.0001,
         eq_idx=10
     )
     log_dir = Path(__file__).parent / 'logs' / 'test_univar4'

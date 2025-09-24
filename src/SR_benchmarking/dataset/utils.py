@@ -8,6 +8,7 @@ from dataclasses import dataclass
 import os
 import pandas as pd
 import re
+import sympy as sp
 
 # Dataset configuration constants
 DATASET_CONFIGS = {
@@ -41,16 +42,17 @@ DATASET_CONFIGS = {
         'extract_vars': True
     }
 }
+DEFAULT_VARIABLE_BOUNDS = (1, 10)
 
 
 @dataclass
 class SyntheticDataset:
     eq_idx: int
     equation: str
-    expression: str | None = None
     X: np.ndarray
     y: np.ndarray
     var_order: Dict[str, str]
+    expression: str | None = None
 
     def __repr__(self):
         return f'SyntheticDataset(eq_idx={self.eq_idx}, equation="{self.equation}", X={self.X.shape}, y={self.y.shape}, var_order={self.var_order})'
@@ -66,58 +68,61 @@ class VariableDistribution:
         return f'VariableDistribution(method="{self.method}", params={self.params})'
 
 
-# Operators equired for sample_equation -> eval(lambda ...) to work.
-pi = np.pi
-cos = np.cos
-sin = np.sin
-sqrt = np.sqrt
-exp = np.exp
-arcsin = np.arcsin
-arccos = np.arccos
-ln = log = np.log
-tanh = np.tanh
-sinh = np.sinh
-cosh = np.cosh
-
-
-def sample_equation(
+def _sample_equation(
     equation: str, 
     var_distributions: Dict[str, VariableDistribution], 
     num_samples: int, 
-    noise: float, 
+    rel_noise_magn: float, 
     add_extra_vars: bool
 ) -> Tuple[np.ndarray, np.ndarray, Dict[str, str]]:
     """
     Sample values for variables according to their distributions and evaluate the equation.
     From LaSR codebase, updated to use VariableDistribution objects.
     """
-    out = []
-    for var_name, var_dist in var_distributions.items():
-        sampled_values = _sample_from_distribution(var_dist.method, var_dist.params, num_samples=num_samples)
-        out.append((var_name, sampled_values))
+    # Sample values for all variables
+    var_names = list(var_distributions.keys())
+    var_data = np.column_stack([
+        _sample_from_distribution(var_dist.method, var_dist.params, num_samples=num_samples)
+        for var_dist in var_distributions.values()
+    ])
 
+    # Parse and evaluate expression using sympy
     expr = equation.split(" = ")[1].replace("^", "**")
-    expr_as_func = eval(f"lambda {','.join([x[0] for x in out])}: {expr}")  # TODO: use sympy?
+    var_symbols = [sp.Symbol(name) for name in var_names]
+    sympy_expr = sp.sympify(expr)
+    expr_as_func = sp.lambdify(var_symbols, sympy_expr, modules=['numpy'])
 
-    y = list()
-    X_temp = np.transpose(np.stack([x[1] for x in out]))
-    for i in range(num_samples):
-        y.append(expr_as_func(*list(X_temp[i])))
-    y = np.array(y)
-    y = y + np.random.normal(0, np.sqrt(np.square(y).mean()) * noise, y.shape)
+    # Evaluate expression vectorized
+    y = expr_as_func(*var_data.T)
 
+    # Noise according to LaSR, which itself cites https://pmc.ncbi.nlm.nih.gov/articles/PMC11074949/
+    abs_noise_magn = np.sqrt(np.square(y).mean()) * rel_noise_magn
+    y += np.random.normal(0, abs_noise_magn, y.shape)
+
+    # Handle extra variables if needed
     if add_extra_vars:
-        total_vars = len(["x", "y", "z", "k", "j", "l", "m", "n", "p", "a", "b"])
-        num_extra = total_vars - len(var_distributions) + 1
-        for c in range(num_extra):
-            var_name = chr(ord("A") + c)
-            extra_var_dist = VariableDistribution("uniform", (1, 20))
-            sampled_values = _sample_from_distribution(extra_var_dist.method, extra_var_dist.params, num_samples=num_samples)
-            out.append((var_name, sampled_values))
+        num_extra = 11 - len(var_distributions)
+        extra_var_names = [chr(ord("A") + c) for c in range(num_extra)]
+        extra_var_data = np.column_stack([
+            _sample_from_distribution("uniform", (1, 20), num_samples=num_samples)
+            for _ in range(num_extra)
+        ])
+        
+        # Combine original and extra variables
+        all_var_names = var_names + extra_var_names
+        all_var_data = np.column_stack([var_data, extra_var_data])
+        
+        # Shuffle the order
+        shuffle_indices = np.random.permutation(len(all_var_names))
+        all_var_names = [all_var_names[i] for i in shuffle_indices]
+        all_var_data = all_var_data[:, shuffle_indices]
+    else:
+        all_var_names = var_names
+        all_var_data = var_data
 
-    np.random.shuffle(out)
-    var_order = {"x" + str(i): out[i][0] for i in range(len(out))}
-    X = np.transpose(np.stack([x[1] for x in out]))
+    # Create final output
+    var_order = {"x" + str(i): all_var_names[i] for i in range(len(all_var_names))}
+    X = all_var_data
 
     return X, y, var_order
 
@@ -130,7 +135,7 @@ def _sample_from_distribution(
     Samples x values from specified distribution.
     """
     if distr == "constant":  # const
-        return np.full(num_samples, params)
+        return np.full(num_samples, params[0])
     elif distr == "uniform":  # (low, high)
         return np.random.uniform(low=params[0], high=params[1], size=num_samples)
     elif distr == "normal":  # (mean, std)
@@ -146,34 +151,20 @@ def _sample_from_distribution(
     else:
         raise ValueError(f"Invalid distribution: {distr}")
 
-def _extract_variables_from_equation(equation_text: str) -> Dict[str, VariableDistribution]:
-    """
-    Extract variable names from equation text and create default distributions.
-
-    Args:
-        equation_text: The equation expression (e.g., "x + sin(y) * z")
-
-    Returns:
-        Dictionary of variable names to VariableDistribution objects
-    """
-    # Find all potential variables (letters followed by optional digits)
+def _extract_variable_names(equation_text: str) -> set:
+    """Extract variable names from equation text, excluding mathematical functions."""
     var_pattern = r'\b[a-zA-Z][a-zA-Z0-9_]*\b'
     potential_vars = set(re.findall(var_pattern, equation_text))
-
-    # Remove mathematical functions and constants
+    
     math_functions = {
         'sin', 'cos', 'tan', 'exp', 'log', 'ln', 'sqrt', 'abs',
         'sinh', 'cosh', 'tanh', 'arcsin', 'arccos', 'arctan',
         'pi', 'e', 'inf', 'nan'
     }
+    
+    return potential_vars - math_functions
 
-    variables = potential_vars - math_functions
-
-    # Create default uniform distributions for all variables
-    DEFAULT_BOUNDS = (1, 10)
-    return {var: VariableDistribution('uniform', DEFAULT_BOUNDS) for var in variables}
-
-def _extract_feynman_variables(row: pd.Series) -> Dict[str, VariableDistribution]:
+def _extract_feynman_distributions(row: pd.Series) -> Dict[str, VariableDistribution]:
     """
     Extract variables from Feynman dataset row using v1_name/v1_low/v1_high columns.
 
@@ -221,7 +212,7 @@ def _format_equation_text(row: pd.Series, config: dict) -> Tuple[str, str]:
 def load_datasets(
     which: Literal['synthetic', 'feynman', 'pysr-difficult', 'pysr-univariate'],
     num_samples: int,
-    noise: float,
+    rel_noise_magn: float,
     equation_indices: Iterable[int] | int | None = None,
     add_extra_vars: bool = False,
     fpath: str | None = None,
@@ -270,21 +261,25 @@ def load_datasets(
 
         if config['extract_vars']:
             # Extract variables from equation text
-            variables = _extract_variables_from_equation(expression)
+            variables = _extract_variable_names(expression)
+            var_distributions = {var: VariableDistribution('uniform', DEFAULT_VARIABLE_BOUNDS) for var in variables}
         else:
             # Use Feynman-specific variable extraction
-            variables = _extract_feynman_variables(row)
+            var_distributions = _extract_feynman_distributions(row)
 
-        X, Y, var_order = sample_equation(equation, variables, num_samples, noise, add_extra_vars=add_extra_vars)
-        datasets.append(SyntheticDataset(eq_idx, equation, expression, X, Y, var_order))
+        X, Y, var_order = _sample_equation(equation, var_distributions, num_samples, rel_noise_magn, add_extra_vars=add_extra_vars)
+        datasets.append(SyntheticDataset(eq_idx, equation, X, Y, var_order, expression))
 
     return datasets
 
-def create_dataset_from_expression(expr: str, num_samples: int, noise: float) -> SyntheticDataset:
+def create_dataset_from_expression(expr: str, num_samples: int, rel_noise_magn: float) -> SyntheticDataset:
     eq_str = f'y = {expr}'
-    variables = {f'x{i}': VariableDistribution('uniform', (1, 10)) for i in range(10) if f'x{i}' in expr}
-    X, y, var_order = sample_equation(eq_str, variables, num_samples, noise, add_extra_vars=False)
-    return SyntheticDataset(eq_idx=0, equation=eq_str, expression=expr, X=X, y=y, var_order=var_order)
+    variables = {
+        f'x{i}': VariableDistribution('uniform', DEFAULT_VARIABLE_BOUNDS) 
+        for i in range(10) if f'x{i}' in expr
+    }
+    X, y, var_order = _sample_equation(eq_str, variables, num_samples, rel_noise_magn, add_extra_vars=False)
+    return SyntheticDataset(eq_idx=0, equation=eq_str, X=X, y=y, var_order=var_order, expression=expr)
 
 # ----------------
 
@@ -352,17 +347,8 @@ def make_equation_univariate(equation: str) -> str:
         expr = equation
         lhs = 'y'
     
-    # Pattern to match variables: letter followed by optional digits
-    # This will match x1, y2, m, n, etc.
-    variable_pattern = r'\b[a-zA-Z][0-9]*\b'
-    
     # Find all variables in the expression
-    variables = set(re.findall(variable_pattern, expr))
-    
-    # Remove mathematical functions/constants that shouldn't be replaced
-    math_functions = {'sin', 'cos', 'exp', 'log', 'ln', 'sqrt', 'tanh', 'sinh', 'cosh', 
-                     'arcsin', 'arccos', 'pi', 'e'}
-    variables = variables - math_functions
+    variables = _extract_variable_names(expr)
     
     # Replace all variables with 'x'
     expr_univariate = expr
@@ -371,3 +357,73 @@ def make_equation_univariate(equation: str) -> str:
         expr_univariate = re.sub(r'\b' + re.escape(var) + r'\b', 'x', expr_univariate)
     
     return f'{lhs} = {expr_univariate}'
+
+def calc_equation_eval_stats(equation: str, grid_bounds: Tuple[float, float], num_points: int = 1000) -> dict:
+    """
+    Calculate statistics (mean, std, min, max) for an equation evaluated over a grid.
+
+    Args:
+        equation: Equation string
+        grid_bounds: Tuple of (start, end) of interval
+        num_points: Number of evaluation points
+
+    Returns:
+        Dictionary with statistics and metadata
+    """
+    try:
+        # Check if equation has variables other than 'x'
+        expr = equation.split(" = ")[1] if " = " in equation else equation
+        variables = _extract_variable_names(expr)
+        
+        if len(variables) == 0:
+            raise ValueError("No variables found in equation")
+        
+        if len(variables) > 1 or 'x' not in variables:
+            raise ValueError(f"Expected univariate equation with variable 'x', found variables: {variables}")
+        
+        # Use single variable 'x' for univariate equations
+        var_distributions = {'x': VariableDistribution('linspace', grid_bounds)}
+        
+        # Use _sample_equation with linspace distribution and no noise
+        X, y_values, var_order = _sample_equation(
+            equation, 
+            var_distributions, 
+            num_samples=num_points, 
+            rel_noise_magn=0.0,  # No noise for grid evaluation
+            add_extra_vars=False
+        )
+        
+        # Check for invalid values (NaN, inf)
+        if np.any(~np.isfinite(y_values)):
+            finite_mask = np.isfinite(y_values)
+            if np.sum(finite_mask) < len(y_values) * 0.5:  # Less than 50% valid values
+                return {
+                    'equation': equation,
+                    'evaluation_error': f'Too many invalid values: {np.sum(~finite_mask)}/{len(y_values)}',
+                    'std': np.nan,
+                    'mean': np.nan,
+                    'min': np.nan,
+                    'max': np.nan
+                }
+            else:
+                y_values = y_values[finite_mask]
+                print(f"Removed {np.sum(~finite_mask)} invalid values from evaluation")
+        
+        return {
+            'equation': equation,
+            'evaluation_error': None,
+            'std': float(np.std(y_values)),
+            'mean': float(np.mean(y_values)),
+            'min': float(np.min(y_values)),
+            'max': float(np.max(y_values))
+        }
+        
+    except Exception as e:
+        return {
+            'equation': equation,
+            'evaluation_error': f'Evaluation error: {str(e)}',
+            'std': np.nan,
+            'mean': np.nan,
+            'min': np.nan,
+            'max': np.nan
+        }
