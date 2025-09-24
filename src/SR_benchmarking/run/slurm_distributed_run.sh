@@ -2,7 +2,7 @@
 #SBATCH -p lovelace-mc
 #SBATCH --array=0-1
 #SBATCH --ntasks-per-node=1
-#SBATCH --cpus-per-task=16
+#SBATCH --cpus-per-task=20
 #SBATCH --mem-per-cpu=2G
 #SBATCH --gpus=1
 #SBATCH --time=12:00:00

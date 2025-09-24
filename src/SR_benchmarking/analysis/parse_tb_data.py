@@ -31,7 +31,11 @@ for experiment_type, experiment_dir in experiment_dirs.items():
     data = []
     for run_dir in tqdm(run_dirs, desc=f"Loading {experiment_type} runs"):
         try:
-            df_scalars, _ = load_tensorboard_data(os.path.join(experiment_dir, run_dir))
+            tensorboard_data = load_tensorboard_data(os.path.join(experiment_dir, run_dir))
+            if tensorboard_data is None:
+                print(f"No tensorboard data found for {run_dir}")
+                continue
+            df_scalars, _ = tensorboard_data
             df_scalars['run'] = run_dir
             data.append(df_scalars)  # [['step', 'timestamp', 'min_loss', 'pareto_volume', 'run']]
         except Exception as e:

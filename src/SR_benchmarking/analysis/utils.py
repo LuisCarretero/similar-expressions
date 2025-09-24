@@ -8,39 +8,49 @@ from pathlib import Path
 from typing import Tuple, List, Dict, Any
 
 
-def load_mutations_data(path_logdir: str) -> pd.DataFrame:
+def load_mutations_data(path_logdir: str) -> pd.DataFrame | None:
     """
     Loads the mutations data from the given log directory and returns a dataframe of the mutations data.
     Each line in the dataframe corresponds to a single mutation executed during the SR run.
+    Returns None if no mutations data is found (when mutation logging is disabled).
     """
     fpath = list(Path(path_logdir).glob('mutations*.csv'))
     if len(fpath) == 0:
-        raise FileNotFoundError(f"No mutations data found in {path_logdir}")
+        return None
     if len(fpath) > 1:
         print(f"Found multiple mutations data files in {path_logdir}, using the first one: {fpath[0]}")
     return pd.read_csv(fpath[0])
 
-def load_neural_stats(path_logdir: str) -> dict:
+def load_neural_stats(path_logdir: str) -> dict | None:
     """
     Loads the neural stats from the given log directory and returns a dictionary of the neural stats.
     Note that these stats are summaries of the neural mutation process and not temporally resolved.
+    Returns None if no neural stats file is found.
     """
     fpath = os.path.join(path_logdir, 'neural_stats.json')
     if not os.path.exists(fpath):
-        raise FileNotFoundError(f"No neural stats found in {path_logdir}")
+        return None
     with open(fpath, 'r') as f:
         dct = json.load(f)
     return dct
 
-def load_tensorboard_data(log_dir: str) -> tuple[pd.DataFrame, pd.DataFrame]:
+def load_tensorboard_data(log_dir: str) -> tuple[pd.DataFrame, pd.DataFrame] | None:
     """
     Loads the tensorboard data from the given log directory and returns a tuple of two dataframes:
     - df_scalars: a dataframe of all scalar values logged in the tensorboard
     - df_exprs: a dataframe of the expression values logged in the tensorboard
+    Returns None if no tensorboard data is found.
     """
+    if not os.path.exists(log_dir):
+        return None
+    
     event_acc = EventAccumulator(log_dir)
     event_acc.Reload()
     event_tags = event_acc.Tags()
+    
+    # Check if there are any scalars or tensors
+    if 'scalars' not in event_tags or len(event_tags['scalars']) == 0:
+        return None
 
     # Scalars
     def scalar_events_to_df(tag: str) -> pd.DataFrame:
@@ -112,7 +122,10 @@ def get_run_data_for_wandb(
     summary_stats = {}
 
     # General logs
-    df_scalars, _ = load_tensorboard_data(log_dir)
+    tensorboard_data = load_tensorboard_data(log_dir)
+    if tensorboard_data is None:
+        raise FileNotFoundError(f"No tensorboard data found in {log_dir}")
+    df_scalars, _ = tensorboard_data
 
     def get_prefixed_key(k: str) -> str:
         if k.startswith('loss'):
@@ -125,24 +138,27 @@ def get_run_data_for_wandb(
         values = {get_prefixed_key(k): v for k, v in row.items() if k != 'step'}
         step_stats.append((step, values))
 
-    # Mutation stats
-    CATEGORY_COL, LOSS_RATIO_THRESHOLD = 'mutation_type', 2
-
+    # Mutation stats (optional - only if mutations data is available)
     df = load_mutations_data(log_dir)
-    df['loss_ratio'] = df['loss_after'] / df['loss_before']
-    TED_df = df[[CATEGORY_COL, 'TED']].groupby(CATEGORY_COL).TED.mean().round(2)
-    summary_stats.update({
-        f"mutation_stats/TED/{cat}": mean
-        for cat, mean in TED_df.items()
-    })
+    if df is not None:
+        CATEGORY_COL, LOSS_RATIO_THRESHOLD = 'mutation_type', 2
+        df['loss_ratio'] = df['loss_after'] / df['loss_before']
+        TED_df = df[[CATEGORY_COL, 'TED']].groupby(CATEGORY_COL).TED.mean().round(2)
+        summary_stats.update({
+            f"mutation_stats/TED/{cat}": mean
+            for cat, mean in TED_df.items()
+        })
 
-    perc_loss_df = df[[CATEGORY_COL, 'loss_ratio']].groupby(CATEGORY_COL).apply(lambda x: (x < LOSS_RATIO_THRESHOLD).mean() * 100).round(1)['loss_ratio']
-    summary_stats.update({
-        f"mutation_stats/perc_<{LOSS_RATIO_THRESHOLD}/{cat}": mean 
-        for cat, mean in perc_loss_df.items()
-    })
-        
+        perc_loss_df = df[[CATEGORY_COL, 'loss_ratio']].groupby(CATEGORY_COL).apply(lambda x: (x < LOSS_RATIO_THRESHOLD).mean() * 100).round(1)['loss_ratio']
+        summary_stats.update({
+            f"mutation_stats/perc_<{LOSS_RATIO_THRESHOLD}/{cat}": mean 
+            for cat, mean in perc_loss_df.items()
+        })
 
+    neural_stats = load_neural_stats(log_dir)
+    if neural_stats is None:
+        raise FileNotFoundError(f"No neural stats found in {log_dir}")
+    
     # Neural stats
     MUTATE_KEYS = [
         'total_samples', 'tree_build_failures', 'tree_comparison_failures', 'encoding_failures', 'decoding_failures', 
@@ -150,7 +166,6 @@ def get_run_data_for_wandb(
         'multivariate_decoding_attempts'
     ]
 
-    neural_stats = load_neural_stats(log_dir)
     count_stats = {k: v for k, v in neural_stats.items() if k.split('_')[-1] not in ['mean', 'std', 'ninvalid']}
     get_group = lambda k: "mutate" if k in MUTATE_KEYS else "sampling"
     summary_stats.update({
