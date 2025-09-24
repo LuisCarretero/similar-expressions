@@ -95,6 +95,10 @@ def _sample_equation(
     # Evaluate expression vectorized
     y = expr_as_func(*var_data.T)
 
+    # Handle case where expression evaluates to a constant (returns scalar instead of array)
+    if np.isscalar(y):
+        y = np.full(num_samples, y)
+
     # Noise according to LaSR, which itself cites https://pmc.ncbi.nlm.nih.gov/articles/PMC11074949/
     abs_noise_magn = np.sqrt(np.square(y).mean()) * rel_noise_magn
     y += np.random.normal(0, abs_noise_magn, y.shape)

@@ -1,11 +1,11 @@
 run_settings:
-  n_runs: 10
-  log_dir: /cephfs/store/gr-mc2473/lc865/workspace/benchmark_data/sept-baseline-4-vanilla
+  n_runs: 2
+  log_dir: /cephfs/store/gr-mc2473/lc865/workspace/benchmark_data/sept-test-5-vanilla
   wandb_logging: true
   enable_mutation_logging: false
 
 model_settings:
-  niterations: 30
+  niterations: 10
   loss_function: none
   early_stopping_condition: 1e-8
   verbosity: 0
@@ -17,7 +17,7 @@ dataset:
   name: pysr-univariate
   num_samples: 2000  # Same settings as full1_
   noise: 1e-4
-  equation_indices: "10:20"
+  equation_indices: "0,1,2,3"
   remove_op_equations: []
 
 symbolic_regression:

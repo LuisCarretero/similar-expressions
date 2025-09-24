@@ -3,6 +3,7 @@ import argparse
 from typing import List, Tuple, Dict, Any, Union
 import wandb
 import os
+import time
 
 from omegaconf import OmegaConf
 from run.utils import (
@@ -143,7 +144,8 @@ def run_equations(
     wandb_logging = cfg.run_settings.wandb_logging
 
     # Filter out completed equations
-    completed_equations = [eq for eq in equations if _is_equation_completed(eq, dataset_name, log_dir, pooled)]
+    n_runs = cfg.run_settings.n_runs if pooled else 1
+    completed_equations = [eq for eq in equations if _is_equation_completed(eq, dataset_name, log_dir, pooled, n_runs)]
     remaining_equations = sorted(list(set(equations) - set(completed_equations)))
 
     # Print informative messages and early return if nothing to do
@@ -205,13 +207,17 @@ def run_equations(
             # Create model for this run
             model = init_pysr_model(model_settings, mutation_weights, neural_options)
 
-            run_dirs = []
-            for run_i in range(cfg.run_settings.n_runs):
+            # Find which runs are missing for this equation
+            missing_runs = _get_missing_runs(eq_idx, dataset_name, log_dir, cfg.run_settings.n_runs)
+            if not missing_runs:
+                print(f'[INFO] All runs already completed for equation {eq_idx}, skipping to aggregation')
+                continue
+
+            for run_i in missing_runs:
                 print(f'[INFO] Running equation {eq_idx}, run {run_i+1}/{cfg.run_settings.n_runs}')
 
                 # Run SR for this equation/run combination
                 run_dir = os.path.join(log_dir, f'{dataset_name}_eq{eq_idx}_run{run_i}')
-                run_dirs.append(f'{dataset_name}_eq{eq_idx}_run{run_i}')
 
                 try:
                     run_single(
@@ -226,6 +232,8 @@ def run_equations(
                     continue
 
             # Aggregate results across all runs for this equation
+            # Build complete list of run directories for aggregation (both existing and new)
+            run_dirs = [f'{dataset_name}_eq{eq_idx}_run{run_i}' for run_i in range(cfg.run_settings.n_runs)]
             try:
                 all_step_stats, all_summary_stats_combined = collect_sweep_results(
                     log_dir,
@@ -239,6 +247,11 @@ def run_equations(
                     wandb_run.log(values, step=step, commit=False)
                 wandb_run.log({}, commit=True)
                 wandb_run.summary.update(all_summary_stats_combined)
+
+                # Mark equation as complete after successful aggregation
+                _mark_equation_complete(eq_idx, dataset_name, log_dir)
+                print(f'[INFO] Marked equation {eq_idx} as complete')
+
             except Exception as e:
                 print(f'[ERROR] Error collecting results for equation {eq_idx}: {e}')
                 continue
@@ -300,7 +313,42 @@ def _parse_eq_idx(s: str) -> List[int]:
     return result
 
 
-def _is_equation_completed(eq_idx: int, dataset_name: str, log_dir: str, pooled: bool) -> bool:
+def _mark_equation_complete(eq_idx: int, dataset_name: str, log_dir: str) -> None:
+    """Mark equation as fully complete by creating a .done file.
+
+    Args:
+        eq_idx: Equation index
+        dataset_name: Dataset name
+        log_dir: Base log directory
+    """
+    completion_dir = os.path.join(log_dir, "completed")
+    os.makedirs(completion_dir, exist_ok=True)
+    completion_file = os.path.join(completion_dir, f"{dataset_name}_eq{eq_idx}.done")
+    with open(completion_file, 'w') as f:
+        f.write(f"Completed at {time.time()}\n")
+
+
+def _get_missing_runs(eq_idx: int, dataset_name: str, log_dir: str, n_runs: int) -> List[int]:
+    """Get list of missing run indices for an equation.
+
+    Args:
+        eq_idx: Equation index
+        dataset_name: Dataset name
+        log_dir: Base log directory
+        n_runs: Total number of runs expected
+
+    Returns:
+        List of missing run indices (0-indexed)
+    """
+    missing_runs = []
+    for run_i in range(n_runs):
+        run_dir = os.path.join(log_dir, f'{dataset_name}_eq{eq_idx}_run{run_i}')
+        if not os.path.exists(run_dir):
+            missing_runs.append(run_i)
+    return missing_runs
+
+
+def _is_equation_completed(eq_idx: int, dataset_name: str, log_dir: str, pooled: bool, n_runs: int = 1) -> bool:
     """Check if an equation has already been completed by checking directory existence.
 
     Args:
@@ -308,16 +356,24 @@ def _is_equation_completed(eq_idx: int, dataset_name: str, log_dir: str, pooled:
         dataset_name: Dataset name
         log_dir: Base log directory
         pooled: Whether running in pooled mode
+        n_runs: Number of runs required for completion (only used in pooled mode)
 
     Returns:
-        True if any directory exists for this equation (indicating it was started)
+        True if all required directories exist for this equation (indicating completion)
     """
     if pooled:
-        # For pooled mode, check if any run directory exists for this equation
+        # First check for completion marker (faster)
+        completion_file = os.path.join(log_dir, "completed", f"{dataset_name}_eq{eq_idx}.done")
+        if os.path.exists(completion_file):
+            return True
+
+        # Fallback: check if ALL run directories exist for this equation
         # Format: {log_dir}/{dataset_name}_eq{eq_idx}_run{run_i}
-        run_i = 0
-        run_dir = os.path.join(log_dir, f'{dataset_name}_eq{eq_idx}_run{run_i}')
-        return os.path.exists(run_dir)
+        for run_i in range(n_runs):
+            run_dir = os.path.join(log_dir, f'{dataset_name}_eq{eq_idx}_run{run_i}')
+            if not os.path.exists(run_dir):
+                return False
+        return True
     else:
         # For separate mode, check if equation directory exists
         # Format: {log_dir}/{dataset_name}_eq{eq_idx}
