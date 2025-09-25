@@ -162,6 +162,11 @@ def run_equations(
     if pooled:
         # Pooled mode: pool multiple runs per equation
         for eq_idx in equations:
+            # Check if we should continue running or exit for resubmission
+            if not _should_continue_running():
+                print(f'[TIME] Exiting gracefully at equation {eq_idx} for SLURM resubmission')
+                break
+
             print(f'[INFO] Starting pooled runs for equation {eq_idx}')
 
             # Init wandb for this equation
@@ -267,6 +272,11 @@ def run_equations(
 
         # Run benchmark for each equation
         for eq_idx in equations:
+            # Check if we should continue running or exit for resubmission
+            if not _should_continue_running():
+                print(f'[TIME] Exiting gracefully at equation {eq_idx} for SLURM resubmission')
+                break
+
             print(f'[INFO] Running equation {eq_idx} from dataset {dataset_name}')
             dataset_settings = DatasetSettings(
                 dataset_name=dataset_name,
@@ -311,6 +321,37 @@ def _parse_eq_idx(s: str) -> List[int]:
             result.append(int(segment.replace('m', '-')))
 
     return result
+
+
+def _should_continue_running(buffer_minutes: int = 10) -> bool:
+    """
+    Check if we should continue running or exit gracefully before SLURM timeout.
+
+    Args:
+        buffer_minutes: Minutes to leave as buffer before SLURM timeout
+
+    Returns:
+        True if we should continue running, False if approaching timeout
+    """
+    # If not running under SLURM, always continue
+    if 'SLURM_JOB_ID' not in os.environ:
+        return True
+
+    # Get SLURM timing information
+    job_start_time = float(os.environ.get('SLURM_JOB_START_TIME', time.time()))
+    time_limit_minutes = int(os.environ.get('SLURM_TIME_LIMIT', 720))  # Default 12 hours = 720 minutes
+
+    # Calculate elapsed time
+    elapsed_minutes = (time.time() - job_start_time) / 60
+
+    # Check if we're approaching the time limit
+    remaining_minutes = time_limit_minutes - elapsed_minutes
+
+    if remaining_minutes <= buffer_minutes:
+        print(f'[TIME] Approaching SLURM timeout: {remaining_minutes:.1f} minutes remaining (buffer: {buffer_minutes}m)')
+        return False
+
+    return True
 
 
 def _mark_equation_complete(eq_idx: int, dataset_name: str, log_dir: str) -> None:

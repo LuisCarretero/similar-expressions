@@ -1,6 +1,6 @@
 run_settings:
   n_runs: 2
-  log_dir: /cephfs/store/gr-mc2473/lc865/workspace/benchmark_data/sept-test-2
+  log_dir: /cephfs/store/gr-mc2473/lc865/workspace/benchmark_data/sept-test-6
   wandb_logging: true
   enable_mutation_logging: true
 
@@ -14,15 +14,15 @@ model_settings:
   batch_size: 50
 
 dataset:
-  name: pysr-difficult
-  num_samples: 2000  # Same settings as full1_
+  name: pysr-univariate
+  num_samples: 50  # Very small dataset for speed
   noise: 1e-4
-  equation_indices: [502, 602, 702, 802]  # Two equations for minimal testing
+  equation_indices: "0:10"
   remove_op_equations: []
 
 symbolic_regression:
   neural_options:
-    active: true
+    active: false  # Disable neural to speed up
     model_path: /cephfs/home/lc865/workspace/similar-expressions/onnx-models/model-e51hcsb9.onnx
     sampling_eps: 0.02
     subtree_min_nodes: 2
