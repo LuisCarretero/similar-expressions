@@ -207,13 +207,13 @@ def collect_sweep_results(
     step_stats_df = pd.concat(step_stats_dfs, axis=1)
     unique_col_names = list(set(map(lambda x: '/'.join(x.split('/')[1:]), step_stats_df.columns)))
     for key in unique_col_names:
-        step_stats_df[f'{combined_prefix}{key}'] = step_stats_df.loc[:, step_stats_df.columns.str.endswith(key)].mean(axis=1)
+        step_stats_df[f'{combined_prefix}{key}'] = step_stats_df.loc[:, step_stats_df.columns.str.endswith(key)].mean(axis=1, skipna=True)
 
     # Combine summary stats
     summary_stats_series = pd.concat(summary_stats_series, axis=0)
     unique_row_names = list(set(map(lambda x: '/'.join(x.split('/')[1:]), summary_stats_series.index)))
     for key in unique_row_names:
-        summary_stats_series[f'{combined_prefix}{key}'] = summary_stats_series.loc[summary_stats_series.index.str.endswith(key)].mean()
+        summary_stats_series[f'{combined_prefix}{key}'] = summary_stats_series.loc[summary_stats_series.index.str.endswith(key)].mean(skipna=True)
 
     # Remove single runs if requested
     if not keep_single_runs:

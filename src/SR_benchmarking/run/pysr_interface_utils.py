@@ -35,8 +35,8 @@ def summarize_stats_dict(stats: Dict[str, Union[Number, np.ndarray]]) -> Dict[st
             try:
                 if len(v) > 0:
                     tmp = {
-                        f'{k}_mean': float(v.mean()),
-                        f'{k}_std': float(v.std()),
+                        f'{k}_mean': float(np.nanmean(v)),
+                        f'{k}_std': float(np.nanstd(v)),
                         f'{k}_ninvalid': int(len(v) - np.isfinite(v).sum())
                     }
                 else:
