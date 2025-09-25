@@ -221,3 +221,112 @@ def collect_sweep_results(
         summary_stats_series = summary_stats_series.loc[summary_stats_series.index.str.startswith(combined_prefix)]
 
     return [(step, values.to_dict()) for step, values in step_stats_df.iterrows()], summary_stats_series.to_dict()
+
+
+# Pareto volume calculation functions
+# Based on SymbolicRegression.jl implementation
+
+def _convex_hull(xy: np.ndarray) -> np.ndarray:
+    """Uses gift wrapping algorithm to create a convex hull."""
+    assert xy.shape[1] == 2
+    if len(xy) < 3:
+        return xy
+
+    cur_point = xy[np.argmin(xy[:, 0])]
+    hull = []
+
+    while True:
+        hull.append(cur_point.copy())
+        end_point = xy[0].copy()
+
+        for candidate_point in xy:
+            if np.array_equal(end_point, cur_point) or _is_left_of(candidate_point, (cur_point, end_point)):
+                end_point = candidate_point.copy()
+
+        cur_point = end_point.copy()
+        if len(hull) > 1 and np.array_equal(end_point, hull[0]):
+            break
+        if len(hull) > len(xy):  # Prevent infinite loops
+            break
+
+    return np.array(hull)
+
+
+def _is_left_of(point: np.ndarray, line: tuple) -> bool:
+    """Check if point is to the left of the line."""
+    start_point, end_point = line
+    return ((end_point[0] - start_point[0]) * (point[1] - start_point[1]) -
+            (end_point[1] - start_point[1]) * (point[0] - start_point[0])) > 0
+
+
+def _convex_hull_area(hull: np.ndarray) -> float:
+    """Computes area within convex hull using vectorized shoelace formula."""
+    if len(hull) < 3:
+        return 0.0
+
+    x, y = hull[:, 0], hull[:, 1]
+    x_next, y_next = np.roll(x, -1), np.roll(y, -1)
+    area = np.sum(x * y_next - x_next * y)
+    return abs(area) / 2.0
+
+
+def _extract_pareto_frontier_from_row(row: pd.Series) -> tuple:
+    """Extract losses and complexities from dataframe row."""
+    loss_cols = [col for col in row.index if col.startswith('loss_') and col[5:].isdigit()]
+    if not loss_cols:
+        return np.array([]), np.array([])
+
+    loss_values = row[loss_cols].values
+    complexities = np.array([int(col.split('_')[1]) for col in loss_cols])
+    valid_mask = ~pd.isna(loss_values)
+
+    return loss_values[valid_mask], complexities[valid_mask]
+
+
+def pareto_volume(losses: np.ndarray, complexities: np.ndarray, maxsize: int, use_linear_scaling: bool = False) -> float:
+    """
+    Calculate pareto volume using convex hull approach.
+
+    Args:
+        losses: Array of loss values from Pareto frontier
+        complexities: Corresponding complexity values
+        maxsize: Maximum allowed complexity
+        use_linear_scaling: Whether to use linear (True) or log (False) scaling for losses
+
+    Returns:
+        Pareto volume as float
+    """
+    if len(losses) == 0:
+        return 0.0
+
+    # Apply scaling transformations
+    y = losses.copy() if use_linear_scaling else np.log10(losses + np.finfo(float).eps)
+    x = np.log10(complexities)
+
+    # Add anchor points
+    min_y, max_y, max_x = np.min(y), np.max(y), np.max(x)
+    y = np.append(y, [min_y, max_y])
+    x = np.append(x, [np.log10(maxsize + 1), max_x])
+
+    # Compute convex hull and area
+    xy = np.column_stack((x, y))
+    hull = _convex_hull(xy)
+    return _convex_hull_area(hull)
+
+
+def calculate_pareto_volume_from_row(row: pd.Series, maxsize: int = 30, use_linear_scaling: bool = False) -> float:
+    """
+    Calculate pareto volume from a single dataframe row for use with df.apply().
+
+    Args:
+        row: Pandas Series with loss_i columns
+        maxsize: Maximum complexity to consider (default 30)
+        use_linear_scaling: Whether to use linear scaling (default False for log scaling)
+
+    Returns:
+        Calculated pareto volume
+    """
+    losses, complexities = _extract_pareto_frontier_from_row(row)
+    if len(losses) == 0:
+        return 0.0
+    return pareto_volume(losses, complexities, maxsize, use_linear_scaling)
