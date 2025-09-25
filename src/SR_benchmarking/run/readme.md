@@ -13,6 +13,13 @@
     ```
     [ Info: Results saved to: outputs/20250919_153117_IDm9h7/hall_of_fame.csv
     ```
+- If you get a CUDA warning along the lines of `Error: CUDA.jl could not find an appropriate CUDA runtime to use`, start julia on a compute node with the correct CUDA version and precompile all packages via `] precompile`. Functionality can be checked via 
+  ```julia
+  using SymbolicRegression
+  cuda = SymbolicRegression.NeuralMutationsModule.CUDA
+  cuda.versioninfo()
+  cuda.functional()
+  ```
 
 ## Create Python environment
 

@@ -14,7 +14,7 @@ from run.pysr_interface_utils import (
     reset_neural_mutation_stats,
     summarize_stats_dict
 )
-from analysis.utils import get_run_data_for_wandb
+from analysis.utils import get_run_data_for_wandb, load_tensorboard_data
 
 
 # Model-specific settings
@@ -197,7 +197,25 @@ def save_run_metadata(
         json.dump(metadata, f, indent=4)
 
     return metadata
-    
+
+def _extract_tensorboard_data_tocsv(log_dir: str) -> None:
+    """
+    Save tensorboard scalar data as CSV in the run directory.
+    """
+    try:
+        tensorboard_data = load_tensorboard_data(log_dir)
+        if tensorboard_data is None:
+            print(f"No tensorboard data found for {log_dir}")
+            return
+
+        df_scalars, _ = tensorboard_data
+        output_path = os.path.join(log_dir, 'tensorboard_scalars.csv')
+        df_scalars.to_csv(output_path, index=False)
+        print(f"Saved tensorboard scalars to {output_path}")
+
+    except Exception as e:
+        print(f"Error saving tensorboard CSV for {log_dir}: {e}")
+
 def run_single(
     packaged_model: PackagedModel,
     dataset_settings: DatasetSettings,
@@ -244,6 +262,9 @@ def run_single(
 
     # Run the model
     model.fit(dataset.X, dataset.y)
+
+    # Save tensorboard data as CSV
+    _extract_tensorboard_data_tocsv(log_dir)
 
     # Close the mutation logger (flushing remaining data to disk)
     if enable_mutation_logging:

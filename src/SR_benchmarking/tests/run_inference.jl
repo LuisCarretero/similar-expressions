@@ -58,7 +58,7 @@ options = Options(
 X = (rand(2, 1000) .- 0.5) .* 20
 y = X[1, :] .^ 3 .- 2 + 2 * cos.(X[2, :]) + sin.(X[1, :] .* X[2, :]) ./ 3
 
-log_path = joinpath(@__DIR__, "julia_test_logs")
+log_path = joinpath(@__DIR__, "logs")
 init_logger(log_path)
 
 hall_of_fame = equation_search(
