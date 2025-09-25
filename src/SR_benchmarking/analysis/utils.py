@@ -330,3 +330,22 @@ def calculate_pareto_volume_from_row(row: pd.Series, maxsize: int = 30, use_line
     if len(losses) == 0:
         return 0.0
     return pareto_volume(losses, complexities, maxsize, use_linear_scaling)
+
+def extract_tensorboard_data_to_csv(log_dir: str, verbose: bool = False) -> None:
+    """
+    Save tensorboard scalar data as CSV in the run directory.
+    """
+    try:
+        tensorboard_data = load_tensorboard_data(log_dir)
+        if tensorboard_data is None:
+            print(f"No tensorboard data found for {log_dir}")
+            return
+
+        df_scalars, _ = tensorboard_data
+        output_path = os.path.join(log_dir, 'tensorboard_scalars.csv')
+        df_scalars.to_csv(output_path, index=False)
+        if verbose:
+            print(f"Saved tensorboard scalars to {output_path}")
+
+    except Exception as e:
+        print(f"Error saving tensorboard CSV for {log_dir}: {e}")
