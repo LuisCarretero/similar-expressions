@@ -32,7 +32,7 @@
 
   ```json
   {
-      "julia": "=1.11.6",
+      "julia": "1.11",
       "packages": {
           "SymbolicRegression": {
               "uuid": "8254be44-1295-4e6a-a16d-46603ac705cb",
@@ -42,6 +42,12 @@
           "Serialization": {
               "uuid": "9e88b42a-f829-5b0c-bbe9-9e923198166b",
               "version": "1"
+          },
+          "Revise": {
+              "uuid": "295af30f-e4ad-537b-8983-00126c2a3abe"
+          },
+          "DynamicExpressions": {
+              "uuid": "a40a106e-89c9-4ca8-8020-a735e8728b6b"
           }
       },
       "project": "/cephfs/home/lc865/workspace/similar-expressions"
@@ -50,7 +56,7 @@
 
 - Install PySR:
   ```bash
-  cd PySR && pip install .
+  cd PySR && pip install -e .
   ```
 
 ---
