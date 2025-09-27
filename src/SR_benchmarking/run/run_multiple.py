@@ -17,6 +17,9 @@ from run.utils import (
 )
 from analysis.utils import collect_sweep_results
 
+# SLURM requeue configuration
+SLURM_REQUEUE_BUFFER_MINUTES = 30  # Buffer time before SLURM timeout to allow graceful requeuing
+
 
 def _load_config_with_overrides(config_path: str, args) -> Tuple[Any, ModelSettings, NeuralOptions, MutationWeights, str, str, List[int]]:
     """
@@ -163,7 +166,7 @@ def run_equations(
         # Pooled mode: pool multiple runs per equation
         for eq_idx in equations:
             # Check if we should continue running or exit for resubmission
-            if not _should_continue_running():
+            if not _should_continue_running(SLURM_REQUEUE_BUFFER_MINUTES):
                 print(f'[TIME] Exiting gracefully at equation {eq_idx} for SLURM resubmission')
                 break
 
@@ -219,6 +222,11 @@ def run_equations(
                 continue
 
             for run_i in missing_runs:
+                # Check if we should continue running before starting this individual run
+                if not _should_continue_running(SLURM_REQUEUE_BUFFER_MINUTES):
+                    print(f'[TIME] Exiting gracefully during equation {eq_idx}, run {run_i+1} for SLURM resubmission')
+                    break
+
                 print(f'[INFO] Running equation {eq_idx}, run {run_i+1}/{cfg.run_settings.n_runs}')
 
                 # Run SR for this equation/run combination
@@ -239,6 +247,11 @@ def run_equations(
             # Aggregate results across all runs for this equation
             # Build complete list of run directories for aggregation (both existing and new)
             run_dirs = [f'{dataset_name}_eq{eq_idx}_run{run_i}' for run_i in range(cfg.run_settings.n_runs)]
+
+            # Check how many runs actually exist for better error reporting
+            existing_runs = [run_dir for run_dir in run_dirs if os.path.exists(os.path.join(log_dir, run_dir))]
+            print(f'[INFO] Aggregating results for equation {eq_idx}: {len(existing_runs)}/{cfg.run_settings.n_runs} runs completed')
+
             try:
                 all_step_stats, all_summary_stats_combined = collect_sweep_results(
                     log_dir,
@@ -273,7 +286,7 @@ def run_equations(
         # Run benchmark for each equation
         for eq_idx in equations:
             # Check if we should continue running or exit for resubmission
-            if not _should_continue_running():
+            if not _should_continue_running(SLURM_REQUEUE_BUFFER_MINUTES):
                 print(f'[TIME] Exiting gracefully at equation {eq_idx} for SLURM resubmission')
                 break
 

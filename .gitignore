@@ -13,3 +13,4 @@ julia-installer.sh
 pyjuliapkg
 *.out
 julia_test_logs
+sweep_size
