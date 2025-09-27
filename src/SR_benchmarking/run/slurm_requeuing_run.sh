@@ -33,15 +33,13 @@ echo "Job Start Time: $(date)"
 export SLURM_JOB_START_TIME=$(date +%s)
 export SLURM_TIME_LIMIT=710 # 11:50 in minutes
 
+echo "Starting vanilla distributed run on node $SLURM_ARRAY_TASK_ID..."
+python -u -m run.run_multiple --config=run/config_vanilla.yaml --pooled --node_id=$SLURM_ARRAY_TASK_ID --total_nodes=$TOTAL_NODES
+
 echo "Starting neural distributed run on node $SLURM_ARRAY_TASK_ID..."
-python -m run.run_multiple --config=run/config_neural.yaml --pooled --node_id=$SLURM_ARRAY_TASK_ID --total_nodes=$TOTAL_NODES
+python -u -m run.run_multiple --config=run/config_neural.yaml --pooled --node_id=$SLURM_ARRAY_TASK_ID --total_nodes=$TOTAL_NODES
 
-echo "Neural run completed. Starting vanilla distributed run on node $SLURM_ARRAY_TASK_ID..."
-
-# Run vanilla mode (with neural mutations disabled)
-python -m run.run_multiple --config=run/config_vanilla.yaml --pooled --node_id=$SLURM_ARRAY_TASK_ID --total_nodes=$TOTAL_NODES
-
-echo "Vanilla distributed run completed on node $SLURM_ARRAY_TASK_ID at $(date)"
+echo "Distributed runs completed on node $SLURM_ARRAY_TASK_ID at $(date)"
 
 # Resubmission logic (only run on first array task to avoid duplicates)
 if [ "$SLURM_ARRAY_TASK_ID" -eq "0" ]; then

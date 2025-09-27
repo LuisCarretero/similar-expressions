@@ -99,6 +99,9 @@ def _sample_equation(
     if np.isscalar(y):
         y = np.full(num_samples, y)
 
+    # Ensure y is float64 to avoid casting errors when adding noise
+    y = np.asarray(y, dtype=np.float64)
+
     # Noise according to LaSR, which itself cites https://pmc.ncbi.nlm.nih.gov/articles/PMC11074949/
     abs_noise_magn = np.sqrt(np.square(y).mean()) * rel_noise_magn
     y += np.random.normal(0, abs_noise_magn, y.shape)
