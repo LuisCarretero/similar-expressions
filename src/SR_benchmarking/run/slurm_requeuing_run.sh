@@ -5,15 +5,16 @@
 #SBATCH --cpus-per-task=20
 #SBATCH --mem-per-cpu=2G
 #SBATCH --gpus=1
-#SBATCH --time=11:50:00
+#SBATCH --time=15:00
 #SBATCH --job-name=slurm_requeuing_run
 #SBATCH --output=/cephfs/home/lc865/workspace/similar-expressions/src/SR_benchmarking/run/logs/%x-%A_%a.out
+#SBATCH --requeue
 
 # Total number of nodes (should match array size)
 TOTAL_NODES=2
 
-# Configuration file to use for requeing
-CONFIG_FILE="run/config_vanilla.yaml"
+# Configuration files to process
+CONFIG_FILES=("run/config_vanilla.yaml")  #  "run/config_neural.yaml"
 
 # Load environment (activate conda environment)
 source /cephfs/store/gr-mc2473/lc865/misc/condaforge/etc/profile.d/conda.sh
@@ -31,67 +32,27 @@ echo "Job Start Time: $(date)"
 
 # Set SLURM environment variables for Python time monitoring
 export SLURM_JOB_START_TIME=$(date +%s)
-export SLURM_TIME_LIMIT=710 # 11:50 in minutes
+export SLURM_TIME_LIMIT=15  # 45 minutes total time limit
+
+# Function to check if this node has remaining work and requeue if needed
+check_and_requeue_if_needed() {
+    echo "[$(date)] Node $SLURM_ARRAY_TASK_ID: Checking for remaining work..."
+    python run/check_node_completion.py \
+        --node_id=$SLURM_ARRAY_TASK_ID \
+        --total_nodes=$TOTAL_NODES \
+        --job_id=$SLURM_JOB_ID \
+        --config_files "${CONFIG_FILES[@]}"
+}
 
 echo "Starting vanilla distributed run on node $SLURM_ARRAY_TASK_ID..."
 python -u -m run.run_multiple --config=run/config_vanilla.yaml --pooled --node_id=$SLURM_ARRAY_TASK_ID --total_nodes=$TOTAL_NODES
 
-echo "Starting neural distributed run on node $SLURM_ARRAY_TASK_ID..."
-python -u -m run.run_multiple --config=run/config_neural.yaml --pooled --node_id=$SLURM_ARRAY_TASK_ID --total_nodes=$TOTAL_NODES
+# echo "Starting neural distributed run on node $SLURM_ARRAY_TASK_ID..."
+# python -u -m run.run_multiple --config=run/config_neural.yaml --pooled --node_id=$SLURM_ARRAY_TASK_ID --total_nodes=$TOTAL_NODES
 
 echo "Distributed runs completed on node $SLURM_ARRAY_TASK_ID at $(date)"
 
-# Resubmission logic (only run on first array task to avoid duplicates)
-if [ "$SLURM_ARRAY_TASK_ID" -eq "0" ]; then
-    echo "Checking for remaining work and handling resubmission..."
-
-    # Extract log directory and dataset info from config using helper script
-    JOB_INFO=$(python run/get_job_info.py "$CONFIG_FILE" 2>/dev/null)
-
-    if [ $? -eq 0 ] && [ -n "$JOB_INFO" ]; then
-        # Parse space-separated output: log_dir dataset_name total_equations
-        LOG_DIR=$(echo $JOB_INFO | cut -d' ' -f1)
-        DATASET_NAME=$(echo $JOB_INFO | cut -d' ' -f2)
-        TOTAL_EQUATIONS=$(echo $JOB_INFO | cut -d' ' -f3)
-    else
-        echo "ERROR: Failed to extract job info from config file $CONFIG_FILE"
-        LOG_DIR="/tmp/fallback_logs"
-        DATASET_NAME="unknown"
-        TOTAL_EQUATIONS=0
-    fi
-
-    echo "Log directory: $LOG_DIR"
-    echo "Dataset: $DATASET_NAME"
-    echo "Total equations: $TOTAL_EQUATIONS"
-
-    # Count completed equations using .done files
-    COMPLETED_DIR="$LOG_DIR/completed"
-    if [ -d "$COMPLETED_DIR" ]; then
-        COMPLETED_COUNT=$(find "$COMPLETED_DIR" -name "${DATASET_NAME}_eq*.done" 2>/dev/null | wc -l)
-    else
-        COMPLETED_COUNT=0
-    fi
-
-    echo "Completed equations: $COMPLETED_COUNT"
-    echo "Progress: $COMPLETED_COUNT/$TOTAL_EQUATIONS"
-
-    # Check if we need to resubmit
-    if [ "$COMPLETED_COUNT" -lt "$TOTAL_EQUATIONS" ]; then
-        REMAINING=$((TOTAL_EQUATIONS - COMPLETED_COUNT))
-        echo "Found $REMAINING incomplete equations. Resubmitting job..."
-
-        # Resubmit this same script with consistent job name
-        NEW_JOB_ID=$(sbatch --parsable --job-name="slurm_requeuing_run" "$0")
-        if [ $? -eq 0 ]; then
-            echo "Successfully resubmitted as job ID: $NEW_JOB_ID"
-        else
-            echo "ERROR: Failed to resubmit job"
-        fi
-    else
-        echo "All equations completed! No resubmission needed."
-    fi
-else
-    echo "Node $SLURM_ARRAY_TASK_ID: Skipping resubmission check (only node 0 handles this)"
-fi
+# Check if this node needs to requeue itself
+check_and_requeue_if_needed
 
 echo "Node $SLURM_ARRAY_TASK_ID completed at $(date)"

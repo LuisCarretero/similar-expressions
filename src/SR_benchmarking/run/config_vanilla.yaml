@@ -1,6 +1,6 @@
 run_settings:
   n_runs: 10
-  log_dir: /cephfs/store/gr-mc2473/lc865/workspace/benchmark_data/sept-baseline-4-vanilla
+  log_dir: /cephfs/store/gr-mc2473/lc865/workspace/benchmark_data/sept-test-2
   wandb_logging: true
   enable_mutation_logging: false
 
@@ -17,7 +17,7 @@ dataset:
   name: pysr-univariate
   num_samples: 2000
   noise: 1e-4
-  equation_indices: "0:1000"
+  equation_indices: "0,1,2,4,6,8"
   remove_op_equations: []
 
 symbolic_regression:

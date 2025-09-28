@@ -18,7 +18,7 @@ from run.utils import (
 from analysis.utils import collect_sweep_results
 
 # SLURM requeue configuration
-SLURM_REQUEUE_BUFFER_MINUTES = 30  # Buffer time before SLURM timeout to allow graceful requeuing
+SLURM_REQUEUE_BUFFER_MINUTES = 10  # Buffer time before SLURM timeout to allow graceful requeuing
 
 
 def _load_config_with_overrides(config_path: str, args) -> Tuple[Any, ModelSettings, NeuralOptions, MutationWeights, str, str, List[int]]:
@@ -336,6 +336,21 @@ def _parse_eq_idx(s: str) -> List[int]:
     return result
 
 
+def get_node_equations(equations: List[int], node_id: int, total_nodes: int) -> List[int]:
+    """Get equations assigned to a specific node in distributed mode.
+
+    Args:
+        equations: Full list of equations
+        node_id: Node ID (0-indexed)
+        total_nodes: Total number of nodes
+
+    Returns:
+        List of equations assigned to this node
+    """
+    return equations[node_id::total_nodes]
+
+
+
 def _should_continue_running(buffer_minutes: int = 10) -> bool:
     """
     Check if we should continue running or exit gracefully before SLURM timeout.
@@ -451,7 +466,7 @@ if __name__ == '__main__':
 
     # Distribute equations across nodes if distributed mode is enabled
     if args.node_id is not None and args.total_nodes is not None:
-        equations = equations[args.node_id::args.total_nodes]
+        equations = get_node_equations(equations, args.node_id, args.total_nodes)
         print(f'[INFO] Node {args.node_id}/{args.total_nodes}: Running {len(equations)} equations: {equations}')
 
     run_equations(
