@@ -28,7 +28,8 @@ from optuna.samplers import TPESampler
 from optuna.pruners import MedianPruner
 from omegaconf import OmegaConf
 
-from optuna_objective import create_objective
+from sweeps.optuna_objective import create_objective
+from sweeps.optuna_coordinator import OptunaCoordinator
 from run.signal_manager import create_interruption_manager
 
 
@@ -37,12 +38,14 @@ class OptunaStudyManager:
     Manages Optuna study creation, execution, and graceful interruption handling.
     """
 
-    def __init__(self, config_path: str):
+    def __init__(self, config_path: str, node_id: int = None, total_nodes: int = None):
         """
         Initialize the study manager with configuration.
 
         Args:
             config_path: Path to optuna_config.yaml
+            node_id: Node ID for distributed execution (None for single-node)
+            total_nodes: Total number of nodes for distributed execution (None for single-node)
         """
         self.config_path = config_path
         self.config = OmegaConf.load(config_path)
@@ -60,6 +63,9 @@ class OptunaStudyManager:
 
         # Set up signal manager for graceful interruption
         self.signal_manager = create_interruption_manager(__name__)
+
+        # Set up coordinator for distributed execution
+        self.coordinator = OptunaCoordinator(node_id, total_nodes, self.config)
 
 
     def _create_sampler(self) -> optuna.samplers.BaseSampler:
@@ -189,69 +195,15 @@ class OptunaStudyManager:
             resume: If True, attempt to resume existing study
         """
         try:
-            # Create study and objective
-            self.study = self.create_or_load_study(resume)
-            self.objective = create_objective(self.config_path, self.signal_manager.create_checker())
+            if self.coordinator.is_worker:
+                # Worker nodes run the worker loop
+                self.logger.info(f"Worker {self.coordinator.node_id} starting worker loop")
+                self.coordinator.run_worker_loop(self.signal_manager.create_checker())
+                self.logger.info(f"Worker {self.coordinator.node_id} finished")
+                return
 
-            # Enqueue baseline trial with current config defaults (only on fresh start)
-            if not resume:
-                self._enqueue_baseline_trial()
-
-            n_trials = self.config['execution']['n_trials']
-            self.logger.info(f"Starting optimization with {n_trials} trials")
-
-            # Print study statistics
-            existing_trials = len(self.study.trials)
-            if existing_trials > 0:
-                self.logger.info(f"Study has {existing_trials} existing trials")
-                if self.study.best_trial:
-                    self.logger.info(f"Current best value: {self.study.best_value:.6f}")
-                    self.logger.info(f"Current best params: {self.study.best_params}")
-
-            # Custom optimization loop with interruption handling
-            trials_completed = 0
-            max_trials_per_iteration = 1  # Process one trial at a time for better control
-
-            while trials_completed < n_trials and not self.signal_manager.interrupted:
-                try:
-                    # Run a small batch of trials
-                    remaining_trials = min(max_trials_per_iteration, n_trials - trials_completed)
-
-                    self.logger.info(f"Running trial batch: {trials_completed + 1}-{trials_completed + remaining_trials} of {n_trials}")
-
-                    self.study.optimize(
-                        self.objective,
-                        n_trials=remaining_trials,
-                        timeout=None,
-                        show_progress_bar=False,  # We'll handle progress ourselves
-                        callbacks=[self._trial_callback]
-                    )
-
-                    trials_completed += remaining_trials
-
-                    # Print progress
-                    self.logger.info(f"Completed {trials_completed}/{n_trials} trials")
-                    if self.study.best_trial:
-                        self.logger.info(f"Best value so far: {self.study.best_value:.6f}")
-
-                except optuna.TrialPruned:
-                    # This is normal - pruned trials are handled by Optuna
-                    trials_completed += 1
-                    continue
-
-                except KeyboardInterrupt:
-                    self.logger.info("Received keyboard interrupt")
-                    self.signal_manager.interrupted = True
-                    break
-
-                except Exception as e:
-                    self.logger.error(f"Error during optimization: {e}")
-                    # Continue with next trial unless it's a critical error
-                    trials_completed += 1
-                    continue
-
-            # Print final results
-            self._print_final_results()
+            # Master or single-node: run normal Optuna optimization
+            self._run_master_optimization(resume)
 
         except Exception as e:
             self.logger.error(f"Critical error in optimization: {e}")
@@ -261,6 +213,76 @@ class OptunaStudyManager:
             # Clean up
             if self.objective:
                 self.objective.cleanup()
+            if self.coordinator:
+                self.coordinator.cleanup()
+
+    def _run_master_optimization(self, resume: bool = False):
+        """
+        Run master/single-node optimization process.
+        """
+        # Create study and objective
+        self.study = self.create_or_load_study(resume)
+        self.objective = create_objective(self.config_path, self.signal_manager.create_checker(), self.coordinator)
+
+        # Enqueue baseline trial with current config defaults (only on fresh start)
+        if not resume:
+            self._enqueue_baseline_trial()
+
+        n_trials = self.config['execution']['n_trials']
+        self.logger.info(f"Starting optimization with {n_trials} trials")
+
+        # Print study statistics
+        existing_trials = len(self.study.trials)
+        if existing_trials > 0:
+            self.logger.info(f"Study has {existing_trials} existing trials")
+            if self.study.best_trial:
+                self.logger.info(f"Current best value: {self.study.best_value:.6f}")
+                self.logger.info(f"Current best params: {self.study.best_params}")
+
+        # Custom optimization loop with interruption handling
+        trials_completed = 0
+        max_trials_per_iteration = 1  # Process one trial at a time for better control
+
+        while trials_completed < n_trials and not self.signal_manager.interrupted:
+            try:
+                # Run a small batch of trials
+                remaining_trials = min(max_trials_per_iteration, n_trials - trials_completed)
+
+                self.logger.info(f"Running trial batch: {trials_completed + 1}-{trials_completed + remaining_trials} of {n_trials}")
+
+                self.study.optimize(
+                    self.objective,
+                    n_trials=remaining_trials,
+                    timeout=None,
+                    show_progress_bar=False,  # We'll handle progress ourselves
+                    callbacks=[self._trial_callback]
+                )
+
+                trials_completed += remaining_trials
+
+                # Print progress
+                self.logger.info(f"Completed {trials_completed}/{n_trials} trials")
+                if self.study.best_trial:
+                    self.logger.info(f"Best value so far: {self.study.best_value:.6f}")
+
+            except optuna.TrialPruned:
+                # This is normal - pruned trials are handled by Optuna
+                trials_completed += 1
+                continue
+
+            except KeyboardInterrupt:
+                self.logger.info("Received keyboard interrupt")
+                self.signal_manager.interrupted = True
+                break
+
+            except Exception as e:
+                self.logger.error(f"Error during optimization: {e}")
+                # Continue with next trial unless it's a critical error
+                trials_completed += 1
+                continue
+
+        # Print final results
+        self._print_final_results()
 
     def _trial_callback(self, study: optuna.Study, trial: optuna.Trial):
         """Callback function called after each trial."""
@@ -346,6 +368,8 @@ def main():
                        help='Path to configuration file (default: optuna_config.yaml)')
     parser.add_argument('--resume', action='store_true',
                        help='Resume existing study if it exists')
+    parser.add_argument('--node_id', type=int, help='Node ID for distributed execution (0-indexed)')
+    parser.add_argument('--total_nodes', type=int, help='Total number of nodes for distributed execution')
 
     args = parser.parse_args()
 
@@ -355,8 +379,17 @@ def main():
         print(f"Error: Configuration file not found: {config_path}")
         sys.exit(1)
 
+    # Validate distributed arguments
+    if (args.node_id is None) != (args.total_nodes is None):
+        print("Error: Both --node_id and --total_nodes must be specified together")
+        sys.exit(1)
+
+    if args.node_id is not None and (args.node_id < 0 or args.node_id >= args.total_nodes):
+        print(f"Error: node_id must be between 0 and {args.total_nodes-1}")
+        sys.exit(1)
+
     # Create and run study manager
-    manager = OptunaStudyManager(str(config_path))
+    manager = OptunaStudyManager(str(config_path), args.node_id, args.total_nodes)
     manager.optimize(resume=args.resume)
 
 

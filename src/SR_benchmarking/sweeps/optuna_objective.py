@@ -8,10 +8,8 @@ optimization framework, handling noisy objectives and graceful SLURM requeuing.
 import sys
 import numpy as np
 from pathlib import Path
-from typing import Dict, Any, List, Tuple
+from typing import Dict, Any, Tuple
 import pandas as pd
-import shutil
-import datetime
 
 # Add parent directories to path for imports
 parent_dir = str(Path(__file__).parent.parent)
@@ -23,11 +21,9 @@ from omegaconf import OmegaConf
 
 # Import existing SR benchmarking infrastructure
 from run.utils import (
-    ModelSettings, NeuralOptions, MutationWeights, DatasetSettings,
-    init_pysr_model, run_single, load_config
+    ModelSettings, NeuralOptions, MutationWeights, load_config
 )
 from run.run_multiple import _parse_eq_idx
-from analysis.utils import collect_sweep_results
 
 
 class OptunaObjective:
@@ -37,30 +33,32 @@ class OptunaObjective:
     Handles equation batching, intermediate reporting, and graceful SLURM requeuing.
     """
 
-    def __init__(self, config: Dict[str, Any], interruption_flag=None):
+    def __init__(self, config: Dict[str, Any], interruption_flag=None, coordinator=None):
         """
         Initialize the objective function with configuration.
 
         Args:
             config: Configuration dictionary loaded from optuna_config.yaml
             interruption_flag: Callable that returns True if execution should be interrupted
+            coordinator: OptunaCoordinator instance for distributed execution (required)
         """
+        if coordinator is None:
+            raise ValueError("OptunaCoordinator is required - pass coordinator instance")
+
         self.config = config
         self.base_config = load_config(config['base_config'])
         self.equations = _parse_eq_idx(config['dataset']['equation_indices'])
         self.n_runs = config['dataset']['n_runs']
         self.equations_per_batch = config['execution']['equations_per_batch']
         self.interruption_flag = interruption_flag or (lambda: False)
-
-        # Create persistent directory for this optimization session
-        base_log_dir = Path("/cephfs/store/gr-mc2473/lc865/workspace/benchmark_data/optuna_experiment")
-        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.temp_dir = base_log_dir / f"optuna_sr_{timestamp}"
-        self.temp_dir.mkdir(parents=True, exist_ok=True)
+        self.coordinator = coordinator
 
         print(f"[OPTUNA] Initialized objective with {len(self.equations)} equations, "
               f"{self.n_runs} runs each, batch size {self.equations_per_batch}")
-        print(f"[OPTUNA] Log directory: {self.temp_dir}")
+
+        mode = "distributed" if not coordinator.single_node else "single-node"
+        role = "master" if coordinator.is_master else "worker"
+        print(f"[OPTUNA] Running in {mode} mode as {role}")
 
     def _sample_hyperparameters(self, trial: optuna.Trial) -> Tuple[ModelSettings, NeuralOptions, MutationWeights]:
         """
@@ -123,10 +121,13 @@ class OptunaObjective:
                     neural_params['subtree_min_nodes']['low'],
                     neural_params['subtree_min_nodes']['high'])
 
+            # Handle special case: subtree_max_nodes_diff
             if 'subtree_max_nodes_diff' in neural_params:
-                neural_options.subtree_max_nodes_diff = trial.suggest_int('subtree_max_nodes_diff',
+                subtree_max_nodes_diff = trial.suggest_int('subtree_max_nodes_diff',
                     neural_params['subtree_max_nodes_diff']['low'],
                     neural_params['subtree_max_nodes_diff']['high'])
+                # Set subtree_max_nodes = subtree_min_nodes + diff
+                neural_options.subtree_max_nodes = neural_options.subtree_min_nodes + subtree_max_nodes_diff
 
             if 'max_tree_size_diff' in neural_params:
                 neural_options.max_tree_size_diff = trial.suggest_int('max_tree_size_diff',
@@ -205,86 +206,6 @@ class OptunaObjective:
 
         return model_settings, neural_options, mutation_weights
 
-    def _run_equation_batch(
-        self, equations: List[int], 
-        model_settings: ModelSettings,
-        neural_options: NeuralOptions,
-        mutation_weights: MutationWeights
-    ) -> List[float]:
-        """
-        Run a batch of equations and return their pareto volumes.
-
-        Args:
-            equations: List of equation indices to run
-            model_settings: Model configuration
-            neural_options: Neural mutation configuration
-            mutation_weights: Mutation weight configuration
-
-        Returns:
-            List of pareto volumes (one per equation)
-        """
-        pareto_volumes = []
-        packaged_model = init_pysr_model(model_settings, mutation_weights, neural_options)
-
-        for eq_idx in equations:
-            # Check for interruption before starting each equation
-            if self.interruption_flag():
-                print(f"[OPTUNA] Interrupted during batch processing at equation {eq_idx}")
-                break
-
-            try:
-                eq_pareto_volumes = []
-
-                # Run multiple times per equation for variance reduction
-                for run_i in range(self.n_runs):
-                    # Create unique run directory
-                    run_dir = self.temp_dir / f"{self.config['dataset']['name']}_eq{eq_idx}_run{run_i}"
-
-                    if run_dir.exists():
-                        shutil.rmtree(run_dir)
-
-                    # Create dataset settings
-                    dataset_settings = DatasetSettings(
-                        dataset_name=self.config['dataset']['name'],
-                        eq_idx=eq_idx,
-                        num_samples=self.config['dataset']['num_samples'],
-                        rel_noise_magn=self.config['dataset']['noise']
-                    )
-
-                    # Run single SR experiment
-                    run_single(
-                        packaged_model=packaged_model,
-                        dataset_settings=dataset_settings,
-                        log_dir=str(run_dir),
-                        wandb_logging=False,  # No WandB logging for individual runs
-                        enable_mutation_logging=False  # Disable for speed
-                    )
-
-                    # Extract pareto volume from tensorboard data
-                    final_pareto_volume = self._extract_run_pv(run_dir)
-                    eq_pareto_volumes.append(final_pareto_volume)
-
-                # Use mean (previous results actually show lower variance compared to median)
-                eq_mean_pv = np.mean(eq_pareto_volumes)
-                pareto_volumes.append(eq_mean_pv)
-
-                print(f"[OPTUNA] Equation {eq_idx}: PV = {eq_mean_pv:.4f} "
-                      f"(runs: {eq_pareto_volumes})")
-
-            except Exception as e:
-                print(f"[ERROR] Failed to run equation {eq_idx}: {e}")
-                pareto_volumes.append(0.0)  # Assign poor score for failed runs
-
-        return pareto_volumes
-
-    def _extract_run_pv(self, run_dir: Path) -> float:
-        """Extract results from a single run directory using CSV file."""
-        # Read the CSV file
-        csv_path = run_dir / 'tensorboard_scalars.csv'
-        df = pd.read_csv(csv_path)
-        final_pareto_volume = df['pareto_volume'].iloc[-1]
-        return float(final_pareto_volume)
-
     def __call__(self, trial: optuna.Trial) -> float:
         """
         Main objective function called by Optuna.
@@ -297,64 +218,82 @@ class OptunaObjective:
         """
         print(f"\n[OPTUNA] Starting trial {trial.number}")
 
-        # Sample hyperparameters
+        # Sample hyperparameters (only master/single-node does this)
         model_settings, neural_options, mutation_weights = self._sample_hyperparameters(trial)
 
         print(f"[OPTUNA] Trial {trial.number} hyperparameters:")
         print(f"  Neural: {neural_options}")
         print(f"  Mutations: {mutation_weights}")
 
-        all_pareto_volumes = []
+        # Prepare trial parameters for coordinator
+        trial_params = {
+            'model_settings': model_settings,
+            'neural_options': neural_options,
+            'mutation_weights': mutation_weights
+        }
 
-        # Process equations in batches for intermediate reporting
-        for batch_start in range(0, len(self.equations), self.equations_per_batch):
+        # Execute trial through coordinator (handles both single-node and distributed)
+        all_pareto_volumes = self.coordinator.execute_trial(trial_params, self.interruption_flag)
 
-            batch_end = min(batch_start + self.equations_per_batch, len(self.equations))
-            batch_equations = self.equations[batch_start:batch_end]
-
-            print(f"[OPTUNA] Trial {trial.number}: Running equations "
-                  f"{batch_equations[0]}-{batch_equations[-1]} "
-                  f"(batch {len(all_pareto_volumes)//self.equations_per_batch + 1})")
-
-            # Run this batch of equations
-            batch_pareto_volumes = self._run_equation_batch(
-                batch_equations, model_settings, neural_options, mutation_weights
-            )
-
-            all_pareto_volumes.extend(batch_pareto_volumes)
-
-            # Report intermediate value for pruning
-            current_mean = np.mean(all_pareto_volumes)
-            trial.report(current_mean, step=len(all_pareto_volumes))
+        # Handle intermediate reporting for pruning
+        for batch_idx in range(0, len(all_pareto_volumes), self.equations_per_batch):
+            batch_end = min(batch_idx + self.equations_per_batch, len(all_pareto_volumes))
+            current_mean = np.mean(all_pareto_volumes[:batch_end])
+            trial.report(current_mean, step=batch_end)
 
             print(f"[OPTUNA] Trial {trial.number}: Intermediate PV = {current_mean:.4f} "
-                  f"(after {len(all_pareto_volumes)} equations)")
+                  f"(after {batch_end} equations)")
 
             # Check if trial should be pruned
             if trial.should_prune():
-                print(f"[OPTUNA] Trial {trial.number} pruned after {len(all_pareto_volumes)} equations")
+                print(f"[OPTUNA] Trial {trial.number} pruned after {batch_end} equations")
                 raise optuna.TrialPruned()
 
         # Calculate final objective value
-        final_pareto_volume = float(np.mean(all_pareto_volumes))
+        final_mean_pv = np.mean(all_pareto_volumes)
+        print(f"[OPTUNA] Trial {trial.number} COMPLETE: Final PV = {final_mean_pv:.4f}")
 
-        print(f"[OPTUNA] Trial {trial.number} completed: Final PV = {final_pareto_volume:.4f}")
-        print(f"[OPTUNA] PV statistics: min={np.min(all_pareto_volumes):.4f}, "
-              f"max={np.max(all_pareto_volumes):.4f}, std={np.std(all_pareto_volumes):.4f}")
+        return final_mean_pv
 
-        return final_pareto_volume
 
-def create_objective(config_path: str, interruption_flag=None) -> OptunaObjective:
+    def _extract_run_pv(self, run_dir: Path) -> float:
+        """Extract pareto volume from a single run directory."""
+        csv_path = run_dir / 'tensorboard_scalars.csv'
+        if not csv_path.exists():
+            print(f"Warning: No tensorboard CSV found at {csv_path}")
+            return 0.0
+
+        try:
+            df = pd.read_csv(csv_path)
+            if 'pareto_volume' not in df.columns:
+                print(f"Warning: No pareto_volume column in {csv_path}")
+                return 0.0
+            final_pareto_volume = df['pareto_volume'].iloc[-1]
+            return float(final_pareto_volume)
+        except Exception as e:
+            print(f"Error extracting pareto volume from {csv_path}: {e}")
+            return 0.0
+
+    def cleanup(self):
+        """
+        Clean up any resources used by the objective function.
+        """
+        # Coordinator handles all cleanup
+        pass
+
+
+def create_objective(config_path: str, interruption_flag=None, coordinator=None) -> OptunaObjective:
     """
     Create an Optuna objective function from configuration file.
 
     Args:
         config_path: Path to optuna_config.yaml
         interruption_flag: Callable that returns True if execution should be interrupted
+        coordinator: OptunaCoordinator instance for distributed execution (required)
 
     Returns:
         OptunaObjective instance
     """
     config = OmegaConf.load(config_path)
     config = OmegaConf.to_container(config, resolve=True)
-    return OptunaObjective(config, interruption_flag)
+    return OptunaObjective(config, interruption_flag, coordinator)
