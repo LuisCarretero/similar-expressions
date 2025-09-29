@@ -9,8 +9,9 @@ import sys
 import numpy as np
 from pathlib import Path
 from typing import Dict, Any, List, Tuple
-import tempfile
+import pandas as pd
 import shutil
+import datetime
 
 # Add parent directories to path for imports
 parent_dir = str(Path(__file__).parent.parent)
@@ -51,12 +52,15 @@ class OptunaObjective:
         self.equations_per_batch = config['execution']['equations_per_batch']
         self.interruption_flag = interruption_flag or (lambda: False)
 
-        # Create temporary directory for this optimization session
-        self.temp_dir = Path(tempfile.mkdtemp(prefix="optuna_sr_"))
+        # Create persistent directory for this optimization session
+        base_log_dir = Path("/cephfs/store/gr-mc2473/lc865/workspace/benchmark_data/optuna_experiment")
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        self.temp_dir = base_log_dir / f"optuna_sr_{timestamp}"
+        self.temp_dir.mkdir(parents=True, exist_ok=True)
 
         print(f"[OPTUNA] Initialized objective with {len(self.equations)} equations, "
               f"{self.n_runs} runs each, batch size {self.equations_per_batch}")
-        print(f"[OPTUNA] Temporary directory: {self.temp_dir}")
+        print(f"[OPTUNA] Log directory: {self.temp_dir}")
 
     def _sample_hyperparameters(self, trial: optuna.Trial) -> Tuple[ModelSettings, NeuralOptions, MutationWeights]:
         """
@@ -201,8 +205,12 @@ class OptunaObjective:
 
         return model_settings, neural_options, mutation_weights
 
-    def _run_equation_batch(self, equations: List[int], model_settings: ModelSettings,
-                           neural_options: NeuralOptions, mutation_weights: MutationWeights) -> List[float]:
+    def _run_equation_batch(
+        self, equations: List[int], 
+        model_settings: ModelSettings,
+        neural_options: NeuralOptions,
+        mutation_weights: MutationWeights
+    ) -> List[float]:
         """
         Run a batch of equations and return their pareto volumes.
 
@@ -231,6 +239,9 @@ class OptunaObjective:
                 for run_i in range(self.n_runs):
                     # Create unique run directory
                     run_dir = self.temp_dir / f"{self.config['dataset']['name']}_eq{eq_idx}_run{run_i}"
+
+                    if run_dir.exists():
+                        shutil.rmtree(run_dir)
 
                     # Create dataset settings
                     dataset_settings = DatasetSettings(
@@ -267,16 +278,12 @@ class OptunaObjective:
         return pareto_volumes
 
     def _extract_run_pv(self, run_dir: Path) -> float:
-        """Extract results from a single run directory."""
-        step_stats, _ = collect_sweep_results(
-            str(run_dir.parent),
-            [run_dir.name],
-            keep_single_runs=False,
-            combined_prefix=''
-        )
-        final_pareto_volume = step_stats[-1][1]['mean/pareto_volume']
-        return final_pareto_volume
-
+        """Extract results from a single run directory using CSV file."""
+        # Read the CSV file
+        csv_path = run_dir / 'tensorboard_scalars.csv'
+        df = pd.read_csv(csv_path)
+        final_pareto_volume = df['pareto_volume'].iloc[-1]
+        return float(final_pareto_volume)
 
     def __call__(self, trial: optuna.Trial) -> float:
         """
@@ -338,16 +345,6 @@ class OptunaObjective:
               f"max={np.max(all_pareto_volumes):.4f}, std={np.std(all_pareto_volumes):.4f}")
 
         return final_pareto_volume
-
-    def cleanup(self):
-        """Clean up temporary directories."""
-        try:
-            if self.temp_dir.exists():
-                shutil.rmtree(self.temp_dir)
-                print(f"[OPTUNA] Cleaned up temporary directory: {self.temp_dir}")
-        except Exception as e:
-            print(f"[WARNING] Failed to clean up {self.temp_dir}: {e}")
-
 
 def create_objective(config_path: str, interruption_flag=None) -> OptunaObjective:
     """

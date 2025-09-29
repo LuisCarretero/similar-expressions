@@ -6,7 +6,7 @@ run_settings:
 
 model_settings:
   niterations: 30
-  loss_function: none
+  loss_function: null
   early_stopping_condition: 1e-8
   verbosity: 0
   precision: 64
