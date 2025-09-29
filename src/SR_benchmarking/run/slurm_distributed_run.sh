@@ -29,11 +29,11 @@ trap 'echo "[$(date)] Interrupted, exiting gracefully..."; exit 0' USR1 TERM INT
 
 # Run neural mode first (with neural mutations enabled)
 echo "Starting neural distributed run on node $SLURM_ARRAY_TASK_ID..."
-srun python -u -m run.run_multiple --config=run/config_neural.yaml --pooled --node_id=$SLURM_ARRAY_TASK_ID --total_nodes=$TOTAL_NODES
+python -u -m run.run_multiple --config=run/config_neural.yaml --pooled --node_id=$SLURM_ARRAY_TASK_ID --total_nodes=$TOTAL_NODES
 
 echo "Neural run completed. Starting vanilla distributed run on node $SLURM_ARRAY_TASK_ID..."
 
 # Run vanilla mode (with neural mutations disabled)
-srun python -u -m run.run_multiple --config=run/config_vanilla.yaml --pooled --node_id=$SLURM_ARRAY_TASK_ID --total_nodes=$TOTAL_NODES
+python -u -m run.run_multiple --config=run/config_vanilla.yaml --pooled --node_id=$SLURM_ARRAY_TASK_ID --total_nodes=$TOTAL_NODES
 
 echo "Vanilla distributed run completed on node $SLURM_ARRAY_TASK_ID."

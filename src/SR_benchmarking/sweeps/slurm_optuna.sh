@@ -46,7 +46,7 @@ CONFIG_FILE=${1:-sweeps/optuna_neural_config.yaml}
 
 # Run Optuna optimization
 echo "[$(date)] Starting optimization with config: $CONFIG_FILE"
-srun python -u sweeps/optuna_hyperopt.py --config $CONFIG_FILE $RESUME_FLAG
+python -u sweeps/optuna_hyperopt.py --config $CONFIG_FILE $RESUME_FLAG
 EXIT_CODE=$?
 
 # Completion message
@@ -58,3 +58,5 @@ else
 fi
 
 exit $EXIT_CODE
+
+# optuna-dashboard sqlite:///src/SR_benchmarking/sweeps/optuna_neural_study.db

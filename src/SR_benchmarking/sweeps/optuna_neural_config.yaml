@@ -82,4 +82,4 @@ hyperparameters:
 
     max_resamples:
       type: "categorical"
-      choices: [31, 127, 255]
+      choices: [31, 63, 127]

@@ -301,10 +301,8 @@ class OptunaObjective:
         model_settings, neural_options, mutation_weights = self._sample_hyperparameters(trial)
 
         print(f"[OPTUNA] Trial {trial.number} hyperparameters:")
-        print(f"  Model: niterations={model_settings.niterations}")
-        print(f"  Neural: eps={getattr(neural_options, 'sampling_eps', 'default')}")
-        print(f"  Mutations: neural={mutation_weights.weight_neural_mutate_tree:.3f}, "
-              f"add={mutation_weights.weight_add_node:.3f}")
+        print(f"  Neural: {neural_options}")
+        print(f"  Mutations: {mutation_weights}")
 
         all_pareto_volumes = []
 

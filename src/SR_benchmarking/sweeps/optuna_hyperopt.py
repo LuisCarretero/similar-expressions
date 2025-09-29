@@ -16,6 +16,7 @@ import sys
 import time
 from pathlib import Path
 import logging
+import numpy as np
 
 # Add parent directory to path for imports
 parent_dir = str(Path(__file__).parent.parent)
@@ -132,6 +133,54 @@ class OptunaStudyManager:
         self.logger.info(f"Created/loaded study '{study_name}' with direction '{study_config['direction']}'")
         return study
 
+    def _enqueue_baseline_trial(self):
+        """
+        Enqueue a trial with baseline values from base config for parameters being optimized.
+        Works for any hyperparameter configuration (neural-only, weights-only, or combined).
+        """
+        baseline_params = {}
+
+        # Process neural options if being optimized
+        if 'neural_options' in self.config['hyperparameters']:
+            base_neural = self.objective.base_config.symbolic_regression.neural_options
+            neural_params = self.config['hyperparameters']['neural_options']
+
+            for param_name in neural_params.keys():
+                if hasattr(base_neural, param_name):
+                    baseline_value = getattr(base_neural, param_name)
+
+                    # Handle special case: subtree_max_nodes_diff
+                    if param_name == 'subtree_max_nodes_diff':
+                        baseline_value = base_neural.subtree_max_nodes - base_neural.subtree_min_nodes
+
+                    baseline_params[param_name] = baseline_value
+
+        # Process mutation weights if being optimized
+        if 'mutation_weights' in self.config['hyperparameters']:
+            base_weights = self.objective.base_config.symbolic_regression.mutation_weights
+            weight_params = self.config['hyperparameters']['mutation_weights']
+
+            # Get all weight names being optimized
+            weight_names = [name for name in weight_params.keys() if name != 'use_dirichlet_sampling']
+
+            # Extract base values and convert to Dirichlet raw values
+            weight_values = [getattr(base_weights, name) for name in weight_names]
+            total = sum(weight_values)
+
+            # Convert to raw format for Dirichlet sampling
+            for name, value in zip(weight_names, weight_values):
+                normalized_weight = value / total
+                raw_value = -np.log(normalized_weight)
+                baseline_params[f"raw_{name}"] = raw_value
+
+        # Enqueue the baseline trial
+        if baseline_params:
+            self.study.enqueue_trial(baseline_params)
+            self.logger.info(f"Enqueued baseline trial with {len(baseline_params)} parameters from base config")
+            self.logger.info(f"Baseline parameters: {baseline_params}")
+        else:
+            self.logger.info("No hyperparameters found to optimize - skipping baseline trial")
+
     def optimize(self, resume: bool = False):
         """
         Run the optimization process.
@@ -143,6 +192,10 @@ class OptunaStudyManager:
             # Create study and objective
             self.study = self.create_or_load_study(resume)
             self.objective = create_objective(self.config_path, self.signal_manager.create_checker())
+
+            # Enqueue baseline trial with current config defaults (only on fresh start)
+            if not resume:
+                self._enqueue_baseline_trial()
 
             n_trials = self.config['execution']['n_trials']
             self.logger.info(f"Starting optimization with {n_trials} trials")
