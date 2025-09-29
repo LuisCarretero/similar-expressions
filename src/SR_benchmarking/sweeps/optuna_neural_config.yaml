@@ -1,0 +1,85 @@
+# Optuna Hyperparameter Optimization Configuration - Neural Backend Parameters
+# Phase 1: Optimize neural mutation backend settings with fixed mutation weights
+
+# Study settings
+study:
+  name: "sr_neural_optimization"
+  direction: "maximize"
+  storage: "sqlite:///sweeps/optuna_neural_study.db"
+
+# Sampler configuration for noisy objectives
+sampler:
+  type: "TPESampler"
+  n_startup_trials: 20  # Reduced for smaller parameter space
+  n_ei_candidates: 24
+  multivariate: true    # Consider parameter interactions
+
+# Pruner configuration - conservative for noisy objectives
+pruner:
+  type: "MedianPruner"
+  n_startup_trials: 10      # Fewer startup trials for 8D space
+  n_warmup_steps: 20        # Wait for 20 equations before pruning
+  interval_steps: 10        # Only check every 10 equations
+
+# Execution settings
+execution:
+  n_trials: 40                     # Focused trials for neural params only
+  equations_per_batch: 10          # Report intermediate results every N equations
+
+# Dataset and run configuration
+dataset:
+  name: "pysr-univariate"          # Dataset to use
+  equation_indices: "0:100"         # Reduced equation set for faster iteration
+  num_samples: 2000                # Samples per equation
+  noise: 0.0001                    # Relative noise magnitude
+  n_runs: 5                        # Reduced runs for faster iteration
+
+# Base configuration file to use for non-optimized parameters
+base_config: "run/config_neural.yaml"
+
+# Hyperparameter search space - Neural options only
+hyperparameters:
+
+  # Neural options - the parameters we want to optimize
+  neural_options:
+    sampling_eps:
+      type: "float"
+      low: 0.005
+      high: 0.15
+      log: false
+
+    subtree_min_nodes:
+      type: "int"
+      low: 3
+      high: 8
+
+    subtree_max_nodes_diff:
+      type: "int"
+      low: 2
+      high: 6
+
+    max_tree_size_diff:
+      type: "int"
+      low: 0
+      high: 10
+
+    require_tree_size_similarity:
+      type: "categorical"
+      choices: [true, false]
+
+    require_novel_skeleton:
+      type: "categorical"
+      choices: [true, false]
+
+    require_expr_similarity:
+      type: "categorical"
+      choices: [true, false]
+
+    similarity_threshold:
+      type: "float"
+      low: 0.0
+      high: 1.5
+
+    max_resamples:
+      type: "categorical"
+      choices: [31, 127, 255]

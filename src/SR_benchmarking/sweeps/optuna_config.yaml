@@ -1,0 +1,157 @@
+# Optuna Hyperparameter Optimization Configuration
+
+# Study settings
+study:
+  name: "sr_pareto_optimization"
+  direction: "maximize"
+  storage: "sqlite:///sweeps/optuna_study.db"
+
+# Sampler configuration for noisy objectives
+sampler:
+  type: "TPESampler"
+  n_startup_trials: 50  # More random exploration first due to high variance
+  n_ei_candidates: 24   # More candidates to evaluate
+  multivariate: true    # Consider parameter interactions
+
+# Pruner configuration - conservative for noisy objectives
+pruner:
+  type: "MedianPruner"
+  n_startup_trials: 20      # Don't prune early trials
+  n_warmup_steps: 30        # Wait for 30 equations before pruning
+  interval_steps: 10        # Only check every 10 equations
+
+# Execution settings
+execution:
+  n_trials: 100                    # Total number of hyperparameter trials
+  equations_per_batch: 10          # Report intermediate results every N equations
+
+# Dataset and run configuration
+dataset:
+  name: "pysr-univariate"          # Dataset to use
+  equation_indices: "0:100"        # Equations 0-99
+  num_samples: 2000                # Samples per equation
+  noise: 0.0001                    # Relative noise magnitude
+  n_runs: 5                        # Runs per equation for variance reduction
+
+# Base configuration file to use for non-optimized parameters
+base_config: "run/config_neural.yaml"
+
+# Hyperparameter search space
+# Based on existing mutation_weights from WandB config but with better ranges
+hyperparameters:
+
+  # Mutation weights (will be normalized to sum to 1)
+  mutation_weights:
+    weight_add_node:
+      type: "float"
+      low: 0.1
+      high: 10.0
+      log: true
+
+    weight_insert_node:
+      type: "float"
+      low: 0.001
+      high: 5.0
+      log: true
+
+    weight_delete_node:
+      type: "float"
+      low: 0.1
+      high: 5.0
+      log: true
+
+    weight_do_nothing:
+      type: "float"
+      low: 0.01
+      high: 2.0
+      log: true
+
+    weight_mutate_constant:
+      type: "float"
+      low: 0.001
+      high: 1.0
+      log: true
+
+    weight_mutate_operator:
+      type: "float"
+      low: 0.01
+      high: 2.0
+      log: true
+
+    weight_swap_operands:
+      type: "float"
+      low: 0.01
+      high: 2.0
+      log: true
+
+    weight_rotate_tree:
+      type: "float"
+      low: 0.1
+      high: 10.0
+      log: true
+
+    weight_randomize:
+      type: "float"
+      low: 0.0001
+      high: 1.0
+      log: true
+
+    weight_simplify:
+      type: "float"
+      low: 0.0001
+      high: 0.1
+      log: true
+
+    weight_optimize:
+      type: "float"
+      low: 0.0
+      high: 2.0
+
+    weight_neural_mutate_tree:
+      type: "float"
+      low: 0.0
+      high: 5.0
+
+  # Neural options (if neural mutation is enabled)
+  neural_options:
+    sampling_eps:
+      type: "float"
+      low: 0.01
+      high: 0.2
+
+    subtree_min_nodes:
+      type: "int"
+      low: 3
+      high: 8
+
+    subtree_max_nodes_diff:
+      type: "int"
+      low: 2
+      high: 10
+
+    max_tree_size_diff:
+      type: "int"
+      low: 0
+      high: 15
+
+    require_tree_size_similarity:
+      type: "categorical"
+      choices: [true, false]
+
+    require_novel_skeleton:
+      type: "categorical"
+      choices: [true, false]
+
+    require_expr_similarity:
+      type: "categorical"
+      choices: [true, false]
+
+    similarity_threshold:
+      type: "float"
+      low: 0.1
+      high: 1.5
+
+    max_resamples:
+      type: "int"
+      low: 50
+      high: 200
