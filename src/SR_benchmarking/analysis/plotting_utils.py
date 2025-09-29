@@ -43,13 +43,14 @@ def add_statistical_textbox(ax, neural_vals, vanilla_vals, metric_type='loss',
         pass
 
 
-def plot_basic_distributions(filtered_df, summary_stats):
+def plot_basic_distributions(filtered_df, summary_stats, min_loss_clip=1e-8):
     """
     Create basic distribution histograms comparing neural and vanilla setups.
 
     Parameters:
     - filtered_df: DataFrame with individual run results
     - summary_stats: DataFrame with summary statistics by equation and setup
+    - min_loss_clip: Minimum value to clip loss values to (default: 1e-8)
 
     Returns:
     - fig: matplotlib figure object
@@ -63,8 +64,8 @@ def plot_basic_distributions(filtered_df, summary_stats):
 
     # Plot 1: Log Final Min Loss histogram
     ax1 = axes[0, 0]
-    log_loss_neural = np.log10(neural_df['final_min_loss'])
-    log_loss_vanilla = np.log10(vanilla_df['final_min_loss'])
+    log_loss_neural = np.log10(np.clip(neural_df['final_min_loss'], min_loss_clip, None))
+    log_loss_vanilla = np.log10(np.clip(vanilla_df['final_min_loss'], min_loss_clip, None))
 
     # Create common bins for log loss
     log_loss_min = min(log_loss_neural.min(), log_loss_vanilla.min())
@@ -102,8 +103,8 @@ def plot_basic_distributions(filtered_df, summary_stats):
     neural_means = summary_stats[summary_stats['setup'] == 'neural']['final_min_loss_mean']
     vanilla_means = summary_stats[summary_stats['setup'] == 'vanilla']['final_min_loss_mean']
 
-    log_loss_neural_means = np.log10(neural_means)
-    log_loss_vanilla_means = np.log10(vanilla_means)
+    log_loss_neural_means = np.log10(np.clip(neural_means, min_loss_clip, None))
+    log_loss_vanilla_means = np.log10(np.clip(vanilla_means, min_loss_clip, None))
 
     log_loss_means_min = min(log_loss_neural_means.min(), log_loss_vanilla_means.min())
     log_loss_means_max = max(log_loss_neural_means.max(), log_loss_vanilla_means.max())
