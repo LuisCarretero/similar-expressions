@@ -1,0 +1,13 @@
+Optuna Optimization Results
+==========================
+
+Total trials: 2
+Completed: 1
+Pruned: 1
+Failed: 0
+
+Best trial value: 3.576706
+Best parameters:
+  sampling_eps: 0.02
+  subtree_min_nodes: 2
+  subtree_max_nodes_diff: 2

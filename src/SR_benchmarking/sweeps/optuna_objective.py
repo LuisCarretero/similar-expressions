@@ -225,11 +225,11 @@ class OptunaObjective:
         print(f"  Neural: {neural_options}")
         print(f"  Mutations: {mutation_weights}")
 
-        # Prepare trial parameters for coordinator
+        # Prepare trial parameters for coordinator (convert to serializable dict)
         trial_params = {
-            'model_settings': model_settings,
-            'neural_options': neural_options,
-            'mutation_weights': mutation_weights
+            'model_settings': OmegaConf.to_container(model_settings) if hasattr(model_settings, '_content') else model_settings.__dict__,
+            'neural_options': OmegaConf.to_container(neural_options) if hasattr(neural_options, '_content') else neural_options.__dict__,
+            'mutation_weights': OmegaConf.to_container(mutation_weights) if hasattr(mutation_weights, '_content') else mutation_weights.__dict__
         }
 
         # Execute trial through coordinator (handles both single-node and distributed)
@@ -259,27 +259,12 @@ class OptunaObjective:
     def _extract_run_pv(self, run_dir: Path) -> float:
         """Extract pareto volume from a single run directory."""
         csv_path = run_dir / 'tensorboard_scalars.csv'
-        if not csv_path.exists():
-            print(f"Warning: No tensorboard CSV found at {csv_path}")
-            return 0.0
-
-        try:
-            df = pd.read_csv(csv_path)
-            if 'pareto_volume' not in df.columns:
-                print(f"Warning: No pareto_volume column in {csv_path}")
-                return 0.0
-            final_pareto_volume = df['pareto_volume'].iloc[-1]
-            return float(final_pareto_volume)
-        except Exception as e:
-            print(f"Error extracting pareto volume from {csv_path}: {e}")
-            return 0.0
+        df = pd.read_csv(csv_path)
+        final_pareto_volume = df['pareto_volume'].iloc[-1]
+        return float(final_pareto_volume)
 
     def cleanup(self):
-        """
-        Clean up any resources used by the objective function.
-        """
-        # Coordinator handles all cleanup
-        pass
+        pass  # Coordinator handles all cleanup
 
 
 def create_objective(config_path: str, interruption_flag=None, coordinator=None) -> OptunaObjective:

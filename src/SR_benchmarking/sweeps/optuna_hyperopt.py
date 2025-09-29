@@ -11,9 +11,7 @@ Usage:
 """
 
 import argparse
-import os
 import sys
-import time
 from pathlib import Path
 import logging
 import numpy as np
@@ -235,7 +233,9 @@ class OptunaStudyManager:
         existing_trials = len(self.study.trials)
         if existing_trials > 0:
             self.logger.info(f"Study has {existing_trials} existing trials")
-            if self.study.best_trial:
+            # Check if there are any completed trials before accessing best_trial
+            completed_trials = [t for t in self.study.trials if t.state == optuna.trial.TrialState.COMPLETE]
+            if completed_trials:
                 self.logger.info(f"Current best value: {self.study.best_value:.6f}")
                 self.logger.info(f"Current best params: {self.study.best_params}")
 
@@ -262,7 +262,9 @@ class OptunaStudyManager:
 
                 # Print progress
                 self.logger.info(f"Completed {trials_completed}/{n_trials} trials")
-                if self.study.best_trial:
+                # Check if there are any completed trials before accessing best_trial
+                completed_trials = [t for t in self.study.trials if t.state == optuna.trial.TrialState.COMPLETE]
+                if completed_trials:
                     self.logger.info(f"Best value so far: {self.study.best_value:.6f}")
 
             except optuna.TrialPruned:
@@ -285,6 +287,7 @@ class OptunaStudyManager:
         self._print_final_results()
 
     def _trial_callback(self, study: optuna.Study, trial: optuna.Trial):
+        _ = study  # Unused but required by callback signature
         """Callback function called after each trial."""
         if trial.state == optuna.trial.TrialState.COMPLETE:
             self.logger.info(f"Trial {trial.number} completed with value {trial.value:.6f}")
@@ -310,7 +313,7 @@ class OptunaStudyManager:
         self.logger.info(f"  Pruned: {len(pruned_trials)}")
         self.logger.info(f"  Failed: {len(failed_trials)}")
 
-        if self.study.best_trial:
+        if completed_trials:
             self.logger.info(f"\nBest trial:")
             self.logger.info(f"  Value: {self.study.best_value:.6f}")
             self.logger.info(f"  Params:")

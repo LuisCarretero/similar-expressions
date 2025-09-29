@@ -28,7 +28,6 @@ mkdir -p sweeps/logs
 trap 'echo "[$(date)] Node $SLURM_ARRAY_TASK_ID interrupted, exiting for requeue..."; exit 0' USR1 TERM INT
 
 # Set environment variables
-export PYTHON_JULIAPKG_PROJECT="/cephfs/home/lc865/workspace/similar-expressions"
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
 export JULIA_NUM_THREADS=$SLURM_CPUS_PER_TASK
 
@@ -79,3 +78,4 @@ exit $EXIT_CODE
 # To monitor progress:
 # tail -f sweeps/logs/optuna_distributed-JOBID_0.out  # Master node log
 # tail -f sweeps/logs/optuna_distributed-JOBID_1.out  # Worker node log
+# optuna-dashboard sqlite:///src/SR_benchmarking/sweeps/optuna_neural_study.db

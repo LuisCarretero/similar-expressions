@@ -12,6 +12,8 @@ import numpy as np
 from pathlib import Path
 from typing import Dict, Any, List, Optional, Tuple
 import logging
+import datetime
+import pandas as pd
 
 # Add parent directories to path for imports
 import sys
@@ -23,7 +25,7 @@ from run.utils import (
     ModelSettings, NeuralOptions, MutationWeights, DatasetSettings,
     init_pysr_model, run_single
 )
-from run.run_multiple import get_node_equations
+from run.run_multiple import get_node_equations, _parse_eq_idx
 
 
 class OptunaCoordinator:
@@ -52,17 +54,76 @@ class OptunaCoordinator:
         self.is_master = (node_id == 0) if not self.single_node else True
         self.is_worker = not self.is_master and not self.single_node
 
-        # Setup coordination directory
-        if not self.single_node:
-            self.coord_dir = Path("/tmp") / f"optuna_coord_{config['study']['name']}"
-            self.coord_dir.mkdir(exist_ok=True)
-
-        # Setup logging
+        # Setup logging first
         self.logger = logging.getLogger(__name__)
+
+        # Setup coordination directory - use experiment folder structure
+        if not self.single_node:
+            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            self.coord_dir = Path("/cephfs/store/gr-mc2473/lc865/workspace/benchmark_data/optuna_experiment") / f"optuna_coord_{config['study']['name']}_{timestamp}"
+            self.coord_dir.mkdir(parents=True, exist_ok=True)
+            self.logger.info(f"Using coordination directory: {self.coord_dir}")
 
         self.logger.info(f"OptunaCoordinator initialized: "
                         f"node_id={node_id}, total_nodes={total_nodes}, "
                         f"single_node={self.single_node}, is_master={self.is_master}")
+
+    def _reconstruct_objects(self, trial_params: Dict[str, Any]) -> Tuple[ModelSettings, NeuralOptions, MutationWeights]:
+        """
+        Reconstruct ModelSettings, NeuralOptions, MutationWeights objects from serialized dictionaries.
+        """
+        # Reconstruct ModelSettings
+        ms_dict = trial_params['model_settings']
+        model_settings = ModelSettings(
+            niterations=ms_dict['niterations'],
+            loss_function=ms_dict['loss_function'],
+            early_stopping_condition=ms_dict['early_stopping_condition'],
+            verbosity=ms_dict['verbosity'],
+            precision=ms_dict['precision'],
+            batching=ms_dict['batching'],
+            batch_size=ms_dict['batch_size']
+        )
+
+        # Reconstruct NeuralOptions
+        no_dict = trial_params['neural_options']
+        neural_options = NeuralOptions(
+            active=no_dict['active'],
+            model_path=no_dict['model_path'],
+            sampling_eps=no_dict['sampling_eps'],
+            subtree_min_nodes=no_dict['subtree_min_nodes'],
+            subtree_max_nodes=no_dict['subtree_max_nodes'],
+            device=no_dict['device'],
+            verbose=no_dict['verbose'],
+            max_tree_size_diff=no_dict['max_tree_size_diff'],
+            require_tree_size_similarity=no_dict['require_tree_size_similarity'],
+            require_novel_skeleton=no_dict['require_novel_skeleton'],
+            require_expr_similarity=no_dict['require_expr_similarity'],
+            similarity_threshold=no_dict['similarity_threshold'],
+            log_subtree_strings=no_dict['log_subtree_strings'],
+            sample_logits=no_dict['sample_logits'],
+            max_resamples=no_dict['max_resamples'],
+            sample_batchsize=no_dict['sample_batchsize'],
+            subtree_max_features=no_dict['subtree_max_features']
+        )
+
+        # Reconstruct MutationWeights
+        mw_dict = trial_params['mutation_weights']
+        mutation_weights = MutationWeights(
+            weight_add_node=mw_dict['weight_add_node'],
+            weight_insert_node=mw_dict['weight_insert_node'],
+            weight_delete_node=mw_dict['weight_delete_node'],
+            weight_do_nothing=mw_dict['weight_do_nothing'],
+            weight_mutate_constant=mw_dict['weight_mutate_constant'],
+            weight_mutate_operator=mw_dict['weight_mutate_operator'],
+            weight_swap_operands=mw_dict['weight_swap_operands'],
+            weight_rotate_tree=mw_dict['weight_rotate_tree'],
+            weight_randomize=mw_dict['weight_randomize'],
+            weight_simplify=mw_dict['weight_simplify'],
+            weight_optimize=mw_dict['weight_optimize'],
+            weight_neural_mutate_tree=mw_dict['weight_neural_mutate_tree']
+        )
+
+        return model_settings, neural_options, mutation_weights
 
     def execute_trial(self, trial_params: Dict[str, Any], interruption_flag=None) -> List[float]:
         """
@@ -84,16 +145,17 @@ class OptunaCoordinator:
 
     def _run_local_trial(self, trial_params: Dict[str, Any], interruption_flag=None) -> List[float]:
         """Run trial on single node (current behavior)."""
-        model_settings = trial_params['model_settings']
-        neural_options = trial_params['neural_options']
-        mutation_weights = trial_params['mutation_weights']
+        model_settings, neural_options, mutation_weights = self._reconstruct_objects(trial_params)
 
         # Parse equations
-        equations = self._parse_equation_indices(self.config['dataset']['equation_indices'])
+        equations = _parse_eq_idx(self.config['dataset']['equation_indices'])
+
+        # Generate trial_id for single-node mode
+        trial_id = int(time.time() * 1000000)
 
         # Run all equations locally
         return self._run_equation_batch(
-            equations, model_settings, neural_options, mutation_weights, interruption_flag
+            equations, model_settings, neural_options, mutation_weights, trial_id, interruption_flag
         )
 
     def _run_distributed_trial(self, trial_params: Dict[str, Any], interruption_flag=None) -> List[float]:
@@ -104,16 +166,23 @@ class OptunaCoordinator:
             # Broadcast trial parameters to workers
             self._broadcast_trial_params(trial_id, trial_params)
 
+            # Wait for all workers to acknowledge receipt
+            self._wait_for_worker_acknowledgments(trial_id)
+
             # Get master's equation subset
-            equations = self._parse_equation_indices(self.config['dataset']['equation_indices'])
+            equations = _parse_eq_idx(self.config['dataset']['equation_indices'])
             master_equations = get_node_equations(equations, 0, self.total_nodes)
+
+            # Reconstruct objects from trial params
+            model_settings, neural_options, mutation_weights = self._reconstruct_objects(trial_params)
 
             # Run master's equations
             master_results = self._run_equation_batch(
                 master_equations,
-                trial_params['model_settings'],
-                trial_params['neural_options'],
-                trial_params['mutation_weights'],
+                model_settings,
+                neural_options,
+                mutation_weights,
+                trial_id,
                 interruption_flag
             )
 
@@ -151,11 +220,14 @@ class OptunaCoordinator:
                 self.logger.info(f"Worker {self.node_id} interrupted, shutting down")
                 break
 
-            trial_params = self._wait_for_trial_params()
+            self.logger.info(f"Worker {self.node_id} waiting for trial parameters...")
+            trial_params = self._wait_for_trial_params(timeout_sec=10.0)  # Longer timeout
             if trial_params is None:
                 # Check for shutdown signal
                 if self._check_shutdown_signal():
+                    self.logger.info(f"Worker {self.node_id} received shutdown signal")
                     break
+                self.logger.info(f"Worker {self.node_id} no trial parameters found, continuing to wait...")
                 time.sleep(1.0)  # Wait before checking again
                 continue
 
@@ -164,15 +236,21 @@ class OptunaCoordinator:
 
             try:
                 # Get worker's equation subset
-                equations = self._parse_equation_indices(self.config['dataset']['equation_indices'])
+                equations = _parse_eq_idx(self.config['dataset']['equation_indices'])
                 worker_equations = get_node_equations(equations, self.node_id, self.total_nodes)
+
+                self.logger.info(f"Worker {self.node_id} will process equations {worker_equations} for trial {trial_id}")
+
+                # Reconstruct objects from trial params
+                model_settings, neural_options, mutation_weights = self._reconstruct_objects(trial_params)
 
                 # Process worker's equations
                 results = self._run_equation_batch(
                     worker_equations,
-                    trial_params['model_settings'],
-                    trial_params['neural_options'],
-                    trial_params['mutation_weights'],
+                    model_settings,
+                    neural_options,
+                    mutation_weights,
+                    trial_id,
                     interruption_flag
                 )
 
@@ -197,19 +275,53 @@ class OptunaCoordinator:
 
         self.logger.info(f"Broadcast trial {trial_id} parameters to workers")
 
+    def _wait_for_worker_acknowledgments(self, trial_id: int, timeout_sec: float = 30.0):
+        """Master waits for all workers to acknowledge they received parameters."""
+        expected_workers = list(range(1, self.total_nodes))  # Workers are nodes 1, 2, 3, etc.
+        received_acks = set()
+
+        start_time = time.time()
+        while time.time() - start_time < timeout_sec:
+            # Check for acknowledgment files
+            for worker_id in expected_workers:
+                if worker_id not in received_acks:
+                    ack_file = self.coord_dir / f"trial_{trial_id}_worker_{worker_id}_ack.json"
+                    if ack_file.exists():
+                        received_acks.add(worker_id)
+                        self.logger.info(f"Received acknowledgment from worker {worker_id} for trial {trial_id}")
+
+            # Check if all workers have acknowledged
+            if len(received_acks) == len(expected_workers):
+                self.logger.info(f"All workers acknowledged trial {trial_id} parameters")
+                return
+
+            time.sleep(0.1)
+
+        # Log which workers didn't respond
+        missing_workers = set(expected_workers) - received_acks
+        self.logger.warning(f"Timeout waiting for acknowledgments from workers {missing_workers} for trial {trial_id}")
+
     def _wait_for_trial_params(self, timeout_sec: float = 5.0) -> Optional[Dict[str, Any]]:
         """Worker waits for trial parameters from master."""
         # Look for any trial params file
+        self.logger.info(f"Worker {self.node_id} looking for params files in: {self.coord_dir}")
         start_time = time.time()
         while time.time() - start_time < timeout_sec:
             params_files = list(self.coord_dir.glob("trial_*_params.json"))
+            self.logger.debug(f"Worker {self.node_id} found {len(params_files)} params files")
             if params_files:
                 params_file = params_files[0]  # Take first available
                 try:
                     with open(params_file, 'r') as f:
                         params = json.load(f)
-                    # Remove params file so other workers don't process it
-                    params_file.unlink(missing_ok=True)
+
+                    # Create acknowledgment file to signal we got the parameters
+                    trial_id = params['trial_id']
+                    ack_file = self.coord_dir / f"trial_{trial_id}_worker_{self.node_id}_ack.json"
+                    with open(ack_file, 'w') as f:
+                        json.dump({'worker_id': self.node_id, 'status': 'received'}, f)
+
+                    self.logger.info(f"Worker {self.node_id} received trial {trial_id} parameters")
                     return params
                 except (json.JSONDecodeError, FileNotFoundError):
                     continue
@@ -263,6 +375,7 @@ class OptunaCoordinator:
 
         patterns = [
             f"trial_{trial_id}_params.json",
+            f"trial_{trial_id}_worker_*_ack.json",
             f"trial_{trial_id}_node_*_results.json"
         ]
 
@@ -270,23 +383,27 @@ class OptunaCoordinator:
             for file_path in self.coord_dir.glob(pattern):
                 file_path.unlink(missing_ok=True)
 
-    def _parse_equation_indices(self, eq_str: str) -> List[int]:
-        """Parse equation indices string (reuse logic from run_multiple.py)."""
-        from run.run_multiple import _parse_eq_idx
-        return _parse_eq_idx(eq_str)
-
     def _run_equation_batch(
         self,
         equations: List[int],
         model_settings: ModelSettings,
         neural_options: NeuralOptions,
         mutation_weights: MutationWeights,
+        trial_id: int,
         interruption_flag=None
     ) -> List[float]:
         """
         Run a batch of equations and return pareto volumes.
 
         This mirrors the logic from OptunaObjective._run_equation_batch
+        
+        Args:
+            equations: List of equation indices to process
+            model_settings: Model configuration
+            neural_options: Neural network options
+            mutation_weights: Mutation weight configuration
+            interruption_flag: Function to check for interruption
+            trial_id: Unique trial identifier for directory organization
         """
         if interruption_flag is None:
             interruption_flag = lambda: False
@@ -294,90 +411,70 @@ class OptunaCoordinator:
         pareto_volumes = []
         packaged_model = init_pysr_model(model_settings, mutation_weights, neural_options)
 
-        # Create temp directory for this batch
-        import tempfile
-        import datetime
-        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        node_suffix = f"_node{self.node_id}" if not self.single_node else ""
-        temp_dir = Path(tempfile.mkdtemp(suffix=f"_optuna_batch_{timestamp}{node_suffix}"))
+        # Create experiment directory for this trial
+        base_dir = Path("/cephfs/store/gr-mc2473/lc865/workspace/benchmark_data/optuna_experiment")
+        temp_dir = base_dir / f"trial_{trial_id}"
+        temp_dir.mkdir(parents=True, exist_ok=True)
 
-        try:
-            for eq_idx in equations:
-                if interruption_flag():
-                    self.logger.info(f"Interrupted during equation batch processing at equation {eq_idx}")
-                    break
+        for eq_idx in equations:
+            if interruption_flag():
+                self.logger.info(f"Interrupted during equation batch processing at equation {eq_idx}")
+                break
 
-                try:
-                    eq_pareto_volumes = []
-                    n_runs = self.config['dataset']['n_runs']
+            try:
+                eq_pareto_volumes = []
+                n_runs = self.config['dataset']['n_runs']
 
-                    # Run multiple times per equation for variance reduction
-                    for run_i in range(n_runs):
-                        # Create unique run directory
-                        run_dir = temp_dir / f"{self.config['dataset']['name']}_eq{eq_idx}_run{run_i}"
-                        if run_dir.exists():
-                            shutil.rmtree(run_dir)
+                # Run multiple times per equation for variance reduction
+                for run_i in range(n_runs):
+                    # Create unique run directory
+                    run_dir = temp_dir / f"{self.config['dataset']['name']}_eq{eq_idx}_run{run_i}"
+                    if run_dir.exists():
+                        shutil.rmtree(run_dir)
 
-                        # Create dataset settings
-                        dataset_settings = DatasetSettings(
-                            dataset_name=self.config['dataset']['name'],
-                            eq_idx=eq_idx,
-                            num_samples=self.config['dataset']['num_samples'],
-                            rel_noise_magn=self.config['dataset']['noise'],
-                            remove_op_equations=self.config['dataset'].get('remove_op_equations', {})
-                        )
+                    # Create dataset settings
+                    dataset_settings = DatasetSettings(
+                        dataset_name=self.config['dataset']['name'],
+                        eq_idx=eq_idx,
+                        num_samples=self.config['dataset']['num_samples'],
+                        rel_noise_magn=self.config['dataset']['noise'],
+                        remove_op_equations=self.config['dataset'].get('remove_op_equations', {})
+                    )
 
-                        # Run single SR experiment
-                        run_single(
-                            packaged_model=packaged_model,
-                            dataset_settings=dataset_settings,
-                            log_dir=str(run_dir),
-                            wandb_logging=False,  # No WandB logging for individual runs
-                            enable_mutation_logging=False  # Disable for speed
-                        )
+                    # Run single SR experiment
+                    run_single(
+                        packaged_model=packaged_model,
+                        dataset_settings=dataset_settings,
+                        log_dir=str(run_dir),
+                        wandb_logging=False,  # No WandB logging for individual runs
+                        enable_mutation_logging=False  # Disable for speed
+                    )
 
-                        # Extract pareto volume from results
-                        final_pareto_volume = self._extract_run_pv(run_dir)
-                        eq_pareto_volumes.append(final_pareto_volume)
+                    # Extract pareto volume from results
+                    final_pareto_volume = self._extract_run_pv(run_dir)
+                    eq_pareto_volumes.append(final_pareto_volume)
 
-                    # Use mean pareto volume across runs
-                    eq_mean_pv = np.mean(eq_pareto_volumes)
-                    pareto_volumes.append(eq_mean_pv)
+                # Use mean pareto volume across runs
+                eq_mean_pv = np.mean(eq_pareto_volumes)
+                pareto_volumes.append(eq_mean_pv)
 
-                    node_info = f" (node {self.node_id})" if not self.single_node else ""
-                    self.logger.info(f"Equation {eq_idx}{node_info}: PV = {eq_mean_pv:.4f} "
-                                   f"(runs: {eq_pareto_volumes})")
+                node_info = f" (node {self.node_id})" if not self.single_node else ""
+                self.logger.info(f"Equation {eq_idx}{node_info}: PV = {eq_mean_pv:.4f} "
+                               f"(runs: {eq_pareto_volumes})")
 
-                except Exception as e:
-                    self.logger.error(f"Failed to run equation {eq_idx}: {e}")
-                    pareto_volumes.append(0.0)  # Assign poor score for failed runs
-
-        finally:
-            # Clean up temp directory
-            if temp_dir.exists():
-                shutil.rmtree(temp_dir)
+            except Exception as e:
+                self.logger.error(f"Failed to run equation {eq_idx}: {e}")
+                pareto_volumes.append(0.0)  # Assign poor score for failed runs
 
         return pareto_volumes
 
     def _extract_run_pv(self, run_dir: Path) -> float:
         """Extract pareto volume from a single run directory."""
-        import pandas as pd
+        csv_path = run_dir / 'tensorboard_scalars.csv'        
+        df = pd.read_csv(csv_path)
+        final_pareto_volume = df['pareto_volume'].iloc[-1]
+        return float(final_pareto_volume)
 
-        csv_path = run_dir / 'tensorboard_scalars.csv'
-        if not csv_path.exists():
-            self.logger.warning(f"No tensorboard CSV found at {csv_path}")
-            return 0.0
-
-        try:
-            df = pd.read_csv(csv_path)
-            if 'pareto_volume' not in df.columns:
-                self.logger.warning(f"No pareto_volume column in {csv_path}")
-                return 0.0
-            final_pareto_volume = df['pareto_volume'].iloc[-1]
-            return float(final_pareto_volume)
-        except Exception as e:
-            self.logger.error(f"Error extracting pareto volume from {csv_path}: {e}")
-            return 0.0
 
     def cleanup(self):
         """Clean up coordinator resources."""
