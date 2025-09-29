@@ -7,6 +7,7 @@
 #SBATCH --gpus=1
 #SBATCH --time=12:00:00
 #SBATCH --output=/cephfs/home/lc865/workspace/similar-expressions/src/SR_benchmarking/run/logs/%x-%A_%a.out
+#SBATCH --signal=B:USR1@1800
 
 # Total number of nodes (should match array size)
 TOTAL_NODES=2
@@ -22,6 +23,9 @@ workdir="/cephfs/home/lc865/workspace/similar-expressions/src/SR_benchmarking"
 cd $workdir
 echo "Running in directory: `pwd`"
 echo "Node ID: $SLURM_ARRAY_TASK_ID"
+
+# Signal handling for graceful shutdown
+trap 'echo "[$(date)] Interrupted, exiting gracefully..."; exit 0' USR1 TERM INT
 
 # Run neural mode first (with neural mutations enabled)
 echo "Starting neural distributed run on node $SLURM_ARRAY_TASK_ID..."

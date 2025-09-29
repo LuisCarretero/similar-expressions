@@ -7,6 +7,7 @@
 #SBATCH --gpus=1
 #SBATCH --time=12:00:00
 #SBATCH --output=/cephfs/home/lc865/workspace/similar-expressions/src/SR_benchmarking/run/%x-%j.out
+#SBATCH --signal=B:USR1@90
 
 # Load environment (activate conda environment)
 source /cephfs/store/gr-mc2473/lc865/misc/condaforge/etc/profile.d/conda.sh
@@ -18,6 +19,9 @@ workdir="/cephfs/home/lc865/workspace/similar-expressions/src/SR_benchmarking"
 # Move to the working directory
 cd $workdir
 echo "Running in directory: `pwd`"
+
+# Signal handling for graceful shutdown
+trap 'echo "[$(date)] Interrupted, exiting gracefully..."; exit 0' USR1 TERM INT
 
 # Run neural mode first (with neural mutations enabled)
 echo "Starting neural pooled run..."

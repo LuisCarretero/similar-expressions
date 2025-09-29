@@ -9,6 +9,7 @@
 #SBATCH --job-name=slurm_requeuing_run
 #SBATCH --output=/cephfs/home/lc865/workspace/similar-expressions/src/SR_benchmarking/run/logs/%x-%A_%a.out
 #SBATCH --requeue
+#SBATCH --signal=B:USR1@1800
 
 # Total number of nodes (should match array size)
 TOTAL_NODES=2
@@ -30,9 +31,8 @@ echo "Node ID: $SLURM_ARRAY_TASK_ID"
 echo "Job ID: $SLURM_JOB_ID"
 echo "Job Start Time: $(date)"
 
-# Set SLURM environment variables for Python time monitoring
-export SLURM_JOB_START_TIME=$(date +%s)
-export SLURM_TIME_LIMIT=15  # 45 minutes total time limit
+# Signal handling for graceful shutdown
+trap 'echo "[$(date)] Interrupted, exiting for requeue..."; exit 0' USR1 TERM INT
 
 # Function to check if this node has remaining work and requeue if needed
 check_and_requeue_if_needed() {

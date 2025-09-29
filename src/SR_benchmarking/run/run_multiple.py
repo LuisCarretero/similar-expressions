@@ -3,6 +3,7 @@ import argparse
 from typing import List, Tuple, Dict, Any, Union
 import wandb
 import os
+import logging
 import time
 
 from omegaconf import OmegaConf
@@ -16,9 +17,7 @@ from run.utils import (
     load_config
 )
 from analysis.utils import collect_sweep_results
-
-# SLURM requeue configuration
-SLURM_REQUEUE_BUFFER_MINUTES = 10  # Buffer time before SLURM timeout to allow graceful requeuing
+from run.signal_manager import create_interruption_manager
 
 
 def _load_config_with_overrides(config_path: str, args) -> Tuple[Any, ModelSettings, NeuralOptions, MutationWeights, str, str, List[int]]:
@@ -129,21 +128,26 @@ def _merge_configs(
     return model_settings, mutation_weights, neural_options
 
 def run_equations(
-    cfg,
-    model_settings,
-    neural_options,
-    mutation_weights,
+    cfg: Dict[str, Any],
+    model_settings: ModelSettings,
+    neural_options: NeuralOptions,
+    mutation_weights: MutationWeights,
     equations: List[int],
     dataset_name: str,
     log_dir: str,
     pooled: bool = False,
+    interruption_checker=None,
 ) -> None:
     """
     Run multiple SR experiments with unified logic.
 
     Args:
         pooled: If True, aggregate results into single WandB run. If False, separate WandB runs.
+        interruption_checker: Callable that returns True if execution should be interrupted
     """
+    # Default interruption checker that never interrupts
+    if interruption_checker is None:
+        interruption_checker = lambda: False
     wandb_logging = cfg.run_settings.wandb_logging
 
     # Filter out completed equations
@@ -166,8 +170,8 @@ def run_equations(
         # Pooled mode: pool multiple runs per equation
         for eq_idx in equations:
             # Check if we should continue running or exit for resubmission
-            if not _should_continue_running(SLURM_REQUEUE_BUFFER_MINUTES):
-                print(f'[TIME] Exiting gracefully at equation {eq_idx} for SLURM resubmission')
+            if interruption_checker():
+                print(f'[SIGNAL] Interrupted at equation {eq_idx}, exiting gracefully')
                 break
 
             print(f'[INFO] Starting pooled runs for equation {eq_idx}')
@@ -223,8 +227,8 @@ def run_equations(
 
             for run_i in missing_runs:
                 # Check if we should continue running before starting this individual run
-                if not _should_continue_running(SLURM_REQUEUE_BUFFER_MINUTES):
-                    print(f'[TIME] Exiting gracefully during equation {eq_idx}, run {run_i+1} for SLURM resubmission')
+                if interruption_checker():
+                    print(f'[SIGNAL] Interrupted during equation {eq_idx}, run {run_i+1}, exiting gracefully')
                     break
 
                 print(f'[INFO] Running equation {eq_idx}, run {run_i+1}/{cfg.run_settings.n_runs}')
@@ -286,8 +290,8 @@ def run_equations(
         # Run benchmark for each equation
         for eq_idx in equations:
             # Check if we should continue running or exit for resubmission
-            if not _should_continue_running(SLURM_REQUEUE_BUFFER_MINUTES):
-                print(f'[TIME] Exiting gracefully at equation {eq_idx} for SLURM resubmission')
+            if interruption_checker():
+                print(f'[SIGNAL] Interrupted at equation {eq_idx}, exiting gracefully')
                 break
 
             print(f'[INFO] Running equation {eq_idx} from dataset {dataset_name}')
@@ -348,39 +352,6 @@ def get_node_equations(equations: List[int], node_id: int, total_nodes: int) -> 
         List of equations assigned to this node
     """
     return equations[node_id::total_nodes]
-
-
-
-def _should_continue_running(buffer_minutes: int = 10) -> bool:
-    """
-    Check if we should continue running or exit gracefully before SLURM timeout.
-
-    Args:
-        buffer_minutes: Minutes to leave as buffer before SLURM timeout
-
-    Returns:
-        True if we should continue running, False if approaching timeout
-    """
-    # If not running under SLURM, always continue
-    if 'SLURM_JOB_ID' not in os.environ:
-        return True
-
-    # Get SLURM timing information
-    job_start_time = float(os.environ.get('SLURM_JOB_START_TIME', time.time()))
-    time_limit_minutes = int(os.environ.get('SLURM_TIME_LIMIT', 720))  # Default 12 hours = 720 minutes
-
-    # Calculate elapsed time
-    elapsed_minutes = (time.time() - job_start_time) / 60
-
-    # Check if we're approaching the time limit
-    remaining_minutes = time_limit_minutes - elapsed_minutes
-
-    if remaining_minutes <= buffer_minutes:
-        print(f'[TIME] Approaching SLURM timeout: {remaining_minutes:.1f} minutes remaining (buffer: {buffer_minutes}m)')
-        return False
-
-    return True
-
 
 def _mark_equation_complete(eq_idx: int, dataset_name: str, log_dir: str) -> None:
     """Mark equation as fully complete by creating a .done file.
@@ -461,6 +432,15 @@ if __name__ == '__main__':
     parser.add_argument('--niterations', type=int, help='Override number of iterations from config')
     args = parser.parse_args()
 
+    # Set up logging for signal manager
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(levelname)s - %(message)s'
+    )
+
+    # Create signal manager for graceful interruption handling
+    signal_manager = create_interruption_manager("run_multiple")
+
     # Load config and apply CLI overrides in one step
     cfg, model_settings, neural_options, mutation_weights, log_dir, dataset_name, equations = _load_config_with_overrides(args.config, args)
 
@@ -477,7 +457,8 @@ if __name__ == '__main__':
         equations=equations,
         dataset_name=dataset_name,
         log_dir=log_dir,
-        pooled=args.pooled
+        pooled=args.pooled,
+        interruption_checker=signal_manager.create_checker()
     )
 
     # Examples:
