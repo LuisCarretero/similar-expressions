@@ -1,8 +1,10 @@
 """
-Optuna distributed coordination system.
+Optuna distributed coordination system with trial resumption support.
 
-Handles distributed execution of Optuna trials across multiple SLURM nodes,
-with file-based communication and seamless single-node fallback.
+Handles:
+- Distributed execution of Optuna trials across multiple SLURM nodes
+- File-based communication for worker coordination
+- Trial resumption after SLURM requeues by scanning existing results
 """
 
 import json
@@ -12,9 +14,7 @@ import numpy as np
 from pathlib import Path
 from typing import Dict, Any, List, Optional, Tuple
 import logging
-import datetime
 import pandas as pd
-import os
 
 # Add parent directories to path for imports
 import sys
@@ -33,17 +33,16 @@ class OptunaCoordinator:
     """
     Coordinates distributed execution of Optuna trials across multiple nodes.
 
-    Handles both single-node and distributed modes seamlessly through file-based
-    communication. In single-node mode, acts as a pass-through with no overhead.
+    Handles distributed modes through file-based communication.
     """
 
-    def __init__(self, node_id: Optional[int], total_nodes: Optional[int], config: Dict[str, Any]):
+    def __init__(self, node_id: int, total_nodes: int, config: Dict[str, Any]):
         """
         Initialize the coordinator.
 
         Args:
-            node_id: Node ID (0-indexed), None for single-node mode
-            total_nodes: Total number of nodes, None for single-node mode
+            node_id: Node ID (0-indexed)
+            total_nodes: Total number of nodes
             config: Full Optuna configuration dictionary
         """
         self.node_id = node_id
@@ -51,33 +50,73 @@ class OptunaCoordinator:
         self.config = config
 
         # Mode detection
-        self.single_node = (node_id is None or total_nodes is None or total_nodes == 1)
-        self.is_master = (node_id == 0) if not self.single_node else True
-        self.is_worker = not self.is_master and not self.single_node
+        self.is_master = (node_id == 0)
+        self.is_worker = not self.is_master
 
         # Setup logging first
         self.logger = logging.getLogger(__name__)
 
-        # Setup coordination directory - use experiment folder structure
-        if not self.single_node:
-            base_dir = Path("/cephfs/store/gr-mc2473/lc865/workspace/benchmark_data/optuna_experiment")
-            # Prefer array job ID to keep path identical across array tasks
-            array_job_id = os.environ.get("SLURM_ARRAY_JOB_ID")
-            job_id = os.environ.get("SLURM_JOB_ID")
-            chosen_id = array_job_id or job_id
-            if chosen_id:
-                # Stable directory shared by all array tasks and across requeues
-                self.coord_dir = base_dir / f"optuna_coord_{config['study']['name']}_{chosen_id}"
+        # Setup coordination directory - one per study for persistence across job submissions
+        base_dir = Path("/cephfs/store/gr-mc2473/lc865/workspace/benchmark_data/optuna_experiment")
+        self.coord_dir = base_dir / f"optuna_coord_{config['study']['name']}"
+        self.coord_dir.mkdir(parents=True, exist_ok=True)
+        self.logger.info(f"Using coordination directory: {self.coord_dir}")
+
+        # Track processed trials to prevent reprocessing
+        if self.is_worker:
+            self.processed_trials_file = self.coord_dir / f"worker_{self.node_id}_processed.json"
+            if self.processed_trials_file.exists():
+                with open(self.processed_trials_file, 'r') as f:
+                    self.processed_trial_ids = set(json.load(f))
+                self.logger.info(f"Worker {self.node_id} loaded {len(self.processed_trial_ids)} processed trials")
             else:
-                # Fallback for local runs
-                timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-                self.coord_dir = base_dir / f"optuna_coord_{config['study']['name']}_{timestamp}"
-            self.coord_dir.mkdir(parents=True, exist_ok=True)
-            self.logger.info(f"Using coordination directory: {self.coord_dir}")
+                self.processed_trial_ids = set()
+                self._save_processed_trials()
+                self.logger.info(f"Worker {self.node_id} initialized with empty processed trials")
+        else:
+            self.processed_trial_ids = set()
 
         self.logger.info(f"OptunaCoordinator initialized: "
                         f"node_id={node_id}, total_nodes={total_nodes}, "
-                        f"single_node={self.single_node}, is_master={self.is_master}")
+                        f"is_master={self.is_master}")
+
+    def _save_processed_trials(self):
+        """Save processed trial IDs to file."""
+        if not self.is_worker:
+            return
+        with open(self.processed_trials_file, 'w') as f:
+            json.dump(list(self.processed_trial_ids), f)
+
+    def _load_trial_progress(self, trial_id: int) -> Optional[Dict[str, Any]]:
+        """Load progress for a trial if it exists."""
+        if not self.is_worker:
+            return None
+        progress_file = self.coord_dir / f"trial_{trial_id}_node_{self.node_id}_progress.json"
+        if progress_file.exists():
+            try:
+                with open(progress_file, 'r') as f:
+                    return json.load(f)
+            except (json.JSONDecodeError, FileNotFoundError):
+                return None
+        return None
+
+    def _save_trial_progress(self, trial_id: int, completed_equations: List[int], results: List[float]):
+        """Save progress for a trial."""
+        if not self.is_worker:
+            return
+        progress_file = self.coord_dir / f"trial_{trial_id}_node_{self.node_id}_progress.json"
+        with open(progress_file, 'w') as f:
+            json.dump({
+                'completed_equations': completed_equations,
+                'results': results
+            }, f)
+
+    def _delete_trial_progress(self, trial_id: int):
+        """Delete progress file after trial completion."""
+        if not self.is_worker:
+            return
+        progress_file = self.coord_dir / f"trial_{trial_id}_node_{self.node_id}_progress.json"
+        progress_file.unlink(missing_ok=True)
 
     def _reconstruct_objects(self, trial_params: Dict[str, Any]) -> Tuple[ModelSettings, NeuralOptions, MutationWeights]:
         """
@@ -138,7 +177,7 @@ class OptunaCoordinator:
 
     def execute_trial(self, trial_params: Dict[str, Any], interruption_flag=None) -> List[float]:
         """
-        Execute a trial, handling both single-node and distributed modes.
+        Execute a distributed trial.
 
         Args:
             trial_params: Dictionary containing model settings, neural options, mutation weights
@@ -147,31 +186,15 @@ class OptunaCoordinator:
         Returns:
             List of pareto volumes from all equations
         """
-        if self.single_node:
-            return self._run_local_trial(trial_params, interruption_flag)
-        elif self.is_master:
+        if self.is_master:
             return self._run_distributed_trial(trial_params, interruption_flag)
         else:
             raise RuntimeError("Workers should not call execute_trial - use run_worker_loop instead")
 
-    def _run_local_trial(self, trial_params: Dict[str, Any], interruption_flag=None) -> List[float]:
-        """Run trial on single node (current behavior)."""
-        model_settings, neural_options, mutation_weights = self._reconstruct_objects(trial_params)
-
-        # Parse equations
-        equations = _parse_eq_idx(self.config['dataset']['equation_indices'])
-
-        # Generate trial_id for single-node mode
-        trial_id = int(time.time() * 1000000)
-
-        # Run all equations locally
-        return self._run_equation_batch(
-            equations, model_settings, neural_options, mutation_weights, trial_id, interruption_flag
-        )
-
     def _run_distributed_trial(self, trial_params: Dict[str, Any], interruption_flag=None) -> List[float]:
         """Run trial distributed across nodes."""
-        trial_id = int(time.time() * 1000000)  # Unique trial ID
+        # Get trial_id (must be provided by objective function)
+        trial_id = trial_params['trial_id']
 
         try:
             # Broadcast trial parameters to workers
@@ -243,7 +266,13 @@ class OptunaCoordinator:
                 continue
 
             trial_id = trial_params['trial_id']
-            self.logger.info(f"Worker {self.node_id} processing trial {trial_id}")
+
+            # Check for existing progress (resumption after requeue)
+            progress = self._load_trial_progress(trial_id)
+            if progress:
+                self.logger.info(f"Worker {self.node_id} resuming trial {trial_id} with {len(progress['completed_equations'])} equations already completed")
+            else:
+                self.logger.info(f"Worker {self.node_id} starting fresh trial {trial_id}")
 
             try:
                 # Get worker's equation subset
@@ -255,23 +284,36 @@ class OptunaCoordinator:
                 # Reconstruct objects from trial params
                 model_settings, neural_options, mutation_weights = self._reconstruct_objects(trial_params)
 
-                # Process worker's equations
+                # Process worker's equations (with resumption support)
                 results = self._run_equation_batch(
                     worker_equations,
                     model_settings,
                     neural_options,
                     mutation_weights,
                     trial_id,
-                    interruption_flag
+                    interruption_flag,
+                    progress
                 )
 
                 # Send results back to master
                 self._send_worker_results(trial_id, results)
 
+                # Mark as processed and cleanup
+                self.processed_trial_ids.add(trial_id)
+                self._save_processed_trials()
+                self._delete_trial_progress(trial_id)
+                self.logger.info(f"Worker {self.node_id} marked trial {trial_id} as processed")
+
             except Exception as e:
                 self.logger.error(f"Worker {self.node_id} error processing trial {trial_id}: {e}")
                 # Send empty results to unblock master
                 self._send_worker_results(trial_id, [])
+
+                # Mark as processed even on error to prevent retry loop
+                self.processed_trial_ids.add(trial_id)
+                self._save_processed_trials()
+                self._delete_trial_progress(trial_id)
+                self.logger.info(f"Worker {self.node_id} marked failed trial {trial_id} as processed")
 
     def _broadcast_trial_params(self, trial_id: int, trial_params: Dict[str, Any]):
         """Broadcast trial parameters to all workers."""
@@ -334,8 +376,15 @@ class OptunaCoordinator:
                     with open(params_file, 'r') as f:
                         params = json.load(f)
 
-                    # Create acknowledgment file to signal we got the parameters
                     trial_id = params['trial_id']
+
+                    # Skip if already processed
+                    if trial_id in self.processed_trial_ids:
+                        self.logger.info(f"Worker {self.node_id} skipping already processed trial {trial_id}")
+                        time.sleep(0.1)
+                        continue
+
+                    # Create acknowledgment file to signal we got the parameters
                     ack_file = self.coord_dir / f"trial_{trial_id}_worker_{self.node_id}_ack.json"
                     with open(ack_file, 'w') as f:
                         json.dump({'worker_id': self.node_id, 'status': 'received'}, f)
@@ -390,7 +439,7 @@ class OptunaCoordinator:
 
     def signal_shutdown(self):
         """Master signals all workers to shutdown."""
-        if self.single_node or not self.is_master:
+        if not self.is_master:
             return
 
         shutdown_file = self.coord_dir / "shutdown.signal"
@@ -398,12 +447,12 @@ class OptunaCoordinator:
         self.logger.info("Signaled shutdown to all workers")
 
     def _cleanup_trial_files(self, trial_id: int):
-        """Clean up coordination files for a trial."""
-        if self.single_node:
-            return
+        """Clean up ephemeral coordination files for a trial.
 
+        Note: params.json files are preserved for resumption logic.
+        They are only cleaned up when a trial completes (has .done marker).
+        """
         patterns = [
-            f"trial_{trial_id}_params.json",
             f"trial_{trial_id}_worker_*_ack.json",
             f"trial_{trial_id}_node_*_results.json"
         ]
@@ -419,25 +468,58 @@ class OptunaCoordinator:
         neural_options: NeuralOptions,
         mutation_weights: MutationWeights,
         trial_id: int,
-        interruption_flag=None
+        interruption_flag=None,
+        progress: Optional[Dict[str, Any]] = None
     ) -> List[float]:
         """
         Run a batch of equations and return pareto volumes.
 
-        This mirrors the logic from OptunaObjective._run_equation_batch
-        
+        Scans for existing results from previous runs and only executes remaining equations.
+
         Args:
             equations: List of equation indices to process
             model_settings: Model configuration
             neural_options: Neural network options
             mutation_weights: Mutation weight configuration
-            interruption_flag: Function to check for interruption
             trial_id: Unique trial identifier for directory organization
+            interruption_flag: Function to check for interruption
+            progress: Optional dict with 'completed_equations' and 'results' for resumption (worker-level)
         """
         if interruption_flag is None:
             interruption_flag = lambda: False
 
-        pareto_volumes = []
+        # First, scan for existing results from previous runs (trial-level resumption)
+        existing_results = self._scan_existing_results(equations, trial_id)
+
+        # Load worker-level progress if resuming (for distributed mode)
+        worker_completed = []
+        worker_results = []
+        if progress:
+            worker_completed = progress.get('completed_equations', [])
+            worker_results = progress.get('results', [])
+            self.logger.info(f"Worker resuming with {len(worker_completed)} completed equations: {worker_completed}")
+
+        # Build final results list in the original equation order
+        # Combine: existing results (from disk) + worker progress (from memory) + to-be-computed
+        all_results_map = {}  # eq_idx -> pv
+
+        # Add existing results from disk
+        all_results_map.update(existing_results)
+
+        # Add worker progress (takes precedence if both exist)
+        for eq_idx, result in zip(worker_completed, worker_results):
+            all_results_map[eq_idx] = result
+
+        # Determine which equations still need to be run
+        remaining_equations = [eq for eq in equations if eq not in all_results_map]
+
+        if not remaining_equations:
+            self.logger.info(f"All equations already completed, returning cached results")
+            # Return results in original equation order
+            return [all_results_map[eq] for eq in equations]
+
+        self.logger.info(f"Processing {len(remaining_equations)} remaining equations: {remaining_equations}")
+
         packaged_model = init_pysr_model(model_settings, mutation_weights, neural_options)
 
         # Create experiment directory for this trial
@@ -445,7 +527,7 @@ class OptunaCoordinator:
         temp_dir = base_dir / f"trial_{trial_id}"
         temp_dir.mkdir(parents=True, exist_ok=True)
 
-        for eq_idx in equations:
+        for eq_idx in remaining_equations:
             if interruption_flag():
                 self.logger.info(f"Interrupted during equation batch processing at equation {eq_idx}")
                 break
@@ -458,7 +540,20 @@ class OptunaCoordinator:
                 for run_i in range(n_runs):
                     # Create unique run directory
                     run_dir = temp_dir / f"{self.config['dataset']['name']}_eq{eq_idx}_run{run_i}"
-                    if run_dir.exists():
+
+                    # Skip if run already completed (check for results file)
+                    results_csv = run_dir / 'tensorboard_scalars.csv'
+                    if results_csv.exists():
+                        try:
+                            pv = self._extract_run_pv(run_dir)
+                            eq_pareto_volumes.append(pv)
+                            self.logger.info(f"Equation {eq_idx} run {run_i}: reusing existing result PV = {pv:.4f}")
+                            continue
+                        except Exception:
+                            # Results file corrupt, re-run
+                            shutil.rmtree(run_dir)
+                    elif run_dir.exists():
+                        # Incomplete run, clean up
                         shutil.rmtree(run_dir)
 
                     # Create dataset settings
@@ -485,29 +580,94 @@ class OptunaCoordinator:
 
                 # Use mean pareto volume across runs
                 eq_mean_pv = np.mean(eq_pareto_volumes)
-                pareto_volumes.append(eq_mean_pv)
 
-                node_info = f" (node {self.node_id})" if not self.single_node else ""
+                # Add to results map and save worker progress incrementally
+                all_results_map[eq_idx] = eq_mean_pv
+                if self.is_worker:
+                    # Save worker-level progress (for distributed mode)
+                    worker_completed.append(eq_idx)
+                    worker_results.append(eq_mean_pv)
+                    self._save_trial_progress(trial_id, worker_completed, worker_results)
+
+                node_info = f" (node {self.node_id})"
                 self.logger.info(f"Equation {eq_idx}{node_info}: PV = {eq_mean_pv:.4f} "
                                f"(runs: {eq_pareto_volumes})")
 
             except Exception as e:
                 self.logger.error(f"Failed to run equation {eq_idx}: {e}")
-                pareto_volumes.append(0.0)  # Assign poor score for failed runs
+                eq_mean_pv = 0.0
+                all_results_map[eq_idx] = eq_mean_pv
+                if self.is_worker:
+                    worker_completed.append(eq_idx)
+                    worker_results.append(eq_mean_pv)
+                    self._save_trial_progress(trial_id, worker_completed, worker_results)
 
-        return pareto_volumes
+        # Return results in original equation order
+        # Handle early shutdown by only returning results we have
+        return [all_results_map.get(eq, 0.0) for eq in equations]
 
     def _extract_run_pv(self, run_dir: Path) -> float:
         """Extract pareto volume from a single run directory."""
-        csv_path = run_dir / 'tensorboard_scalars.csv'        
+        csv_path = run_dir / 'tensorboard_scalars.csv'
         df = pd.read_csv(csv_path)
         final_pareto_volume = df['pareto_volume'].iloc[-1]
         return float(final_pareto_volume)
 
+    def _scan_existing_results(self, equations: List[int], trial_id: int) -> Dict[int, float]:
+        """
+        Scan experiment directory for existing completed runs and extract their pareto volumes.
+
+        Args:
+            equations: List of equation indices to check
+            trial_id: Trial ID to scan for
+
+        Returns:
+            Dictionary mapping equation index to mean pareto volume for completed equations
+        """
+        base_dir = Path("/cephfs/store/gr-mc2473/lc865/workspace/benchmark_data/optuna_experiment")
+        trial_dir = base_dir / f"trial_{trial_id}"
+
+        if not trial_dir.exists():
+            self.logger.info(f"No existing trial directory found for trial {trial_id}")
+            return {}
+
+        existing_results = {}
+        n_runs = self.config['dataset']['n_runs']
+        dataset_name = self.config['dataset']['name']
+
+        for eq_idx in equations:
+            eq_pareto_volumes = []
+            all_runs_complete = True
+
+            # Check all runs for this equation
+            for run_i in range(n_runs):
+                run_dir = trial_dir / f"{dataset_name}_eq{eq_idx}_run{run_i}"
+                results_csv = run_dir / 'tensorboard_scalars.csv'
+
+                if results_csv.exists():
+                    try:
+                        pv = self._extract_run_pv(run_dir)
+                        eq_pareto_volumes.append(pv)
+                    except Exception as e:
+                        self.logger.warning(f"Failed to extract PV from {run_dir}: {e}")
+                        all_runs_complete = False
+                        break
+                else:
+                    all_runs_complete = False
+                    break
+
+            # Only include equation if ALL runs are complete
+            if all_runs_complete and len(eq_pareto_volumes) == n_runs:
+                eq_mean_pv = np.mean(eq_pareto_volumes)
+                existing_results[eq_idx] = eq_mean_pv
+                self.logger.info(f"Found existing results for equation {eq_idx}: PV = {eq_mean_pv:.4f}")
+
+        if existing_results:
+            self.logger.info(f"Loaded {len(existing_results)} equation results from trial {trial_id}")
+
+        return existing_results
 
     def cleanup(self):
         """Clean up coordinator resources."""
-        if not self.single_node and self.is_master:
+        if self.is_master:
             self.signal_shutdown()
-            # Give workers time to see shutdown signal; do not remove coord_dir here
-            time.sleep(2.0)

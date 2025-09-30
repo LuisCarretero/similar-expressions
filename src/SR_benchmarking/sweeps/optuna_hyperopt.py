@@ -36,14 +36,14 @@ class OptunaStudyManager:
     Manages Optuna study creation, execution, and graceful interruption handling.
     """
 
-    def __init__(self, config_path: str, node_id: int = None, total_nodes: int = None):
+    def __init__(self, config_path: str, node_id: int, total_nodes: int):
         """
         Initialize the study manager with configuration.
 
         Args:
             config_path: Path to optuna_config.yaml
-            node_id: Node ID for distributed execution (None for single-node)
-            total_nodes: Total number of nodes for distributed execution (None for single-node)
+            node_id: Node ID for distributed execution
+            total_nodes: Total number of nodes for distributed execution
         """
         self.config_path = config_path
         self.config = OmegaConf.load(config_path)
@@ -200,7 +200,7 @@ class OptunaStudyManager:
                 self.logger.info(f"Worker {self.coordinator.node_id} finished")
                 return
 
-            # Master or single-node: run normal Optuna optimization
+            # Master: run normal Optuna optimization
             self._run_master_optimization(resume)
 
         except Exception as e:
@@ -208,15 +208,12 @@ class OptunaStudyManager:
             raise
 
         finally:
-            # Clean up
-            if self.objective:
-                self.objective.cleanup()
             if self.coordinator:
                 self.coordinator.cleanup()
 
     def _run_master_optimization(self, resume: bool = False):
         """
-        Run master/single-node optimization process.
+        Run master optimization process.
         """
         # Create study and objective
         self.study = self.create_or_load_study(resume)
@@ -346,11 +343,15 @@ class OptunaStudyManager:
             f.write(f"Pruned: {len(pruned_trials)}\n")
             f.write(f"Failed: {len(failed_trials)}\n\n")
 
-            if self.study.best_trial:
-                f.write(f"Best trial value: {self.study.best_value:.6f}\n")
-                f.write(f"Best parameters:\n")
-                for key, value in self.study.best_params.items():
-                    f.write(f"  {key}: {value}\n")
+            # Check if there are any completed trials before accessing best_trial
+            if completed_trials:
+                try:
+                    f.write(f"Best trial value: {self.study.best_value:.6f}\n")
+                    f.write(f"Best parameters:\n")
+                    for key, value in self.study.best_params.items():
+                        f.write(f"  {key}: {value}\n")
+                except Exception as e:
+                    self.logger.warning(f"Could not retrieve best trial: {e}")
 
         self.logger.info(f"\nResults saved to: {results_file}")
 

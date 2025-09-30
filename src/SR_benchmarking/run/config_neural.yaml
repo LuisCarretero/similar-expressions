@@ -28,7 +28,7 @@ symbolic_regression:
     subtree_min_nodes: 2
     subtree_max_nodes: 14
     device: cuda
-    verbose: true
+    verbose: false
     max_tree_size_diff: 8
     require_tree_size_similarity: true
     require_novel_skeleton: true

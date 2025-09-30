@@ -2,13 +2,18 @@
 Optuna objective function for symbolic regression hyperparameter optimization.
 
 This module wraps the existing SR benchmarking pipeline to work with Optuna's
-optimization framework, handling noisy objectives and graceful SLURM requeuing.
+optimization framework, supporting:
+- Trial resumption after SLURM requeues (checkpoint/restore via filesystem)
+- Intermediate reporting for trial pruning
+- Distributed execution mode
 """
 
 import sys
+import json
+import time
 import numpy as np
 from pathlib import Path
-from typing import Dict, Any, Tuple
+from typing import Dict, Any, Tuple, Optional
 import pandas as pd
 
 # Add parent directories to path for imports
@@ -24,6 +29,45 @@ from run.utils import (
     ModelSettings, NeuralOptions, MutationWeights, load_config
 )
 from run.run_multiple import _parse_eq_idx
+
+
+def _find_incomplete_trial(coord_dir: Path) -> Optional[Tuple[int, Dict[str, Any]]]:
+    """
+    Find the most recent incomplete trial in the coordination directory.
+
+    Returns:
+        Tuple of (trial_id, params_dict) if incomplete trial found, None otherwise
+    """
+    # Find all params files without corresponding .done files
+    params_files = list(coord_dir.glob("trial_*_params.json"))
+
+    incomplete_trials = []
+    for params_file in params_files:
+        trial_id_str = params_file.stem.replace("_params", "").replace("trial_", "")
+        try:
+            trial_id = int(trial_id_str)
+        except ValueError:
+            continue
+
+        done_file = coord_dir / f"trial_{trial_id}.done"
+        if not done_file.exists():
+            # Load parameters
+            with open(params_file, 'r') as f:
+                params = json.load(f)
+            incomplete_trials.append((trial_id, params))
+
+    if not incomplete_trials:
+        return None
+
+    # Return most recent (highest trial_id, since they're timestamps)
+    incomplete_trials.sort(key=lambda x: x[0], reverse=True)
+    return incomplete_trials[0]
+
+
+def _mark_trial_complete(coord_dir: Path, trial_id: int):
+    """Create a .done marker file for a completed trial."""
+    done_file = coord_dir / f"trial_{trial_id}.done"
+    done_file.touch()
 
 
 class OptunaObjective:
@@ -53,12 +97,21 @@ class OptunaObjective:
         self.interruption_flag = interruption_flag or (lambda: False)
         self.coordinator = coordinator
 
+        # Get coordination directory for checkpoint management
+        self.coord_dir = coordinator.coord_dir
+
         print(f"[OPTUNA] Initialized objective with {len(self.equations)} equations, "
               f"{self.n_runs} runs each, batch size {self.equations_per_batch}")
 
-        mode = "distributed" if not coordinator.single_node else "single-node"
         role = "master" if coordinator.is_master else "worker"
-        print(f"[OPTUNA] Running in {mode} mode as {role}")
+        print(f"[OPTUNA] Running in distributed mode as {role}")
+        print(f"[OPTUNA] Coordination directory: {self.coord_dir}")
+
+        # Check for incomplete trials on initialization
+        incomplete = _find_incomplete_trial(self.coord_dir)
+        if incomplete:
+            trial_id, _ = incomplete
+            print(f"[OPTUNA] Found incomplete trial {trial_id} - will resume on next optimize call")
 
     def _sample_hyperparameters(self, trial: optuna.Trial) -> Tuple[ModelSettings, NeuralOptions, MutationWeights]:
         """
@@ -210,6 +263,9 @@ class OptunaObjective:
         """
         Main objective function called by Optuna.
 
+        Handles trial resumption by checking for incomplete trials and reconstructing
+        their hyperparameters.
+
         Args:
             trial: Optuna trial object
 
@@ -218,21 +274,66 @@ class OptunaObjective:
         """
         print(f"\n[OPTUNA] Starting trial {trial.number}")
 
-        # Sample hyperparameters (only master/single-node does this)
-        model_settings, neural_options, mutation_weights = self._sample_hyperparameters(trial)
+        # Check for incomplete trial to resume
+        incomplete = _find_incomplete_trial(self.coord_dir)
 
-        print(f"[OPTUNA] Trial {trial.number} hyperparameters:")
-        print(f"  Neural: {neural_options}")
-        print(f"  Mutations: {mutation_weights}")
+        if incomplete is not None:
+            # Resume incomplete trial
+            trial_id, saved_params = incomplete
+            print(f"[OPTUNA] Resuming incomplete trial {trial_id}")
+            print(f"[OPTUNA] Reconstructing hyperparameters from saved state")
+
+            # Reconstruct hyperparameters by suggesting them with fixed values
+            # This forces Optuna to use the exact saved values
+            model_settings_dict = saved_params['model_settings']
+            neural_options_dict = saved_params['neural_options']
+            mutation_weights_dict = saved_params['mutation_weights']
+
+            # Suggest hyperparameters with fixed values (matching saved params)
+            for param_name, param_value in saved_params.get('raw_params', {}).items():
+                if isinstance(param_value, float):
+                    trial.suggest_float(param_name, param_value, param_value)
+                elif isinstance(param_value, int):
+                    trial.suggest_int(param_name, param_value, param_value)
+                elif isinstance(param_value, bool):
+                    trial.suggest_categorical(param_name, [param_value])
+
+            # Reconstruct objects from saved dicts
+            model_settings = ModelSettings(**model_settings_dict)
+            neural_options = NeuralOptions(**neural_options_dict)
+            mutation_weights = MutationWeights(**mutation_weights_dict)
+
+            print(f"[OPTUNA] Reconstructed hyperparameters (trial {trial_id})")
+        else:
+            # Fresh trial - generate new trial_id and sample hyperparameters normally
+            trial_id = int(time.time() * 1000000)
+            print(f"[OPTUNA] Fresh trial {trial.number}, assigned trial_id {trial_id}")
+
+            # Sample hyperparameters normally
+            model_settings, neural_options, mutation_weights = self._sample_hyperparameters(trial)
+
+            print(f"[OPTUNA] Trial {trial.number} hyperparameters:")
+            print(f"  Neural: {neural_options}")
+            print(f"  Mutations: {mutation_weights}")
 
         # Prepare trial parameters for coordinator (convert to serializable dict)
         trial_params = {
+            'trial_id': trial_id,  # Timestamp-based ID for directory naming
             'model_settings': OmegaConf.to_container(model_settings) if hasattr(model_settings, '_content') else model_settings.__dict__,
             'neural_options': OmegaConf.to_container(neural_options) if hasattr(neural_options, '_content') else neural_options.__dict__,
-            'mutation_weights': OmegaConf.to_container(mutation_weights) if hasattr(mutation_weights, '_content') else mutation_weights.__dict__
+            'mutation_weights': OmegaConf.to_container(mutation_weights) if hasattr(mutation_weights, '_content') else mutation_weights.__dict__,
+            'raw_params': trial.params  # Store raw Optuna parameters for resumption
         }
 
-        # Execute trial through coordinator (handles both single-node and distributed)
+        # Save params for resumption (before executing, in case of interruption)
+        if incomplete is None:
+            # Only save if this is a fresh trial (resuming trials already have params saved)
+            params_file = self.coord_dir / f"trial_{trial_id}_params.json"
+            with open(params_file, 'w') as f:
+                json.dump(trial_params, f, indent=2)
+            print(f"[OPTUNA] Saved trial parameters for potential resumption")
+
+        # Execute trial through coordinator
         all_pareto_volumes = self.coordinator.execute_trial(trial_params, self.interruption_flag)
 
         # Handle intermediate reporting for pruning
@@ -253,6 +354,10 @@ class OptunaObjective:
         final_mean_pv = np.mean(all_pareto_volumes)
         print(f"[OPTUNA] Trial {trial.number} COMPLETE: Final PV = {final_mean_pv:.4f}")
 
+        # Mark trial as complete
+        _mark_trial_complete(self.coord_dir, trial_id)
+        print(f"[OPTUNA] Marked trial {trial_id} as complete")
+
         return final_mean_pv
 
 
@@ -262,10 +367,6 @@ class OptunaObjective:
         df = pd.read_csv(csv_path)
         final_pareto_volume = df['pareto_volume'].iloc[-1]
         return float(final_pareto_volume)
-
-    def cleanup(self):
-        pass  # Coordinator handles all cleanup
-
 
 def create_objective(config_path: str, interruption_flag=None, coordinator=None) -> OptunaObjective:
     """

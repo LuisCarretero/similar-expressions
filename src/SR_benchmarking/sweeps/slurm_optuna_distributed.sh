@@ -33,6 +33,10 @@ signal_handler() {
 
     # Clean up flag file
     rm -f "$FLAG_FILE"
+
+    # Requeue the job so it resumes after graceful shutdown
+    echo "[$(date)] Node $SLURM_ARRAY_TASK_ID: Requeuing job ${SLURM_JOB_ID}"
+    scontrol requeue ${SLURM_JOB_ID}
     exit 0
 }
 
