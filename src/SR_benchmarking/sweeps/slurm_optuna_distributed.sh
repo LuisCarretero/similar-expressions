@@ -14,6 +14,30 @@
 # Total number of nodes (should match array size)
 TOTAL_NODES=2
 
+# Store Python PID for monitoring
+PYTHON_PID=""
+
+# Signal handler that creates flag file for Python to check
+# This avoids conflicts with Julia's signal handling
+signal_handler() {
+    echo "[$(date)] Node $SLURM_ARRAY_TASK_ID: Received shutdown signal, creating flag file"
+    FLAG_FILE="/tmp/slurm_shutdown_${SLURM_JOB_ID}_${SLURM_ARRAY_TASK_ID}"
+    echo "1" > "$FLAG_FILE"
+    echo "[$(date)] Node $SLURM_ARRAY_TASK_ID: Flag file created: $FLAG_FILE"
+
+    # Wait for Python to finish gracefully
+    if [ ! -z "$PYTHON_PID" ] && kill -0 $PYTHON_PID 2>/dev/null; then
+        wait $PYTHON_PID
+        echo "[$(date)] Node $SLURM_ARRAY_TASK_ID: Python exited gracefully"
+    fi
+
+    # Clean up flag file
+    rm -f "$FLAG_FILE"
+    exit 0
+}
+
+trap signal_handler USR1 TERM INT
+
 # Setup environment
 source /cephfs/store/gr-mc2473/lc865/misc/condaforge/etc/profile.d/conda.sh
 conda activate ml
@@ -23,9 +47,6 @@ cd /cephfs/home/lc865/workspace/similar-expressions/src/SR_benchmarking
 
 # Create logs directory
 mkdir -p sweeps/logs
-
-# Signal handling for graceful shutdown
-trap 'echo "[$(date)] Node $SLURM_ARRAY_TASK_ID interrupted, exiting for requeue..."; exit 0' USR1 TERM INT
 
 # Set environment variables
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
@@ -46,14 +67,19 @@ echo "Job ID: $SLURM_JOB_ID | Array Task ID: $SLURM_ARRAY_TASK_ID | Node: $SLURM
 # Get config file from first argument, default to neural config
 CONFIG_FILE=${1:-sweeps/optuna_neural_config.yaml}
 
-# Run distributed Optuna optimization
+# Run distributed Optuna optimization in background to capture PID
 echo "[$(date)] Node $SLURM_ARRAY_TASK_ID: Starting optimization with config: $CONFIG_FILE"
 python -u sweeps/optuna_hyperopt.py \
     --config $CONFIG_FILE \
     --node_id=$SLURM_ARRAY_TASK_ID \
     --total_nodes=$TOTAL_NODES \
-    $RESUME_FLAG
+    $RESUME_FLAG &
 
+PYTHON_PID=$!
+echo "[$(date)] Node $SLURM_ARRAY_TASK_ID: Python process started with PID: $PYTHON_PID"
+
+# Wait for Python script to complete
+wait $PYTHON_PID
 EXIT_CODE=$?
 
 # Completion message

@@ -243,7 +243,7 @@ class OptunaStudyManager:
         trials_completed = 0
         max_trials_per_iteration = 1  # Process one trial at a time for better control
 
-        while trials_completed < n_trials and not self.signal_manager.interrupted:
+        while trials_completed < n_trials and not self.signal_manager.check_interrupted():
             try:
                 # Run a small batch of trials
                 remaining_trials = min(max_trials_per_iteration, n_trials - trials_completed)

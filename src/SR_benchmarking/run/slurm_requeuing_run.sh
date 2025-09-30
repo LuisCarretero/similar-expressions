@@ -31,8 +31,26 @@ echo "Node ID: $SLURM_ARRAY_TASK_ID"
 echo "Job ID: $SLURM_JOB_ID"
 echo "Job Start Time: $(date)"
 
-# Signal handling for graceful shutdown
-trap 'echo "[$(date)] Interrupted, exiting for requeue..."; exit 0' USR1 TERM INT
+# Store Python PID for monitoring
+PYTHON_PID=""
+
+# Signal handler that creates flag file for Python to check
+signal_handler() {
+    echo "[$(date)] Node $SLURM_ARRAY_TASK_ID: Received shutdown signal, creating flag file"
+    FLAG_FILE="/tmp/slurm_shutdown_${SLURM_JOB_ID}_${SLURM_ARRAY_TASK_ID}"
+    echo "1" > "$FLAG_FILE"
+    echo "[$(date)] Node $SLURM_ARRAY_TASK_ID: Flag file created: $FLAG_FILE"
+
+    if [ ! -z "$PYTHON_PID" ] && kill -0 $PYTHON_PID 2>/dev/null; then
+        wait $PYTHON_PID
+        echo "[$(date)] Node $SLURM_ARRAY_TASK_ID: Python exited gracefully"
+    fi
+
+    rm -f "$FLAG_FILE"
+    exit 0
+}
+
+trap signal_handler USR1 TERM INT
 
 # Function to check if this node has remaining work and requeue if needed
 check_and_requeue_if_needed() {
@@ -45,10 +63,14 @@ check_and_requeue_if_needed() {
 }
 
 # echo "Starting vanilla distributed run on node $SLURM_ARRAY_TASK_ID..."
-# python -u -m run.run_multiple --config=run/config_vanilla.yaml --pooled --node_id=$SLURM_ARRAY_TASK_ID --total_nodes=$TOTAL_NODES
+# python -u -m run.run_multiple --config=run/config_vanilla.yaml --pooled --node_id=$SLURM_ARRAY_TASK_ID --total_nodes=$TOTAL_NODES &
+# PYTHON_PID=$!
+# wait $PYTHON_PID
 
 echo "Starting neural distributed run on node $SLURM_ARRAY_TASK_ID..."
-python -u -m run.run_multiple --config=run/config_neural.yaml --pooled --node_id=$SLURM_ARRAY_TASK_ID --total_nodes=$TOTAL_NODES
+python -u -m run.run_multiple --config=run/config_neural.yaml --pooled --node_id=$SLURM_ARRAY_TASK_ID --total_nodes=$TOTAL_NODES &
+PYTHON_PID=$!
+wait $PYTHON_PID
 
 echo "Distributed runs completed on node $SLURM_ARRAY_TASK_ID at $(date)"
 

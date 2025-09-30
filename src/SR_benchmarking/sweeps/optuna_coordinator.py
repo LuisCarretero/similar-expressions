@@ -14,6 +14,7 @@ from typing import Dict, Any, List, Optional, Tuple
 import logging
 import datetime
 import pandas as pd
+import os
 
 # Add parent directories to path for imports
 import sys
@@ -59,8 +60,18 @@ class OptunaCoordinator:
 
         # Setup coordination directory - use experiment folder structure
         if not self.single_node:
-            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-            self.coord_dir = Path("/cephfs/store/gr-mc2473/lc865/workspace/benchmark_data/optuna_experiment") / f"optuna_coord_{config['study']['name']}_{timestamp}"
+            base_dir = Path("/cephfs/store/gr-mc2473/lc865/workspace/benchmark_data/optuna_experiment")
+            # Prefer array job ID to keep path identical across array tasks
+            array_job_id = os.environ.get("SLURM_ARRAY_JOB_ID")
+            job_id = os.environ.get("SLURM_JOB_ID")
+            chosen_id = array_job_id or job_id
+            if chosen_id:
+                # Stable directory shared by all array tasks and across requeues
+                self.coord_dir = base_dir / f"optuna_coord_{config['study']['name']}_{chosen_id}"
+            else:
+                # Fallback for local runs
+                timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+                self.coord_dir = base_dir / f"optuna_coord_{config['study']['name']}_{timestamp}"
             self.coord_dir.mkdir(parents=True, exist_ok=True)
             self.logger.info(f"Using coordination directory: {self.coord_dir}")
 
@@ -167,7 +178,7 @@ class OptunaCoordinator:
             self._broadcast_trial_params(trial_id, trial_params)
 
             # Wait for all workers to acknowledge receipt
-            self._wait_for_worker_acknowledgments(trial_id)
+            self._wait_for_worker_acknowledgments(trial_id, interruption_flag)
 
             # Get master's equation subset
             equations = _parse_eq_idx(self.config['dataset']['equation_indices'])
@@ -189,7 +200,7 @@ class OptunaCoordinator:
             # Wait for worker results
             all_results = [master_results]
             for worker_id in range(1, self.total_nodes):
-                worker_results = self._wait_for_worker_results(trial_id, worker_id)
+                worker_results = self._wait_for_worker_results(trial_id, worker_id, interruption_flag=interruption_flag)
                 if worker_results is not None:
                     all_results.append(worker_results)
                 else:
@@ -275,13 +286,21 @@ class OptunaCoordinator:
 
         self.logger.info(f"Broadcast trial {trial_id} parameters to workers")
 
-    def _wait_for_worker_acknowledgments(self, trial_id: int, timeout_sec: float = 30.0):
+    def _wait_for_worker_acknowledgments(self, trial_id: int, interruption_flag=None, timeout_sec: float = 30.0):
         """Master waits for all workers to acknowledge they received parameters."""
+        if interruption_flag is None:
+            interruption_flag = lambda: False
+
         expected_workers = list(range(1, self.total_nodes))  # Workers are nodes 1, 2, 3, etc.
         received_acks = set()
 
         start_time = time.time()
         while time.time() - start_time < timeout_sec:
+            # Check for interruption
+            if interruption_flag():
+                self.logger.info("Interrupted while waiting for worker acknowledgments")
+                return
+
             # Check for acknowledgment files
             for worker_id in expected_workers:
                 if worker_id not in received_acks:
@@ -331,17 +350,27 @@ class OptunaCoordinator:
     def _send_worker_results(self, trial_id: int, results: List[float]):
         """Worker sends results back to master."""
         results_file = self.coord_dir / f"trial_{trial_id}_node_{self.node_id}_results.json"
+        # Ensure parent directory exists (in case of requeue or cleanup)
+        results_file.parent.mkdir(parents=True, exist_ok=True)
         with open(results_file, 'w') as f:
             json.dump({'results': results}, f)
 
         self.logger.info(f"Worker {self.node_id} sent {len(results)} results for trial {trial_id}")
 
-    def _wait_for_worker_results(self, trial_id: int, worker_id: int, timeout_sec: float = 7200.0) -> Optional[List[float]]:
+    def _wait_for_worker_results(self, trial_id: int, worker_id: int, interruption_flag=None, timeout_sec: float = 7200.0) -> Optional[List[float]]:
         """Master waits for results from a specific worker."""
+        if interruption_flag is None:
+            interruption_flag = lambda: False
+
         results_file = self.coord_dir / f"trial_{trial_id}_node_{worker_id}_results.json"
 
         start_time = time.time()
         while time.time() - start_time < timeout_sec:
+            # Check for interruption
+            if interruption_flag():
+                self.logger.info(f"Interrupted while waiting for results from worker {worker_id}")
+                return None
+
             if results_file.exists():
                 try:
                     with open(results_file, 'r') as f:
@@ -480,13 +509,5 @@ class OptunaCoordinator:
         """Clean up coordinator resources."""
         if not self.single_node and self.is_master:
             self.signal_shutdown()
-            # Give workers time to see shutdown signal
+            # Give workers time to see shutdown signal; do not remove coord_dir here
             time.sleep(2.0)
-
-            # Clean up coordination directory
-            if hasattr(self, 'coord_dir') and self.coord_dir.exists():
-                try:
-                    shutil.rmtree(self.coord_dir)
-                    self.logger.info("Cleaned up coordination directory")
-                except Exception as e:
-                    self.logger.warning(f"Failed to clean up coordination directory: {e}")
