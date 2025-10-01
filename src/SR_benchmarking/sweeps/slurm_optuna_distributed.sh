@@ -7,6 +7,7 @@
 #SBATCH --gpus=1
 #SBATCH --time=12:00:00
 #SBATCH --output=/cephfs/home/lc865/workspace/similar-expressions/src/SR_benchmarking/sweeps/logs/optuna_distributed-%A_%a.out
+#SBATCH --open-mode=append
 #SBATCH --requeue
 #SBATCH --signal=B:USR1@1800
 #SBATCH --job-name=optuna-sr-distributed

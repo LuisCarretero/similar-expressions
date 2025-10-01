@@ -19,6 +19,7 @@ import numpy as np
 from pathlib import Path
 from typing import Dict, Any, Tuple, Optional
 import logging
+from datetime import datetime
 
 # Add parent directory to path for imports
 parent_dir = str(Path(__file__).parent.parent)
@@ -38,7 +39,7 @@ from run.signal_manager import create_interruption_manager
 
 # Import refactored layers
 from sweeps_refactor.sr_runner import SRBatchRunner
-from sweeps_refactor.distributed_executor import DistributedTrialExecutor
+from sweeps_refactor.distributed_executor import DistributedTrialExecutor, TrialIncompleteError
 
 
 class OptunaHyperoptRunner:
@@ -70,9 +71,9 @@ class OptunaHyperoptRunner:
         # Set up logging
         logging.basicConfig(
             level=logging.INFO,
-            format='%(asctime)s - %(levelname)s - %(message)s'
+            format='%(asctime)s %(name)s %(levelname)s - %(message)s'
         )
-        self.logger = logging.getLogger(__name__)
+        self.logger = logging.getLogger('[HYPEROPT]')
 
         # Set up signal manager for graceful interruption
         self.signal_manager = create_interruption_manager(__name__)
@@ -116,22 +117,14 @@ class OptunaHyperoptRunner:
         """
         try:
             if self.executor.is_worker:
-                # Worker nodes run the worker loop
-                self.logger.info(f"Worker {self.executor.node_id} starting worker loop")
                 self._run_worker_loop()
                 self.logger.info(f"Worker {self.executor.node_id} finished")
-                return
-
-            # Master: run normal Optuna optimization
-            self._run_master_optimization(resume)
+            else:
+                self._run_master_optimization(resume)
 
         except Exception as e:
             self.logger.error(f"Critical error in optimization: {e}")
             raise
-
-        finally:
-            if self.executor:
-                self.executor.cleanup()
 
     # ========================================================================
     # MASTER OPTIMIZATION (PRIVATE)
@@ -154,45 +147,39 @@ class OptunaHyperoptRunner:
             self._enqueue_baseline_trial()
 
         n_trials = self.config['execution']['n_trials']
-        self.logger.info(f"Starting optimization with {n_trials} trials")
 
-        # Print study statistics
+        # Print study statistics and calculate remaining trials
         existing_trials = len(self.study.trials)
+        trials_already_complete = len([t for t in self.study.trials if t.state == optuna.trial.TrialState.COMPLETE])
+        pruned_trials = len([t for t in self.study.trials if t.state == optuna.trial.TrialState.PRUNED])
+        failed_trials = len([t for t in self.study.trials if t.state == optuna.trial.TrialState.FAIL])
+        remaining_trials = n_trials - trials_already_complete
+
+        self.logger.info(f"Target: {n_trials} trials | Completed: {trials_already_complete} | Remaining: {remaining_trials}")
+        
         if existing_trials > 0:
-            self.logger.info(f"Study has {existing_trials} existing trials")
-            completed_trials = [t for t in self.study.trials if t.state == optuna.trial.TrialState.COMPLETE]
-            if completed_trials:
-                self.logger.info(f"Current best value: {self.study.best_value:.6f}")
-                self.logger.info(f"Current best params: {self.study.best_params}")
+            self.logger.info(f"Existing trials: {existing_trials} (Completed: {trials_already_complete}, Pruned: {pruned_trials}, Failed: {failed_trials})")
 
-        # Custom optimization loop with interruption handling
+        # Check if target already reached
+        if remaining_trials <= 0:
+            self.logger.info(f"Target of {n_trials} trials already reached!")
+            self._print_final_results()
+            return
+
+        # Run remaining trials (one study.optimize call per trial for better control)
         trials_completed = 0
-        max_trials_per_iteration = 1  # Process one trial at a time for better control
-
-        while trials_completed < n_trials and not self.signal_manager.check_interrupted():
+        while trials_completed < remaining_trials and not self.signal_manager.check_interrupted():
             try:
-                # Run a small batch of trials
-                remaining_trials = min(max_trials_per_iteration, n_trials - trials_completed)
-
-                self.logger.info(f"Running trial batch: {trials_completed + 1}-{trials_completed + remaining_trials} of {n_trials}")
-
                 self.study.optimize(
-                    self._objective,  # Our objective is a method of this class
-                    n_trials=remaining_trials,
+                    self._objective,
+                    n_trials=1,
                     timeout=None,
-                    show_progress_bar=False,
-                    callbacks=[self._trial_callback]
+                    show_progress_bar=False
                 )
-
-                trials_completed += remaining_trials
-
-                # Print progress
-                self.logger.info(f"Completed {trials_completed}/{n_trials} trials")
-                completed_trials = [t for t in self.study.trials if t.state == optuna.trial.TrialState.COMPLETE]
-                if completed_trials:
-                    self.logger.info(f"Best value so far: {self.study.best_value:.6f}")
+                trials_completed += 1
 
             except optuna.TrialPruned:
+                # Pruned trials are expected - count and continue
                 trials_completed += 1
                 continue
 
@@ -206,8 +193,12 @@ class OptunaHyperoptRunner:
                 trials_completed += 1
                 continue
 
-        # Print final results
-        self._print_final_results()
+        # Check if we've reached the target
+        final_completed = len([t for t in self.study.trials if t.state == optuna.trial.TrialState.COMPLETE])
+        if final_completed >= n_trials:
+            self._print_final_results()
+        else:
+            self.logger.info(f"Progress: {final_completed}/{n_trials} trials completed")
 
     def _objective(self, trial: optuna.Trial) -> float:
         """
@@ -290,39 +281,32 @@ class OptunaHyperoptRunner:
 
         # 5. Execute trial via distributed executor
         batch_size = self.config['execution']['equations_per_batch']
-        all_results = self.executor.execute_trial_with_batching(
-            trial_params,
-            self.equations,
-            batch_size,
-            create_runner,
-            report_callback,
-            self.signal_manager.create_checker()
-        )
+
+        try:
+            all_results = self.executor.execute_trial_with_batching(
+                trial_params,
+                self.equations,
+                batch_size,
+                create_runner,
+                report_callback,
+                self.signal_manager.create_checker()
+            )
+        except optuna.TrialPruned:
+            # Mark trial as pruned and re-raise
+            self._mark_trial_done(trial_id, pruned=True)
+            raise
+        except TrialIncompleteError:
+            # Don't call _mark_trial_done() - leave trial incomplete for resumption
+            raise  # Let Optuna mark trial as failed, but we keep params for resumption
 
         # 6. Calculate final objective value
         final_mean_pv = np.mean(all_results)
         self.logger.info(f"[OPTUNA] Trial {trial.number} COMPLETE: Final PV = {final_mean_pv:.4f}")
 
         # 7. Mark trial as complete
-        self._mark_trial_complete(trial_id)
+        self._mark_trial_done(trial_id, pruned=False)
 
         return final_mean_pv
-
-    def _trial_callback(self, study: optuna.Study, trial: optuna.Trial):
-        """
-        Callback function called after each trial.
-
-        Args:
-            study: Optuna study object (unused)
-            trial: Optuna trial object
-        """
-        _ = study  # Unused but required by signature
-        if trial.state == optuna.trial.TrialState.COMPLETE:
-            self.logger.info(f"Trial {trial.number} completed with value {trial.value:.6f}")
-        elif trial.state == optuna.trial.TrialState.PRUNED:
-            self.logger.info(f"Trial {trial.number} was pruned")
-        elif trial.state == optuna.trial.TrialState.FAIL:
-            self.logger.warning(f"Trial {trial.number} failed")
 
     # ========================================================================
     # WORKER LOOP (PRIVATE)
@@ -568,8 +552,10 @@ class OptunaHyperoptRunner:
             except ValueError:
                 continue
 
+            # Skip trials that are either completed or pruned
             done_file = coord_dir / f"trial_{trial_id}.done"
-            if not done_file.exists():
+            pruned_file = coord_dir / f"trial_{trial_id}.pruned"
+            if not done_file.exists() and not pruned_file.exists():
                 with open(params_file, 'r') as f:
                     params = json.load(f)
                 incomplete_trials.append((trial_id, params))
@@ -594,16 +580,21 @@ class OptunaHyperoptRunner:
         with open(params_file, 'w') as f:
             json.dump(trial_params, f, indent=2)
 
-    def _mark_trial_complete(self, trial_id: int):
+    def _mark_trial_done(self, trial_id: int, pruned: bool = False):
         """
-        Create .done marker file for completed trial.
+        Create marker file for completed or pruned trial.
 
         Args:
             trial_id: Trial ID
+            pruned: If True, mark as pruned; otherwise mark as completed
         """
         coord_dir = self.executor.coord_dir
-        done_file = coord_dir / f"trial_{trial_id}.done"
-        done_file.touch()
+        suffix = "pruned" if pruned else "done"
+        marker_file = coord_dir / f"trial_{trial_id}.{suffix}"
+        current_time = datetime.now().isoformat()
+        marker_file.write_text(current_time)
+        
+        self.logger.info(f"Marked trial {trial_id} as {suffix}")
 
     # ========================================================================
     # STUDY SETUP (PRIVATE)
@@ -750,7 +741,7 @@ class OptunaHyperoptRunner:
         failed_trials = [t for t in self.study.trials if t.state == optuna.trial.TrialState.FAIL]
 
         self.logger.info("="*60)
-        self.logger.info("OPTIMIZATION RESULTS")
+        self.logger.info("FINISHED STUDY - OPTIMIZATION RESULTS")
         self.logger.info("="*60)
         self.logger.info(f"Total trials: {len(self.study.trials)}")
         self.logger.info(f"  Completed: {len(completed_trials)}")

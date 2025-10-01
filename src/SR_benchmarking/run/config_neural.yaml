@@ -5,7 +5,7 @@ run_settings:
   enable_mutation_logging: false
 
 model_settings:
-  niterations: 30
+  niterations: 10
   loss_function: null
   early_stopping_condition: 1e-8
   verbosity: 0

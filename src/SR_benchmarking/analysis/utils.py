@@ -260,8 +260,12 @@ def _is_left_of(point: np.ndarray, line: tuple) -> bool:
 
 
 def _convex_hull_area(hull: np.ndarray) -> float:
-    """Computes area within convex hull using vectorized shoelace formula."""
-    if len(hull) < 3:
+    """Computes area within convex hull using vectorized shoelace formula.
+
+    Note: The shoelace formula naturally returns 0 for degenerate cases
+    (0-2 points), so no explicit check is needed.
+    """
+    if len(hull) == 0:
         return 0.0
 
     x, y = hull[:, 0], hull[:, 1]
@@ -342,6 +346,7 @@ def extract_tensorboard_data_to_csv(log_dir: str, verbose: bool = False) -> None
             return
 
         df_scalars, _ = tensorboard_data
+        df_scalars['pareto_volume_calculated'] = df_scalars.apply(calculate_pareto_volume_from_row, axis=1)
         output_path = os.path.join(log_dir, 'tensorboard_scalars.csv')
         df_scalars.to_csv(output_path, index=False)
         if verbose:

@@ -24,6 +24,11 @@ if parent_dir not in sys.path:
 from run.run_multiple import get_node_equations
 
 
+class TrialIncompleteError(Exception):
+    """Raised when a trial is interrupted before all workers complete."""
+    pass
+
+
 class DistributedTrialExecutor:
     """
     Coordinates distributed batch execution with asynchronous reporting.
@@ -46,7 +51,7 @@ class DistributedTrialExecutor:
         self.is_master = (node_id == 0)
         self.is_worker = not self.is_master
         self.coord_dir = coord_dir
-        self.logger = logging.getLogger(__name__)
+        self.logger = logging.getLogger('[EXECUTOR]')
 
         self.coord_dir.mkdir(parents=True, exist_ok=True)
 
@@ -55,46 +60,25 @@ class DistributedTrialExecutor:
                         f"is_master={self.is_master}")
 
     # ========================================================================
-    # PROCESSED TRIALS TRACKING (FILE-BASED ONLY)
+    # TRIAL COMPLETION CHECKING
     # ========================================================================
 
-    def _load_processed_trials(self) -> set:
+    def _is_trial_complete(self, trial_id: int) -> bool:
         """
-        Load processed trial IDs from file (single source of truth).
+        Check if trial is complete or pruned by looking for marker files.
 
-        Returns:
-            Set of processed trial IDs
-        """
-        processed_file = self.coord_dir / "processed_trials.json"
-        if processed_file.exists():
-            try:
-                with open(processed_file, 'r') as f:
-                    return set(json.load(f))
-            except (json.JSONDecodeError, FileNotFoundError):
-                return set()
-        return set()
-
-    def _mark_trial_processed(self, trial_id: int):
-        """
-        Mark trial as processed (master only, after workers done).
+        This uses the same mechanism as optuna_hyperopt.py's
+        _mark_trial_done() method, ensuring consistency.
 
         Args:
-            trial_id: Trial ID to mark as processed
+            trial_id: Trial ID to check
 
-        Raises:
-            RuntimeError: If called from worker node
+        Returns:
+            True if .done or .pruned file exists, False otherwise
         """
-        if not self.is_master:
-            raise RuntimeError("Only master can mark trials as processed")
-
-        processed = self._load_processed_trials()
-        processed.add(trial_id)
-
-        processed_file = self.coord_dir / "processed_trials.json"
-        with open(processed_file, 'w') as f:
-            json.dump(list(processed), f)
-
-        self.logger.info(f"Marked trial {trial_id} as processed")
+        done_file = self.coord_dir / f"trial_{trial_id}.done"
+        pruned_file = self.coord_dir / f"trial_{trial_id}.pruned"
+        return done_file.exists() or pruned_file.exists()
 
     # ========================================================================
     # MASTER API
@@ -127,14 +111,11 @@ class DistributedTrialExecutor:
             raise RuntimeError("Only master can execute trials")
 
         trial_id = trial_params['trial_id']
-        self.logger.info(f"Master executing trial {trial_id}")
+        self.logger.info(f"Master executing trial {trial_id}. Waiting for worker acks.")
 
         try:
-            # 1. Broadcast trial params
-            self._broadcast_trial_params(trial_id, trial_params)
-
             # 2. Wait for worker acks
-            self._wait_for_worker_acks(trial_id, interruption_flag)
+            self._wait_for_worker_acks(trial_id, interruption_flag, timeout_sec=60*10.0)  # 10 minutes
 
             # 3. Create runner ONCE
             self.logger.info(f"Creating runner for trial {trial_id}")
@@ -151,11 +132,12 @@ class DistributedTrialExecutor:
             all_master_results = []
 
             # 7. BATCH LOOP - process master's equations and report each batch
-            master_batch_id = 0
+            master_batch_id, master_completed = 0, True
             for batch_start in range(0, len(master_equations), batch_size):
                 # Check for interruption
                 if interruption_flag():
                     self.logger.info("Master interrupted during batch processing")
+                    master_completed = False
                     break
 
                 batch_end = min(batch_start + batch_size, len(master_equations))
@@ -168,7 +150,6 @@ class DistributedTrialExecutor:
 
                 # REPORT master's batch
                 report_callback(batch_results, f"master_batch_{master_batch_id}")
-                self.logger.info(f"Reported master batch {master_batch_id} ({len(batch_results)} equations)")
                 master_batch_id += 1
 
                 # Check for and report new worker batches
@@ -176,19 +157,29 @@ class DistributedTrialExecutor:
                                                batch_size, report_callback)
 
             # 8. Continue reporting worker batches until all workers finish
-            self.logger.info("Master finished, waiting for workers and reporting their batches...")
-            self._wait_and_report_remaining_worker_batches(
+            if master_completed:
+                self.logger.info("Master finished, waiting for workers and reporting their batches...")
+            else:
+                self.logger.info("Master interrupted, waiting for workers to finish current work...")
+
+            workers_completed = self._wait_and_report_remaining_worker_batches(
                 trial_id, worker_batches_reported, batch_size,
-                report_callback, interruption_flag
+                report_callback, interruption_flag, 
+                timeout_sec=60*30  # 30 min
             )
 
             # 9. Collect all final worker results (for return value)
             final_worker_results = self._collect_all_worker_results(trial_id)
 
-            # 10. Mark trial as processed (MASTER ONLY)
-            self._mark_trial_processed(trial_id)
-
             combined_results = all_master_results + final_worker_results
+
+            # 10. Check if trial completed successfully
+            if not (master_completed and workers_completed):
+                raise TrialIncompleteError(
+                    f"Trial {trial_id} was interrupted before completion "
+                    f"(master: {master_completed}, workers: {workers_completed})"
+                )
+
             self.logger.info(f"Trial {trial_id} complete: {len(combined_results)} total results")
 
             return combined_results
@@ -233,7 +224,6 @@ class DistributedTrialExecutor:
                 batch_results = worker_results[batch_start:batch_end]
 
                 report_callback(batch_results, f"worker{worker_id}_batch_{num_reported}")
-                self.logger.info(f"Reported worker {worker_id} batch {num_reported} ({len(batch_results)} equations)")
 
                 num_reported += 1
                 worker_batches_reported[worker_id] = num_reported
@@ -244,8 +234,9 @@ class DistributedTrialExecutor:
         worker_batches_reported: Dict[int, int],
         batch_size: int,
         report_callback: Callable,
-        interruption_flag: Callable
-    ):
+        interruption_flag: Callable,
+        timeout_sec: float
+    ) -> bool:
         """
         Wait for all workers to finish, reporting their batches as they arrive.
 
@@ -255,11 +246,13 @@ class DistributedTrialExecutor:
             batch_size: Equations per batch
             report_callback: Callback to report batch results
             interruption_flag: Function to check for interruption
+
+        Returns:
+            True if all workers finished, False if interrupted or timed out
         """
         expected_workers = set(range(1, self.total_nodes))
         workers_done = set()
 
-        timeout_sec = 7200.0  # 2 hours
         start_time = time.time()
 
         while len(workers_done) < len(expected_workers):
@@ -304,6 +297,10 @@ class DistributedTrialExecutor:
                 report_callback(remaining_results, f"worker{worker_id}_batch_{num_reported}_final")
                 self.logger.info(f"Reported worker {worker_id} final partial batch ({len(remaining_results)} equations)")
 
+        # Return whether all workers completed
+        all_workers_finished = len(workers_done) == len(expected_workers)
+        return all_workers_finished
+
     # ========================================================================
     # WORKER API
     # ========================================================================
@@ -329,6 +326,8 @@ class DistributedTrialExecutor:
 
         self.logger.info(f"Worker {self.node_id} starting worker loop")
 
+        runner_stop_flag = lambda: interruption_flag() or self._is_trial_complete(trial_id)
+
         while True:
             # Check for interruption (from interruption_manager)
             if interruption_flag():
@@ -336,16 +335,16 @@ class DistributedTrialExecutor:
                 break
 
             # Wait for trial params
-            trial_params = self._wait_for_trial_params(timeout_sec=10.0)
+            trial_params = self._wait_for_trial_params(timeout_sec=30.0)
             if trial_params is None:
                 time.sleep(1.0)
                 continue
 
             trial_id = trial_params['trial_id']
 
-            # Check if already processed (file-based check)
-            if trial_id in self._load_processed_trials():
-                self.logger.info(f"Worker {self.node_id} skipping processed trial {trial_id}")
+            # Edge case: _wait_for_trial_params should check for this, but just to make sure
+            if self._is_trial_complete(trial_id) or self._is_worker_done(trial_id, self.node_id):
+                self.logger.warning(f"Worker {self.node_id} skipping already-processed trial {trial_id}")
                 continue
 
             self.logger.info(f"Worker {self.node_id} starting trial {trial_id}")
@@ -363,9 +362,9 @@ class DistributedTrialExecutor:
                 all_worker_results = []
 
                 for batch_start in range(0, len(worker_equations), batch_size):
-                    # Check for interruption (from interruption_manager)
-                    if interruption_flag():
-                        self.logger.info(f"Worker {self.node_id} interrupted during batch processing")
+                    if runner_stop_flag():
+                        reason = "interrupted" if interruption_flag() else f"trial {trial_id} was pruned"
+                        self.logger.info(f"Worker {self.node_id} {reason}, stopping work")
                         break
 
                     batch_end = min(batch_start + batch_size, len(worker_equations))
@@ -373,7 +372,7 @@ class DistributedTrialExecutor:
 
                     # Run worker's batch
                     self.logger.info(f"Worker {self.node_id} processing batch: equations {batch_equations}")
-                    batch_results = runner.run_equations(batch_equations, interruption_flag)
+                    batch_results = runner.run_equations(batch_equations, runner_stop_flag)
                     all_worker_results.extend(batch_results)
 
                     # Send incremental results to master (no new data, just update)
@@ -394,25 +393,11 @@ class DistributedTrialExecutor:
     # COMMUNICATION PRIMITIVES
     # ========================================================================
 
-    def _broadcast_trial_params(self, trial_id: int, trial_params: Dict[str, Any]):
-        """
-        Master broadcasts trial parameters to all workers.
-
-        Args:
-            trial_id: Trial ID
-            trial_params: Trial configuration
-        """
-        params_file = self.coord_dir / f"trial_{trial_id}_params.json"
-        with open(params_file, 'w') as f:
-            json.dump(trial_params, f, indent=2)
-
-        self.logger.info(f"Broadcast trial {trial_id} parameters to workers")
-
     def _wait_for_worker_acks(
         self,
         trial_id: int,
         interruption_flag: Callable,
-        timeout_sec: float = 30.0
+        timeout_sec: float
     ):
         """
         Master waits for worker acknowledgments.
@@ -442,13 +427,13 @@ class DistributedTrialExecutor:
                 self.logger.info(f"All workers acknowledged trial {trial_id} parameters")
                 return
 
-            time.sleep(0.1)
+            time.sleep(0.2)
 
         # Log which workers didn't respond
         missing_workers = set(expected_workers) - received_acks
         self.logger.warning(f"Timeout waiting for acknowledgments from workers {missing_workers} for trial {trial_id}")
 
-    def _wait_for_trial_params(self, timeout_sec: float = 5.0) -> Optional[Dict[str, Any]]:
+    def _wait_for_trial_params(self, timeout_sec: float) -> Optional[Dict[str, Any]]:
         """
         Worker waits for trial parameters from master.
 
@@ -468,8 +453,8 @@ class DistributedTrialExecutor:
                         params = json.load(f)
                     trial_id = params['trial_id']
 
-                    # Skip if already processed (file-based check)
-                    if trial_id in self._load_processed_trials():
+                    # Skip if already completed (via .done marker file)
+                    if self._is_trial_complete(trial_id) or self._is_worker_done(trial_id, self.node_id):
                         continue
 
                     # Send acknowledgment
@@ -483,7 +468,7 @@ class DistributedTrialExecutor:
                 except (json.JSONDecodeError, FileNotFoundError):
                     continue
 
-            time.sleep(0.1)
+            time.sleep(0.2)
 
         return None
 
@@ -571,13 +556,15 @@ class DistributedTrialExecutor:
         """
         Clean up coordination files for completed trial.
 
+        Note: Only removing ack file for now.
+
         Args:
             trial_id: Trial ID
         """
         patterns = [
-            f"trial_{trial_id}_params.json",
+            # f"trial_{trial_id}_params.json",
             f"trial_{trial_id}_worker_*_ack.json",
-            f"trial_{trial_id}_worker_*_results.json"
+            # f"trial_{trial_id}_worker_*_results.json"
         ]
         for pattern in patterns:
             for f in self.coord_dir.glob(pattern):

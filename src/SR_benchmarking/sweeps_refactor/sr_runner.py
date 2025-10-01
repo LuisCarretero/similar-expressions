@@ -55,7 +55,7 @@ class SRBatchRunner:
             dataset_config: Dataset configuration (from optuna config)
             trial_id: Unique trial identifier for directory organization
         """
-        self.logger = logging.getLogger(__name__)
+        self.logger = logging.getLogger('[RUNNER]')
 
         # Initialize PySR model ONCE for this trial
         self.packaged_model = init_pysr_model(model_settings, mutation_weights, neural_options)
@@ -257,5 +257,11 @@ class SRBatchRunner:
         """
         csv_path = run_dir / 'tensorboard_scalars.csv'
         df = pd.read_csv(csv_path)
+        
+        # Use pareto_volume_calculated if it exists, otherwise fall back to pareto_volume
+        # if 'pareto_volume_calculated' in df.columns:
+        #     final_pareto_volume = df['pareto_volume_calculated'].iloc[-1]
+        # else:
         final_pareto_volume = df['pareto_volume'].iloc[-1]
+        
         return float(final_pareto_volume)

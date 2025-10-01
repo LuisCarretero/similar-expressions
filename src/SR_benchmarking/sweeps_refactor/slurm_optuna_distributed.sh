@@ -7,6 +7,7 @@
 #SBATCH --gpus=1
 #SBATCH --time=12:00:00
 #SBATCH --output=/cephfs/home/lc865/workspace/similar-expressions/src/SR_benchmarking/sweeps_refactor/logs/optuna_distributed-%A_%a.out
+#SBATCH --open-mode=append
 #SBATCH --requeue
 #SBATCH --signal=B:USR1@1800
 #SBATCH --job-name=optuna-sr-distributed
@@ -40,7 +41,7 @@ signal_handler() {
     exit 0
 }
 
-trap signal_handler USR1 TERM INT
+trap signal_handler USR1 TERM  # Send INT to kill 
 
 # Setup environment
 source /cephfs/store/gr-mc2473/lc865/misc/condaforge/etc/profile.d/conda.sh

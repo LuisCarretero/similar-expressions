@@ -6,7 +6,8 @@
 #SBATCH --mem-per-cpu=2G
 #SBATCH --gpus=1
 #SBATCH --time=12:00:00
-#SBATCH --output=/cephfs/home/lc865/workspace/similar-expressions/src/SR_benchmarking/sweeps/%x-%j.out
+#SBATCH --output=/cephfs/home/lc865/workspace/similar-expressions/src/SR_benchmarking/sweeps/%x-%j_%R.out
+#SBATCH --open-mode=append
 #SBATCH --requeue
 # Send USR1 90s before preemption/timeout so we can requeue gracefully
 #SBATCH --signal=B:USR1@90
