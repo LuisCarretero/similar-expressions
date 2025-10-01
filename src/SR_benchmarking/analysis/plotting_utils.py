@@ -11,6 +11,144 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
+try:
+    import polars as pl
+    POLARS_AVAILABLE = True
+except ImportError:
+    POLARS_AVAILABLE = False
+
+
+def extract_metadata_and_filter(final_results_df, required_run_count=10):
+    """
+    Extract metadata from run names and filter equations with sufficient runs.
+
+    This function extracts dataset, equation, and run number from run_name,
+    filters to equations that have enough runs for all setups, and calculates
+    summary statistics.
+
+    Parameters:
+    - final_results_df: DataFrame with final results from all runs
+    - required_run_count: Minimum number of runs required per equation per setup (default: 10)
+
+    Returns:
+    - filtered_df: DataFrame filtered to equations with sufficient runs
+    - summary_stats: DataFrame with summary statistics by equation and setup
+    """
+    if not POLARS_AVAILABLE:
+        raise ImportError("polars is required for extract_metadata_and_filter(). Please install it with: pip install polars")
+
+    # Extract metadata more efficiently using polars
+    pl_results = pl.from_pandas(final_results_df)
+
+    pl_results = pl_results.with_columns([
+        pl.col('run_name').str.extract(r'pysr-(\w+)_eq(\d+)_run(\d+)', 1).alias('dataset'),
+        pl.col('run_name').str.extract(r'pysr-(\w+)_eq(\d+)_run(\d+)', 2).cast(pl.Int64).alias('eq'),
+        pl.col('run_name').str.extract(r'pysr-(\w+)_eq(\d+)_run(\d+)', 3).cast(pl.Int64).alias('run')
+    ])
+
+    # Convert back to pandas for compatibility with plotting functions
+    results_with_metadata = pl_results.to_pandas()
+
+    # Count runs per equation and setup using polars
+    run_counts = (
+        pl_results
+        .group_by(['dataset', 'eq', 'setup'])
+        .len()
+        .rename({'len': 'n_runs'})
+        .to_pandas()
+    )
+
+    # Find equations that have at least required_run_count runs for ALL setups
+    equations_with_enough_runs_all = (
+        run_counts[run_counts['n_runs'] >= required_run_count]
+        .groupby(['dataset', 'eq'])
+        .size()
+        .reset_index(name='setup_count')
+    )
+
+    # Get unique setups to determine how many setups we have
+    n_setups = results_with_metadata['setup'].nunique()
+
+    equations_with_enough_runs_all = equations_with_enough_runs_all[
+        equations_with_enough_runs_all['setup_count'] >= n_setups
+    ][['dataset', 'eq']]
+
+    # Filter to only include these equations
+    filtered_df = results_with_metadata.merge(equations_with_enough_runs_all, on=['dataset', 'eq'], how='inner')
+
+    # Calculate summary statistics using polars for speed
+    pl_filtered = pl.from_pandas(filtered_df)
+    summary_stats = (
+        pl_filtered
+        .group_by(['dataset', 'eq', 'setup'])
+        .agg([
+            pl.col('final_min_loss').mean().alias('final_min_loss_mean'),
+            pl.col('final_min_loss').std().alias('final_min_loss_std'),
+            pl.col('final_pareto_volume').mean().alias('final_pareto_volume_mean'),
+            pl.col('final_pareto_volume').std().alias('final_pareto_volume_std')
+        ])
+        .to_pandas()
+    )
+
+    return filtered_df, summary_stats
+
+
+def identify_zero_pareto_volume_equations(filtered_df):
+    """
+    Identify equations that contain at least one run with zero final pareto volume.
+
+    Parameters:
+    - filtered_df: DataFrame with individual run results
+
+    Returns:
+    - set of equation IDs that have at least one run with final_pareto_volume == 0.0
+    """
+    # Find all runs where final_pareto_volume is 0.0
+    zero_volume_runs = filtered_df[filtered_df['final_pareto_volume'] == 0.0]
+
+    # Get unique equation IDs
+    zero_volume_equations = set(zero_volume_runs['eq'].unique())
+
+    return zero_volume_equations
+
+
+def add_zero_volume_markers(ax, pivot_df, zero_volume_equations, x_col, y_col, marker_size=200):
+    """
+    Add red circle markers to equations with zero pareto volume runs on a scatter plot.
+
+    Parameters:
+    - ax: matplotlib axis object
+    - pivot_df: DataFrame with pivoted data (index includes 'eq' column)
+    - zero_volume_equations: set of equation IDs with zero volume runs
+    - x_col: column name for x-axis values
+    - y_col: column name for y-axis values
+    - marker_size: size of the red circle markers (default: 200)
+    """
+    # Filter pivot_df to only include equations with zero volume
+    if 'eq' in pivot_df.columns:
+        zero_volume_points = pivot_df[pivot_df['eq'].isin(zero_volume_equations)]
+    elif 'eq' in pivot_df.index.names:
+        # If eq is in index, reset index to access it
+        temp_df = pivot_df.reset_index()
+        zero_volume_points = temp_df[temp_df['eq'].isin(zero_volume_equations)]
+    else:
+        # Try to extract from MultiIndex
+        temp_df = pivot_df.reset_index()
+        if 'eq' in temp_df.columns:
+            zero_volume_points = temp_df[temp_df['eq'].isin(zero_volume_equations)]
+        else:
+            return  # Can't find eq column, skip marking
+
+    # Only plot if we have points to mark and both columns exist
+    if len(zero_volume_points) > 0 and x_col in zero_volume_points.columns and y_col in zero_volume_points.columns:
+        # Remove any NaN values
+        zero_volume_points = zero_volume_points.dropna(subset=[x_col, y_col])
+
+        if len(zero_volume_points) > 0:
+            ax.scatter(zero_volume_points[x_col], zero_volume_points[y_col],
+                      s=marker_size, facecolors='none', edgecolors='red',
+                      linewidths=2, zorder=10, label='Has runs with 0 pareto volume')
+
 
 def add_statistical_textbox(ax, neural_vals, vanilla_vals, metric_type='loss',
                            position=(0.05, 0.95), fontsize=8):
