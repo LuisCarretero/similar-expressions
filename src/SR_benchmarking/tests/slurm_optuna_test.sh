@@ -6,7 +6,7 @@
 #SBATCH --mem-per-cpu=2G
 #SBATCH --gpus=1
 #SBATCH --time=00:05:00
-#SBATCH --output=/cephfs/home/lc865/workspace/similar-expressions/src/SR_benchmarking/sweeps/logs/optuna_test-%A_%a.out
+#SBATCH --output=/cephfs/home/lc865/workspace/similar-expressions/src/SR_benchmarking/tests/logs/optuna_test-%A_%a.out
 #SBATCH --requeue
 #SBATCH --signal=USR1@120
 #SBATCH --job-name=optuna-sr-test
@@ -25,7 +25,7 @@ conda activate ml
 cd /cephfs/home/lc865/workspace/similar-expressions/src/SR_benchmarking
 
 # Create logs directory
-mkdir -p sweeps/logs
+mkdir -p tests/logs
 
 # Signal handling is managed by Python signal_manager.py
 # No bash trap to avoid conflicts with Python signal handlers
@@ -48,11 +48,12 @@ echo "Job ID: $SLURM_JOB_ID | Array Task ID: $SLURM_ARRAY_TASK_ID | Node: $SLURM
 echo "TEST RUN: 5min runtime, 2min signal warning"
 
 # Use test config
-CONFIG_FILE="sweeps/optuna_test_config.yaml"
+CONFIG_FILE="tests/optuna_test_config.yaml"
 
-# Run distributed Optuna optimization
-echo "[$(date)] Node $SLURM_ARRAY_TASK_ID: Starting test optimization with config: $CONFIG_FILE"
-python -u sweeps/optuna_hyperopt.py \
+# Run distributed Optuna optimization with REFACTORED code
+echo "[$(date)] Node $SLURM_ARRAY_TASK_ID: Starting test optimization with REFACTORED code"
+echo "[$(date)] Config: $CONFIG_FILE"
+python -u sweeps_refactor/optuna_hyperopt.py \
     --config $CONFIG_FILE \
     --node_id=$SLURM_ARRAY_TASK_ID \
     --total_nodes=$TOTAL_NODES \
@@ -64,7 +65,13 @@ EXIT_CODE=$?
 if [ $EXIT_CODE -eq 0 ]; then
     echo "[$(date)] Node $SLURM_ARRAY_TASK_ID: Test optimization completed successfully"
     if [ $SLURM_ARRAY_TASK_ID -eq 0 ]; then
-        echo "View test results: optuna-dashboard sqlite:///sweeps/optuna_test_study.db"
+        echo "View test results: optuna-dashboard sqlite:///tests/optuna_test_study.db"
+        echo ""
+        echo "To check coordination files:"
+        echo "  ls -lah /cephfs/store/gr-mc2473/lc865/workspace/benchmark_data/optuna_experiment/optuna_coord_sr_test_distributed_2/"
+        echo ""
+        echo "To check trial directories:"
+        echo "  ls -lah /cephfs/store/gr-mc2473/lc865/workspace/benchmark_data/optuna_experiment/ | grep trial_"
     fi
 else
     echo "[$(date)] Node $SLURM_ARRAY_TASK_ID: Test optimization failed with exit code $EXIT_CODE"

@@ -5,7 +5,7 @@
 study:
   name: "sr_test_distributed_2"
   direction: "maximize"
-  storage: "sqlite:///sweeps/optuna_test_study.db"
+  storage: "sqlite:///tests/optuna_test_study.db"
 
 # Sampler configuration
 sampler:
