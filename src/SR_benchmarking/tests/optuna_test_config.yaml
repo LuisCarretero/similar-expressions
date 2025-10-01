@@ -23,13 +23,13 @@ pruner:
 
 # Execution settings - minimal for testing
 execution:
-  n_trials: 6                      # Very few trials for testing
+  n_trials: 2                      # Very few trials for testing
   equations_per_batch: 2           # Small batch size
 
 # Dataset and run configuration - minimal for testing
 dataset:
   name: "pysr-univariate"
-  equation_indices: "0:4"          # Just 4 equations for testing
+  equation_indices: "0:2"          # Just 4 equations for testing
   num_samples: 500                 # Reduced samples for speed
   noise: 0.0001
   n_runs: 1                        # Reduced runs for speed

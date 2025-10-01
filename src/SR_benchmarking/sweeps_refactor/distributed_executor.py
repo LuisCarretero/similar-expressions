@@ -115,7 +115,7 @@ class DistributedTrialExecutor:
 
         try:
             # 2. Wait for worker acks
-            self._wait_for_worker_acks(trial_id, interruption_flag, timeout_sec=60*10.0)  # 10 minutes
+            self._wait_for_worker_acks(trial_id, interruption_flag, timeout_sec=60*120.0)  # 2h
 
             # 3. Create runner ONCE
             self.logger.info(f"Creating runner for trial {trial_id}")

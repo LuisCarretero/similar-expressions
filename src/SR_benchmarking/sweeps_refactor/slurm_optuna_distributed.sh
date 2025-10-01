@@ -35,9 +35,20 @@ signal_handler() {
     # Clean up flag file
     rm -f "$FLAG_FILE"
 
-    # Requeue the job so it resumes after graceful shutdown
-    echo "[$(date)] Node $SLURM_ARRAY_TASK_ID: Requeuing job ${SLURM_JOB_ID}"
-    scontrol requeue ${SLURM_JOB_ID}
+    # All nodes check if study is complete before requeueing
+    # Get config file and extract study name to find coord_dir
+    CONFIG_FILE=${1:-sweeps/optuna_neural_config.yaml}
+    STUDY_NAME=$(grep "name:" "$CONFIG_FILE" | head -1 | awk '{print $2}' | tr -d '"' | tr -d "'")
+    COORD_DIR="/cephfs/store/gr-mc2473/lc865/workspace/benchmark_data/optuna_experiment/optuna_coord_${STUDY_NAME}"
+
+    if [ -f "$COORD_DIR/study.done" ]; then
+        echo "[$(date)] Node $SLURM_ARRAY_TASK_ID: Study complete (found study.done marker), not requeueing"
+        exit 0
+    fi
+
+    # All tasks requeue the array job
+    echo "[$(date)] Node $SLURM_ARRAY_TASK_ID: Requeuing job array ${SLURM_ARRAY_JOB_ID}"
+    scontrol requeue ${SLURM_ARRAY_JOB_ID}
     exit 0
 }
 

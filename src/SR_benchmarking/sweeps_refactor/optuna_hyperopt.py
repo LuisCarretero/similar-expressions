@@ -162,7 +162,8 @@ class OptunaHyperoptRunner:
 
         # Check if target already reached
         if remaining_trials <= 0:
-            self.logger.info(f"Target of {n_trials} trials already reached!")
+            self.logger.warning(f"Target of {n_trials} trials already reached!")
+            self._mark_study_complete()
             self._print_final_results()
             return
 
@@ -196,6 +197,7 @@ class OptunaHyperoptRunner:
         # Check if we've reached the target
         final_completed = len([t for t in self.study.trials if t.state == optuna.trial.TrialState.COMPLETE])
         if final_completed >= n_trials:
+            self._mark_study_complete()
             self._print_final_results()
         else:
             self.logger.info(f"Progress: {final_completed}/{n_trials} trials completed")
@@ -216,7 +218,7 @@ class OptunaHyperoptRunner:
         Returns:
             Mean pareto volume across all equations (to be maximized)
         """
-        self.logger.info(f"\n[OPTUNA] Starting trial {trial.number}")
+        self.logger.info(f"Starting trial {trial.number}")
 
         # 1. Check for incomplete trial to resume
         incomplete = self._find_incomplete_trial()
@@ -224,23 +226,23 @@ class OptunaHyperoptRunner:
         if incomplete is not None:
             # Resume incomplete trial
             trial_id, saved_params = incomplete
-            self.logger.info(f"[OPTUNA] Resuming incomplete trial {trial_id}")
+            self.logger.info(f"Resuming incomplete trial {trial_id}")
 
             # Reconstruct hyperparameters from saved state
             model_settings, neural_options, mutation_weights = \
                 self._reconstruct_hyperparameters(trial, saved_params)
 
-            self.logger.info(f"[OPTUNA] Reconstructed hyperparameters (trial {trial_id})")
+            self.logger.info(f"Reconstructed hyperparameters (trial {trial_id})")
         else:
             # Fresh trial - generate new trial_id and sample hyperparameters
             trial_id = int(time.time() * 1000000)
-            self.logger.info(f"[OPTUNA] Fresh trial {trial.number}, assigned trial_id {trial_id}")
+            self.logger.info(f"Fresh trial {trial.number}, assigned trial_id {trial_id}")
 
             # Sample hyperparameters
             model_settings, neural_options, mutation_weights = \
                 self._sample_hyperparameters(trial)
 
-            self.logger.info(f"[OPTUNA] Trial {trial.number} hyperparameters:")
+            self.logger.info(f"Trial {trial.number} hyperparameters:")
             self.logger.info(f"  Neural: {neural_options}")
             self.logger.info(f"  Mutations: {mutation_weights}")
 
@@ -273,10 +275,10 @@ class OptunaHyperoptRunner:
             current_mean = np.mean(batch_results)
             trial.report(current_mean, step=len(batch_results))
 
-            self.logger.info(f"[OPTUNA] {batch_id}: PV = {current_mean:.4f}")
+            self.logger.info(f"Reported {batch_id}: PV = {current_mean:.4f}")
 
             if trial.should_prune():
-                self.logger.info(f"[OPTUNA] Trial {trial.number} pruned at {batch_id}")
+                self.logger.info(f"Trial {trial.number} pruned at {batch_id}")
                 raise optuna.TrialPruned()
 
         # 5. Execute trial via distributed executor
@@ -301,7 +303,7 @@ class OptunaHyperoptRunner:
 
         # 6. Calculate final objective value
         final_mean_pv = np.mean(all_results)
-        self.logger.info(f"[OPTUNA] Trial {trial.number} COMPLETE: Final PV = {final_mean_pv:.4f}")
+        self.logger.info(f"Trial {trial.number} COMPLETE: Final PV = {final_mean_pv:.4f}")
 
         # 7. Mark trial as complete
         self._mark_trial_done(trial_id, pruned=False)
@@ -463,7 +465,7 @@ class OptunaHyperoptRunner:
             for weight_name, weight_value in zip(weight_names, normalized_weights):
                 setattr(mutation_weights, weight_name, weight_value)
 
-            self.logger.info(f"[OPTUNA] Dirichlet sampled weights: {dict(zip(weight_names, normalized_weights))}")
+            self.logger.info(f"Dirichlet sampled weights: {dict(zip(weight_names, normalized_weights))}")
         else:
             # Use base configuration
             mutation_weights = MutationWeights(
@@ -593,8 +595,22 @@ class OptunaHyperoptRunner:
         marker_file = coord_dir / f"trial_{trial_id}.{suffix}"
         current_time = datetime.now().isoformat()
         marker_file.write_text(current_time)
-        
+
         self.logger.info(f"Marked trial {trial_id} as {suffix}")
+
+    def _mark_study_complete(self):
+        """
+        Create marker file indicating study has completed all trials.
+
+        This prevents unnecessary requeues when SLURM signal arrives after
+        study completes naturally.
+        """
+        coord_dir = self.executor.coord_dir
+        marker_file = coord_dir / "study.done"
+        current_time = datetime.now().isoformat()
+        marker_file.write_text(current_time)
+
+        self.logger.info(f"Marked study as complete at {current_time}")
 
     # ========================================================================
     # STUDY SETUP (PRIVATE)

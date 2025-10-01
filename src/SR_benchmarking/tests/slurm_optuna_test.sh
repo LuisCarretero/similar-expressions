@@ -38,9 +38,16 @@ signal_handler() {
     # Clean up flag file
     rm -f "$FLAG_FILE"
 
-    # Requeue the job so it resumes after graceful shutdown
-    echo "[$(date)] Node $SLURM_ARRAY_TASK_ID: Requeuing job ${SLURM_JOB_ID}"
-    scontrol requeue ${SLURM_JOB_ID}
+    # All nodes check if study is complete before requeueing
+    COORD_DIR="/cephfs/store/gr-mc2473/lc865/workspace/benchmark_data/optuna_experiment/optuna_coord_sr_test_distributed_3"
+    if [ -f "$COORD_DIR/study.done" ]; then
+        echo "[$(date)] Node $SLURM_ARRAY_TASK_ID: Study complete (found study.done marker), not requeueing"
+        exit 0
+    fi
+
+    # All tasks requeue the array job
+    echo "[$(date)] Node $SLURM_ARRAY_TASK_ID: Requeuing job array ${SLURM_ARRAY_JOB_ID}"
+    scontrol requeue ${SLURM_ARRAY_JOB_ID}
     exit 0
 }
 
@@ -91,21 +98,5 @@ echo "[$(date)] Node $SLURM_ARRAY_TASK_ID: Python process started with PID: $PYT
 # Wait for Python script to complete
 wait $PYTHON_PID
 EXIT_CODE=$?
-
-# Completion message
-if [ $EXIT_CODE -eq 0 ]; then
-    echo "[$(date)] Node $SLURM_ARRAY_TASK_ID: Test optimization completed successfully"
-    if [ $SLURM_ARRAY_TASK_ID -eq 0 ]; then
-        echo "View test results: optuna-dashboard sqlite:///tests/optuna_test_study.db"
-        echo ""
-        echo "To check coordination files:"
-        echo "  ls -lah /cephfs/store/gr-mc2473/lc865/workspace/benchmark_data/optuna_experiment/optuna_coord_sr_test_distributed_2/"
-        echo ""
-        echo "To check trial directories:"
-        echo "  ls -lah /cephfs/store/gr-mc2473/lc865/workspace/benchmark_data/optuna_experiment/ | grep trial_"
-    fi
-else
-    echo "[$(date)] Node $SLURM_ARRAY_TASK_ID: Test optimization failed with exit code $EXIT_CODE"
-fi
 
 exit $EXIT_CODE
