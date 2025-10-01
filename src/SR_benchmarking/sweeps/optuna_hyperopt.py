@@ -38,8 +38,8 @@ from run.run_multiple import _parse_eq_idx
 from run.signal_manager import create_interruption_manager
 
 # Import refactored layers
-from sweeps_refactor.sr_runner import SRBatchRunner
-from sweeps_refactor.distributed_executor import DistributedTrialExecutor, TrialIncompleteError
+from sweeps.sr_runner import SRBatchRunner
+from sweeps.distributed_executor import DistributedTrialExecutor, TrialIncompleteError
 
 
 class OptunaHyperoptRunner:
@@ -787,7 +787,7 @@ class OptunaHyperoptRunner:
             self.logger.warning("No completed trials found")
 
         # Save results to file
-        results_file = Path("sweeps_refactor/optuna_results.txt")
+        results_file = Path("sweeps/optuna_results.txt")
         results_file.parent.mkdir(parents=True, exist_ok=True)
         with open(results_file, "w") as f:
             f.write(f"Optuna Optimization Results\n")

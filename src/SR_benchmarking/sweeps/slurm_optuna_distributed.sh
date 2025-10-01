@@ -6,7 +6,7 @@
 #SBATCH --mem-per-cpu=2G
 #SBATCH --gpus=1
 #SBATCH --time=12:00:00
-#SBATCH --output=/cephfs/home/lc865/workspace/similar-expressions/src/SR_benchmarking/sweeps_refactor/logs/optuna_distributed-%A_%a.out
+#SBATCH --output=/cephfs/home/lc865/workspace/similar-expressions/src/SR_benchmarking/sweeps/logs/optuna_distributed-%A_%a.out
 #SBATCH --open-mode=append
 #SBATCH --requeue
 #SBATCH --signal=B:USR1@1800
@@ -62,7 +62,7 @@ conda activate ml
 cd /cephfs/home/lc865/workspace/similar-expressions/src/SR_benchmarking
 
 # Create logs directory
-mkdir -p sweeps_refactor/logs
+mkdir -p sweeps/logs
 
 # Set environment variables
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
@@ -85,7 +85,7 @@ CONFIG_FILE=${1:-sweeps/optuna_neural_config.yaml}
 
 # Run distributed Optuna optimization in background to capture PID
 echo "[$(date)] Node $SLURM_ARRAY_TASK_ID: Starting optimization with config: $CONFIG_FILE"
-python -u sweeps_refactor/optuna_hyperopt.py \
+python -u sweeps/optuna_hyperopt.py \
     --config $CONFIG_FILE \
     --node_id=$SLURM_ARRAY_TASK_ID \
     --total_nodes=$TOTAL_NODES \
@@ -111,13 +111,13 @@ fi
 exit $EXIT_CODE
 
 # Usage examples:
-# sbatch sweeps_refactor/slurm_optuna_distributed.sh                                    # Use default neural config
-# sbatch sweeps_refactor/slurm_optuna_distributed.sh sweeps/optuna_weights_config.yaml # Use weights config
+# sbatch sweeps/slurm_optuna_distributed.sh                                    # Use default neural config
+# sbatch sweeps/slurm_optuna_distributed.sh sweeps/optuna_weights_config.yaml # Use weights config
 #
 # To resume after interruption:
 # The script automatically detects requeued jobs and passes --resume flag
 #
 # To monitor progress:
-# tail -f sweeps_refactor/logs/optuna_distributed-JOBID_0.out  # Master node log
-# tail -f sweeps_refactor/logs/optuna_distributed-JOBID_1.out  # Worker node log
+# tail -f sweeps/logs/optuna_distributed-JOBID_0.out  # Master node log
+# tail -f sweeps/logs/optuna_distributed-JOBID_1.out  # Worker node log
 # optuna-dashboard sqlite:///src/SR_benchmarking/sweeps/optuna_neural_study.db

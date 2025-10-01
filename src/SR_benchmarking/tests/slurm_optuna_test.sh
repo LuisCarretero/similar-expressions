@@ -86,7 +86,7 @@ CONFIG_FILE="tests/optuna_test_config.yaml"
 # Run distributed Optuna optimization with REFACTORED code
 echo "[$(date)] Node $SLURM_ARRAY_TASK_ID: Starting test optimization with REFACTORED code"
 echo "[$(date)] Config: $CONFIG_FILE"
-python -u sweeps_refactor/optuna_hyperopt.py \
+python -u sweeps/optuna_hyperopt.py \
     --config $CONFIG_FILE \
     --node_id=$SLURM_ARRAY_TASK_ID \
     --total_nodes=$TOTAL_NODES \
