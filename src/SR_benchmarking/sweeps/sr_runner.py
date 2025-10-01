@@ -41,7 +41,8 @@ class SRBatchRunner:
         neural_options: NeuralOptions,
         mutation_weights: MutationWeights,
         dataset_config: Dict[str, Any],
-        trial_id: int
+        trial_id: int,
+        coord_base_dir: Path
     ):
         """
         Initialize runner with hyperparameters.
@@ -63,8 +64,7 @@ class SRBatchRunner:
         self.trial_id = trial_id
 
         # Create experiment directory for this trial
-        base_dir = Path("/cephfs/store/gr-mc2473/lc865/workspace/benchmark_data/optuna_experiment")
-        self.trial_dir = base_dir / f"trial_{trial_id}"
+        self.trial_dir = coord_base_dir / f"trial_{trial_id}"
         self.trial_dir.mkdir(parents=True, exist_ok=True)
 
         self.logger.info(f"SRBatchRunner initialized for trial {trial_id} (trial directory: {self.trial_dir})")

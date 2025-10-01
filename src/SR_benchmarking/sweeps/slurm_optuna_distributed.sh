@@ -1,9 +1,9 @@
 #!/bin/bash
 #SBATCH -p lovelace-mc
-#SBATCH --array=0-1
+#SBATCH --array=0-3
 #SBATCH --ntasks-per-node=1
-#SBATCH --cpus-per-task=20
-#SBATCH --mem-per-cpu=2G
+#SBATCH --cpus-per-task=11
+#SBATCH --mem-per-cpu=4G
 #SBATCH --gpus=1
 #SBATCH --time=12:00:00
 #SBATCH --output=/cephfs/home/lc865/workspace/similar-expressions/src/SR_benchmarking/sweeps/logs/optuna_distributed-%A_%a.out
@@ -13,7 +13,7 @@
 #SBATCH --job-name=optuna-sr-distributed
 
 # Total number of nodes (should match array size)
-TOTAL_NODES=2
+TOTAL_NODES=4
 
 # Store Python PID for monitoring
 PYTHON_PID=""
@@ -39,7 +39,7 @@ signal_handler() {
     # Get config file and extract study name to find coord_dir
     CONFIG_FILE=${1:-sweeps/optuna_neural_config.yaml}
     STUDY_NAME=$(grep "name:" "$CONFIG_FILE" | head -1 | awk '{print $2}' | tr -d '"' | tr -d "'")
-    COORD_DIR="/cephfs/store/gr-mc2473/lc865/workspace/benchmark_data/optuna_experiment/optuna_coord_${STUDY_NAME}"
+    COORD_DIR="/cephfs/store/gr-mc2473/lc865/workspace/benchmark_data/optuna_experiment/study_coord-${STUDY_NAME}"
 
     if [ -f "$COORD_DIR/study.done" ]; then
         echo "[$(date)] Node $SLURM_ARRAY_TASK_ID: Study complete (found study.done marker), not requeueing"

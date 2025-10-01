@@ -39,7 +39,7 @@ signal_handler() {
     rm -f "$FLAG_FILE"
 
     # All nodes check if study is complete before requeueing
-    COORD_DIR="/cephfs/store/gr-mc2473/lc865/workspace/benchmark_data/optuna_experiment/optuna_coord_sr_test_distributed_3"
+    COORD_DIR="/cephfs/store/gr-mc2473/lc865/workspace/benchmark_data/optuna_experiment/study_coord-sr_test_distributed_3"
     if [ -f "$COORD_DIR/study.done" ]; then
         echo "[$(date)] Node $SLURM_ARRAY_TASK_ID: Study complete (found study.done marker), not requeueing"
         exit 0

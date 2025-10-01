@@ -1,9 +1,9 @@
 #!/bin/bash
 #SBATCH -p lovelace-mc
-#SBATCH --array=0-1
+#SBATCH --array=0-3
 #SBATCH --ntasks-per-node=1
-#SBATCH --cpus-per-task=20
-#SBATCH --mem-per-cpu=2G
+#SBATCH --cpus-per-task=11
+#SBATCH --mem-per-cpu=4G
 #SBATCH --gpus=1
 #SBATCH --time=12:00:00
 #SBATCH --job-name=slurm_requeuing_run
@@ -13,7 +13,7 @@
 #SBATCH --signal=B:USR1@1800
 
 # Total number of nodes (should match array size)
-TOTAL_NODES=2
+TOTAL_NODES=4
 
 # Configuration files to process
 CONFIG_FILES=("run/config_neural.yaml")  #  "run/config_neural.yaml"

@@ -42,6 +42,9 @@ from sweeps.sr_runner import SRBatchRunner
 from sweeps.distributed_executor import DistributedTrialExecutor, TrialIncompleteError
 
 
+COORD_BASE_DIR = Path("/cephfs/store/gr-mc2473/lc865/workspace/benchmark_data/optuna_experiment")
+
+
 class OptunaHyperoptRunner:
     """
     Manages complete Optuna hyperparameter optimization for symbolic regression.
@@ -97,8 +100,7 @@ class OptunaHyperoptRunner:
         Returns:
             Path to coordination directory
         """
-        base_dir = Path("/cephfs/store/gr-mc2473/lc865/workspace/benchmark_data/optuna_experiment")
-        coord_dir = base_dir / f"optuna_coord_{self.config['study']['name']}"
+        coord_dir = COORD_BASE_DIR / f"study_coord-{self.config['study']['name']}"
         coord_dir.mkdir(parents=True, exist_ok=True)
         return coord_dir
 
@@ -263,7 +265,7 @@ class OptunaHyperoptRunner:
         def create_runner(params):
             """Factory function to create SRBatchRunner from trial params."""
             ms, no, mw = self._reconstruct_objects(params)
-            return SRBatchRunner(ms, no, mw, self.config['dataset'], params['trial_id'])
+            return SRBatchRunner(ms, no, mw, self.config['dataset'], params['trial_id'], self.executor.coord_dir)
 
         # 4. Create reporting callback for intermediate pruning
         def report_callback(batch_results, batch_id):
@@ -323,7 +325,7 @@ class OptunaHyperoptRunner:
         def create_runner(params):
             """Factory function to create SRBatchRunner from trial params."""
             ms, no, mw = self._reconstruct_objects(params)
-            return SRBatchRunner(ms, no, mw, self.config['dataset'], params['trial_id'])
+            return SRBatchRunner(ms, no, mw, self.config['dataset'], params['trial_id'], self.executor.coord_dir)
 
         batch_size = self.config['execution']['equations_per_batch']
 
