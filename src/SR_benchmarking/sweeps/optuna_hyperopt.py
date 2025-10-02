@@ -79,7 +79,7 @@ class OptunaHyperoptRunner:
         self.logger = logging.getLogger('[HYPEROPT]')
 
         # Set up signal manager for graceful interruption
-        self.signal_manager = create_interruption_manager(__name__)
+        self.signal_manager = create_interruption_manager('[SIGNAL MGR]')
 
         # Set up distributed executor
         coord_dir = self._get_coord_dir()
@@ -88,6 +88,9 @@ class OptunaHyperoptRunner:
             total_nodes if total_nodes is not None else 1,
             coord_dir
         )
+
+        # Track trial ID when resuming incomplete trial
+        self.resuming_trial_id = None
 
         self.logger.info(f"OptunaHyperoptRunner initialized: "
                         f"node_id={self.executor.node_id}, total_nodes={self.executor.total_nodes}, "
@@ -108,21 +111,18 @@ class OptunaHyperoptRunner:
     # PUBLIC API
     # ========================================================================
 
-    def optimize(self, resume: bool = False):
+    def optimize(self):
         """
         Run the optimization process.
 
         Routes to worker loop or master optimization based on node role.
-
-        Args:
-            resume: If True, attempt to resume existing study
         """
         try:
             if self.executor.is_worker:
                 self._run_worker_loop()
                 self.logger.info(f"Worker {self.executor.node_id} finished")
             else:
-                self._run_master_optimization(resume)
+                self._run_master_optimization()
 
         except Exception as e:
             self.logger.error(f"Critical error in optimization: {e}")
@@ -132,15 +132,15 @@ class OptunaHyperoptRunner:
     # MASTER OPTIMIZATION (PRIVATE)
     # ========================================================================
 
-    def _run_master_optimization(self, resume: bool = False):
+    def _run_master_optimization(self):
         """
         Master: Run the complete Optuna study.
 
         Creates/loads study, enqueues baseline, runs optimization loop, prints results.
-
-        Args:
-            resume: If True, attempt to resume existing study
         """
+        # Check if we're resuming an existing study
+        resume = self._is_resuming_study()
+
         # Create study
         self.study = self._create_or_load_study(resume)
 
@@ -168,6 +168,18 @@ class OptunaHyperoptRunner:
             self._mark_study_complete()
             self._print_final_results()
             return
+
+        # Check for incomplete trial
+        incomplete = self._find_incomplete_trial()
+        if incomplete:
+            trial_id, saved_params = incomplete
+            self.logger.info(f"Found incomplete trial {trial_id}, enqueueing for resumption")
+
+            # Clean up old worker coordination files
+            self._cleanup_worker_files_for_resumption(trial_id)
+
+            self.study.enqueue_trial(saved_params['raw_params'])
+            self.resuming_trial_id = trial_id
 
         # Run remaining trials (one study.optimize call per trial for better control)
         trials_completed = 0
@@ -209,8 +221,8 @@ class OptunaHyperoptRunner:
         Objective function called by Optuna for each trial.
 
         Handles:
-        - Trial resumption checking
-        - Hyperparameter sampling or reconstruction
+        - Trial resumption via enqueued parameters
+        - Hyperparameter sampling
         - Distributed execution via executor
         - Intermediate reporting for pruning
 
@@ -222,33 +234,29 @@ class OptunaHyperoptRunner:
         """
         self.logger.info(f"Starting trial {trial.number}")
 
-        # 1. Check for incomplete trial to resume
-        incomplete = self._find_incomplete_trial()
-
-        if incomplete is not None:
-            # Resume incomplete trial
-            trial_id, saved_params = incomplete
+        # 1. Check if this is a resuming trial
+        if self.resuming_trial_id is not None:
+            trial_id = self.resuming_trial_id
+            self.resuming_trial_id = None  # Clear flag
+            is_resuming = True
             self.logger.info(f"Resuming incomplete trial {trial_id}")
-
-            # Reconstruct hyperparameters from saved state
-            model_settings, neural_options, mutation_weights = \
-                self._reconstruct_hyperparameters(trial, saved_params)
-
-            self.logger.info(f"Reconstructed hyperparameters (trial {trial_id})")
         else:
-            # Fresh trial - generate new trial_id and sample hyperparameters
+            # Fresh trial - generate new trial_id
             trial_id = int(time.time() * 1000000)
+            is_resuming = False
             self.logger.info(f"Fresh trial {trial.number}, assigned trial_id {trial_id}")
 
-            # Sample hyperparameters
-            model_settings, neural_options, mutation_weights = \
-                self._sample_hyperparameters(trial)
+        # 2. Sample hyperparameters (for both fresh and resumed trials)
+        # When resumed, enqueued values will be returned automatically
+        model_settings, neural_options, mutation_weights = \
+            self._sample_hyperparameters(trial)
 
+        if not is_resuming:
             self.logger.info(f"Trial {trial.number} hyperparameters:")
             self.logger.info(f"  Neural: {neural_options}")
             self.logger.info(f"  Mutations: {mutation_weights}")
 
-        # 2. Prepare trial parameters for executor
+        # 3. Prepare trial parameters for executor
         trial_params = {
             'trial_id': trial_id,
             'model_settings': self._to_dict(model_settings),
@@ -258,7 +266,7 @@ class OptunaHyperoptRunner:
         }
 
         # Save params for potential resumption (only if fresh trial)
-        if incomplete is None:
+        if not is_resuming:
             self._save_trial_params(trial_id, trial_params)
 
         # 3. Create runner factory for executor
@@ -268,19 +276,24 @@ class OptunaHyperoptRunner:
             return SRBatchRunner(ms, no, mw, self.config['dataset'], params['trial_id'], self.executor.coord_dir)
 
         # 4. Create reporting callback for intermediate pruning
-        def report_callback(batch_results, batch_id):
+        def report_callback(batch_results, batch_id, step):
             """
             Called by executor after each batch (master or worker).
 
             Reports to Optuna and checks for pruning.
+
+            Args:
+                batch_results: Results from this batch
+                batch_id: Identifier for this batch
+                step: Cumulative number of equations processed so far
             """
             current_mean = np.mean(batch_results)
-            trial.report(current_mean, step=len(batch_results))
+            trial.report(current_mean, step=step)
 
-            self.logger.info(f"Reported {batch_id}: PV = {current_mean:.4f}")
+            self.logger.info(f"Reported {batch_id} at step {step}: PV = {current_mean:.4f}")
 
             if trial.should_prune():
-                self.logger.info(f"Trial {trial.number} pruned at {batch_id}")
+                self.logger.info(f"Trial {trial.number} pruned at {batch_id} (step {step})")
                 raise optuna.TrialPruned()
 
         # 5. Execute trial via distributed executor
@@ -487,35 +500,6 @@ class OptunaHyperoptRunner:
 
         return model_settings, neural_options, mutation_weights
 
-    def _reconstruct_hyperparameters(
-        self,
-        trial: optuna.Trial,
-        saved_params: Dict
-    ) -> Tuple[ModelSettings, NeuralOptions, MutationWeights]:
-        """
-        Reconstruct hyperparameters from saved trial by suggesting fixed values.
-
-        Forces Optuna to use exact saved values for resumption.
-
-        Args:
-            trial: Optuna trial object
-            saved_params: Saved trial parameters
-
-        Returns:
-            Tuple of (ModelSettings, NeuralOptions, MutationWeights)
-        """
-        # Reconstruct Optuna trial params
-        for param_name, param_value in saved_params.get('raw_params', {}).items():
-            if isinstance(param_value, float):
-                trial.suggest_float(param_name, param_value, param_value)
-            elif isinstance(param_value, int):
-                trial.suggest_int(param_name, param_value, param_value)
-            elif isinstance(param_value, bool):
-                trial.suggest_categorical(param_name, [param_value])
-
-        # Reconstruct objects from dicts
-        return self._reconstruct_objects(saved_params)
-
     def _reconstruct_objects(
         self,
         params: Dict
@@ -537,6 +521,17 @@ class OptunaHyperoptRunner:
     # ========================================================================
     # TRIAL MANAGEMENT (PRIVATE)
     # ========================================================================
+
+    def _is_resuming_study(self) -> bool:
+        """
+        Check if this is a resuming study by looking for existing trial params files.
+
+        Returns:
+            True if any trial_*_params.json files exist in coord_dir, False otherwise
+        """
+        coord_dir = self.executor.coord_dir
+        params_files = list(coord_dir.glob("trial_*_params.json"))
+        return len(params_files) > 0
 
     def _find_incomplete_trial(self) -> Optional[Tuple[int, Dict[str, Any]]]:
         """
@@ -613,6 +608,30 @@ class OptunaHyperoptRunner:
         marker_file.write_text(current_time)
 
         self.logger.info(f"Marked study as complete at {current_time}")
+
+    def _cleanup_worker_files_for_resumption(self, trial_id: int):
+        """
+        Clean up worker coordination files before resuming incomplete trial.
+
+        Removes old worker ack and result files so workers will process the trial fresh.
+
+        Args:
+            trial_id: Trial ID to clean up
+        """
+        coord_dir = self.executor.coord_dir
+        patterns = [
+            f"trial_{trial_id}_worker_*_ack.json",
+            f"trial_{trial_id}_worker_*_results.json"
+        ]
+
+        files_removed = 0
+        for pattern in patterns:
+            for f in coord_dir.glob(pattern):
+                f.unlink(missing_ok=True)
+                self.logger.info(f"Removed old coordination file: {f.name}")
+                files_removed += 1
+
+        self.logger.info(f"Cleaned up {files_removed} worker coordination files for trial {trial_id} resumption")
 
     # ========================================================================
     # STUDY SETUP (PRIVATE)
@@ -842,8 +861,6 @@ def main():
     parser = argparse.ArgumentParser(description='Run Optuna hyperparameter optimization for SR')
     parser.add_argument('--config', type=str, default='optuna_config.yaml',
                        help='Path to configuration file')
-    parser.add_argument('--resume', action='store_true',
-                       help='Resume existing study if it exists')
     parser.add_argument('--node_id', type=int, help='Node ID for distributed execution (0-indexed)')
     parser.add_argument('--total_nodes', type=int, help='Total number of nodes')
 
@@ -866,7 +883,7 @@ def main():
 
     # Create and run optimizer
     runner = OptunaHyperoptRunner(str(config_path), args.node_id, args.total_nodes)
-    runner.optimize(resume=args.resume)
+    runner.optimize()
 
 
 if __name__ == "__main__":

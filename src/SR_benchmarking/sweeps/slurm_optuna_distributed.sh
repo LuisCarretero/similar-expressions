@@ -68,15 +68,6 @@ mkdir -p sweeps/logs
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
 export JULIA_NUM_THREADS=$SLURM_CPUS_PER_TASK
 
-# Check if this is a requeued job
-if [ "${SLURM_RESTART_COUNT:-0}" -gt 0 ]; then
-    RESUME_FLAG="--resume"
-    echo "[$(date)] Node $SLURM_ARRAY_TASK_ID: Resuming Optuna study (restart #${SLURM_RESTART_COUNT})"
-else
-    RESUME_FLAG=""
-    echo "[$(date)] Node $SLURM_ARRAY_TASK_ID: Starting new Optuna study"
-fi
-
 # Basic job info
 echo "Job ID: $SLURM_JOB_ID | Array Task ID: $SLURM_ARRAY_TASK_ID | Node: $SLURMD_NODENAME | CPUs: $SLURM_CPUS_PER_TASK"
 
@@ -88,8 +79,7 @@ echo "[$(date)] Node $SLURM_ARRAY_TASK_ID: Starting optimization with config: $C
 python -u sweeps/optuna_hyperopt.py \
     --config $CONFIG_FILE \
     --node_id=$SLURM_ARRAY_TASK_ID \
-    --total_nodes=$TOTAL_NODES \
-    $RESUME_FLAG &
+    --total_nodes=$TOTAL_NODES &
 
 PYTHON_PID=$!
 echo "[$(date)] Node $SLURM_ARRAY_TASK_ID: Python process started with PID: $PYTHON_PID"
@@ -115,7 +105,7 @@ exit $EXIT_CODE
 # sbatch sweeps/slurm_optuna_distributed.sh sweeps/optuna_weights_config.yaml # Use weights config
 #
 # To resume after interruption:
-# The script automatically detects requeued jobs and passes --resume flag
+# The script automatically resumes if trial_*_params.json files exist in the coord_dir
 #
 # To monitor progress:
 # tail -f sweeps/logs/optuna_distributed-JOBID_0.out  # Master node log

@@ -13,7 +13,7 @@ import json
 import time
 import logging
 from pathlib import Path
-from typing import Dict, Any, List, Optional, Callable
+from typing import Dict, Any, List, Optional, Callable, Tuple
 
 # Add parent directories to path for imports
 import sys
@@ -101,7 +101,7 @@ class DistributedTrialExecutor:
             all_equations: Complete list of equations (will be split across nodes)
             batch_size: Equations per batch for reporting
             create_runner_fn: Callable that creates runner from trial_params
-            report_callback: Called with (batch_results, batch_id) for EACH batch
+            report_callback: Called with (batch_results, batch_id, step) for EACH batch
             interruption_flag: Callable to check for shutdown signal (from interruption_manager)
 
         Returns:
@@ -128,10 +128,13 @@ class DistributedTrialExecutor:
             # 5. Track which worker batches we've reported
             worker_batches_reported = {worker_id: 0 for worker_id in range(1, self.total_nodes)}
 
-            # 6. Collect all results (for return value)
+            # 6. Track cumulative equations processed for step reporting
+            equations_processed = 0
+
+            # 7. Collect all results (for return value)
             all_master_results = []
 
-            # 7. BATCH LOOP - process master's equations and report each batch
+            # 8. BATCH LOOP - process master's equations and report each batch
             master_batch_id, master_completed = 0, True
             for batch_start in range(0, len(master_equations), batch_size):
                 # Check for interruption
@@ -148,39 +151,43 @@ class DistributedTrialExecutor:
                 batch_results = runner.run_equations(batch_equations, interruption_flag)
                 all_master_results.extend(batch_results)
 
-                # REPORT master's batch
-                report_callback(batch_results, f"master_batch_{master_batch_id}")
+                # Update cumulative counter and REPORT master's batch
+                equations_processed += len(batch_results)
+                report_callback(batch_results, f"master_batch_{master_batch_id}", equations_processed)
                 master_batch_id += 1
 
                 # Check for and report new worker batches
-                self._report_new_worker_batches(trial_id, worker_batches_reported,
-                                               batch_size, report_callback)
+                equations_processed = self._report_new_worker_batches(
+                    trial_id, worker_batches_reported, batch_size,
+                    report_callback, equations_processed
+                )
 
-            # 8. Continue reporting worker batches until all workers finish
+            # 9. Continue reporting worker batches until all workers finish
             if master_completed:
                 self.logger.info("Master finished, waiting for workers and reporting their batches...")
             else:
                 self.logger.info("Master interrupted, waiting for workers to finish current work...")
 
-            workers_completed = self._wait_and_report_remaining_worker_batches(
+            workers_completed, equations_processed = self._wait_and_report_remaining_worker_batches(
                 trial_id, worker_batches_reported, batch_size,
-                report_callback, interruption_flag, 
+                report_callback, interruption_flag, equations_processed,
                 timeout_sec=60*30  # 30 min
             )
 
-            # 9. Collect all final worker results (for return value)
+            # 10. Collect all final worker results (for return value)
             final_worker_results = self._collect_all_worker_results(trial_id)
 
             combined_results = all_master_results + final_worker_results
 
-            # 10. Check if trial completed successfully
+            # 11. Check if trial completed successfully
             if not (master_completed and workers_completed):
                 raise TrialIncompleteError(
                     f"Trial {trial_id} was interrupted before completion "
                     f"(master: {master_completed}, workers: {workers_completed})"
                 )
 
-            self.logger.info(f"Trial {trial_id} complete: {len(combined_results)} total results")
+            self.logger.info(f"Trial {trial_id} complete: {len(combined_results)} total results "
+                           f"({equations_processed} equations processed)")
 
             return combined_results
 
@@ -193,8 +200,9 @@ class DistributedTrialExecutor:
         trial_id: int,
         worker_batches_reported: Dict[int, int],
         batch_size: int,
-        report_callback: Callable
-    ):
+        report_callback: Callable,
+        equations_processed: int
+    ) -> int:
         """
         Scan for new worker batches and report them.
 
@@ -205,6 +213,10 @@ class DistributedTrialExecutor:
             worker_batches_reported: Dict tracking batches reported per worker
             batch_size: Equations per batch
             report_callback: Callback to report batch results
+            equations_processed: Current cumulative equation count
+
+        Returns:
+            Updated cumulative equation count
         """
         for worker_id in range(1, self.total_nodes):
             worker_results = self._get_worker_results(trial_id, worker_id)
@@ -223,10 +235,13 @@ class DistributedTrialExecutor:
                 batch_end = batch_start + batch_size
                 batch_results = worker_results[batch_start:batch_end]
 
-                report_callback(batch_results, f"worker{worker_id}_batch_{num_reported}")
+                equations_processed += len(batch_results)
+                report_callback(batch_results, f"worker{worker_id}_batch_{num_reported}", equations_processed)
 
                 num_reported += 1
                 worker_batches_reported[worker_id] = num_reported
+
+        return equations_processed
 
     def _wait_and_report_remaining_worker_batches(
         self,
@@ -235,8 +250,9 @@ class DistributedTrialExecutor:
         batch_size: int,
         report_callback: Callable,
         interruption_flag: Callable,
+        equations_processed: int,
         timeout_sec: float
-    ) -> bool:
+    ) -> Tuple[bool, int]:
         """
         Wait for all workers to finish, reporting their batches as they arrive.
 
@@ -246,9 +262,11 @@ class DistributedTrialExecutor:
             batch_size: Equations per batch
             report_callback: Callback to report batch results
             interruption_flag: Function to check for interruption
+            equations_processed: Current cumulative equation count
+            timeout_sec: Timeout in seconds
 
         Returns:
-            True if all workers finished, False if interrupted or timed out
+            Tuple of (all_workers_finished, updated_equations_processed)
         """
         expected_workers = set(range(1, self.total_nodes))
         workers_done = set()
@@ -275,8 +293,10 @@ class DistributedTrialExecutor:
                         self.logger.info(f"Worker {worker_id} finished")
 
             # Report any new worker batches
-            self._report_new_worker_batches(trial_id, worker_batches_reported,
-                                           batch_size, report_callback)
+            equations_processed = self._report_new_worker_batches(
+                trial_id, worker_batches_reported, batch_size,
+                report_callback, equations_processed
+            )
 
             time.sleep(1.0)
 
@@ -294,12 +314,13 @@ class DistributedTrialExecutor:
                 batch_start = num_reported * batch_size
                 remaining_results = worker_results[batch_start:]
 
-                report_callback(remaining_results, f"worker{worker_id}_batch_{num_reported}_final")
+                equations_processed += len(remaining_results)
+                report_callback(remaining_results, f"worker{worker_id}_batch_{num_reported}_final", equations_processed)
                 self.logger.info(f"Reported worker {worker_id} final partial batch ({len(remaining_results)} equations)")
 
-        # Return whether all workers completed
+        # Return whether all workers completed and final equation count
         all_workers_finished = len(workers_done) == len(expected_workers)
-        return all_workers_finished
+        return all_workers_finished, equations_processed
 
     # ========================================================================
     # WORKER API

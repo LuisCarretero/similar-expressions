@@ -23,7 +23,7 @@ pruner:
 
 # Execution settings
 execution:
-  n_trials: 40                     # Focused trials for neural params only
+  n_trials: 100                     # Focused trials for neural params only
   equations_per_batch: 5          # Report intermediate results every N equations
 
 # Dataset and run configuration
